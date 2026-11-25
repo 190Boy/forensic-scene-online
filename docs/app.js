@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '4';
+const VER = '5';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const AGENT_COL = ['#2bb3a3', '#f2a541', '#8a6fd1', '#f2d045'];
@@ -156,7 +156,8 @@ function onEvents(evs) {
         if (e.phase === 'result') { setTimeout(() => openResult(), 200); }
         break;
       case 'start': case 'draft': break;
-      default: if (e.text) banner(e.text, e.k); if (G.tut) G.tut.ev.push(e);
+      case 'callcops': toast(`📣 ${pname(e.by)} 請${e.name}去攔住 ${(C.suspects.find(x => x.id === e.npc) || {}).name || '那個人'}`); Snd.soft && Snd.soft(); refreshAlert(); break;
+      default: if (e.text) banner(e.text, e.k); if (/nervous|flee|held|fled/.test(e.k)) refreshAlert(); if (G.tut) G.tut.ev.push(e);
     }
   }
 }
@@ -386,7 +387,7 @@ function render(now) {
   drawMap();
   // 屍體所在的房間：微微偏冷的紫紅色調（氣氛用，不洩漏答案）
   const br = roomOf(bodyRoom()); if (br) { ctx.fillStyle = 'rgba(70,20,70,.13)'; ctx.fillRect(br.x, br.y, br.w, br.h); }
-  const near = G.nearId, lights = G.st.lights || {};
+  const near = G.nearId, lights = G.st.lights || {}; const tentLabels = [];
   G.flatDrawn = [];
   for (const o of ENG.flatOrder(C)) {
     if (G.st.obj[o.id].gone || (o.id === 'body' && G.hideBody)) continue;
@@ -419,8 +420,9 @@ function render(now) {
       if (near === 'npc:' + n.id) { ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 20; }
       drawImg('npc_' + n.id, it.x, it.y - bob, 62, 92);
       if (near === 'npc:' + n.id) ctx.restore();
-      const tag = n.mode === 'flee' ? '🏃 ' : n.mode === 'held' ? '🔒 ' : '';
-      label(tag + (s ? s.name : ''), it.x, it.y - 102, n.mode === 'flee' ? '#ffb3a8' : '#e6dcc8');
+      const tag = n.mode === 'flee' ? '🏃 ' : n.mode === 'nervous' ? '😰 ' : n.mode === 'held' ? '🔒 ' : '';
+      label(tag + (s ? s.name : ''), it.x, it.y - 102, n.mode === 'flee' || n.mode === 'nervous' ? '#ffb3a8' : '#e6dcc8');
+      if (n.mode === 'nervous') { ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('😰', it.x + 30, it.y - 118 - Math.abs(Math.sin(t * 3)) * 4); }
     } else if (it.kind === 'c') {
       const c = it.c, d = copDef(c.id), bob = it.mv ? Math.abs(Math.sin(t * 7)) * 3 : 0;
       ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 20, 7, 0, 0, Math.PI * 2); ctx.fill();
@@ -469,6 +471,8 @@ function render(now) {
       const mx = o.x + (o.flat ? o.w * .3 : 26), my = o.flat ? o.y + o.h * .2 : o.y + 6;
       ctx.fillStyle = '#f2d045'; ctx.strokeStyle = '#1d2333'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx - 12, my); ctx.lineTo(mx, my - 22); ctx.lineTo(mx + 12, my); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#1d2333'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(f ? f.n : '•', mx, my - 7);
+      { const [sx, sy] = W2S(mx, my - 10), hov = Math.hypot(MOUSE.x - sx, MOUSE.y - sy) < 26, close = Math.hypot(G.Me.x - mx, G.Me.y - my) < 170;
+        if (hov || close) { const e = f && C.evidence[f.id]; tentLabels.push([`🔺 證物標記 ${f ? f.n : ''}：${e ? e.name : '魯米諾反應'}（已記入筆記本）`, mx, my - 36]); } }
       if (S.revealed.length && !isDark) { ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(242,208,69,.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(o.x, o.flat ? o.y : o.y - o.h * .4, o.flat ? o.w * .4 : 34, o.flat ? o.h * .35 : 26, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     }
   }
@@ -483,6 +487,7 @@ function render(now) {
     if (a === 2 && !G.glinted.has(o.id) && Math.hypot(G.Me.x - o.x, G.Me.y - o.y) < 150) { G.glinted.add(o.id); Snd.glint(); }
   }
   { const bo = ENG.objById(C, 'body'); if (bo && near !== 'body') label(bo.label || '屍體', bo.x, bo.y + bo.h / 2 + 18, '#ffd9d9'); }
+  for (const [t, x, y] of tentLabels) label(t, x, y, '#1d2333', 'rgba(242,208,69,.95)');
   if (near && !near.startsWith('npc:') && near !== 'boss') { const o = ENG.objById(C, near); if (o) label(o.name, o.x, o.npc ? o.y - o.h - 12 : o.flat ? o.y + o.h / 2 + 16 : o.y + 18, '#bfefff'); }
   // 教學箭頭
   const tg = Tut.target(); if (tg) drawImg('ui_tut_arrow', tg.x, tg.y - 20 - Math.abs(Math.sin(t * 3)) * 12, 46, 46);
@@ -505,7 +510,7 @@ function render(now) {
   const marks = [];
   for (const c of G.st.cops || []) if (c.mode === 'in') marks.push([c.vx != null ? c.vx : c.x, c.vy != null ? c.vy : c.y, '⚠️', '#c98a3a']);
   const B = G.st.boss; if (B && B.mode === 'in') marks.push([B.vx != null ? B.vx : B.x, B.vy != null ? B.vy : B.y, '👔', '#5a6a8a']);
-  for (const n of G.st.npcs || []) if (n.mode === 'flee') marks.push([n.vx != null ? n.vx : n.x, n.vy != null ? n.vy : n.y, '🏃', '#b8574f']);
+  for (const n of G.st.npcs || []) if (n.mode === 'flee' || n.mode === 'nervous') marks.push([n.vx != null ? n.vx : n.x, n.vy != null ? n.vy : n.y, '🏃', '#b8574f']);
   if (tg) marks.push([tg.x, tg.y + 40, '⬇️', '#1f8f82']);
   for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); const [fx, fy] = W2S(x, y), [hx, hy] = W2S(x, y - 130); if (fx > -20 && fx < VW + 20 && fy > -10 && hy < VH + 10) continue; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(90, Math.min(VH - 90, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
 }
@@ -531,7 +536,9 @@ addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   KEYS[e.key.toLowerCase()] = true;
   if (!G.st || !$('#ov').classList.contains('hidden')) { if (e.key === 'Escape') closeOv(); return; }
-  if (e.key === 'e' || e.key === 'E' || e.key === ' ') { e.preventDefault(); interactNearest(); }
+  if ((e.key === 'e' || e.key === 'E' || e.key === ' ') && ENG.runner(G.st) && ENG.canCallCops(G.st) && !G.st.chase) { e.preventDefault(); doAct({ type: 'callcops' }); return; }
+  if (e.key === 'e' || e.key === 'E' || e.key === ' ') { e.preventDefault(); const b = document.querySelector('#act:not(.hidden) button[data-key="e"]'); if (b && !b.disabled) b.click(); else if (!b) interactNearest(); else toast(b.classList.contains('done') ? '這一項已經做過了（結果在筆記本）' : b.querySelector('.why') ? b.querySelector('.why').textContent : '現在不能這樣做', true); }
+  if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { const b = document.querySelector(`#act:not(.hidden) button[data-key="${e.key}"]`); if (b) { e.preventDefault(); if (!b.disabled) b.click(); else toast(b.classList.contains('done') ? '這一項已經做過了（結果在筆記本）' : b.querySelector('.why') ? b.querySelector('.why').textContent : '現在不能這樣做', true); } }
   if (e.key === 'n' || e.key === 'N') openNote();
   if (e.key === 'Enter' && G.mode === 'online') { e.preventDefault(); Chat.open(); }
 });
@@ -597,6 +604,10 @@ function interactNearest() { const id = nearest(); if (!id || id === 'boss') ret
 
 /* ================= 主迴圈 ================= */
 let last = performance.now(), slowT = 0;
+// 電腦（滑鼠＋鍵盤）用精簡的鍵盤清單；觸控裝置用按鈕
+function setKB() { document.body.classList.toggle('kb', matchMedia('(hover: hover) and (pointer: fine)').matches && innerWidth > 640); }
+setKB(); addEventListener('resize', setKB);
+const MOUSE = { x: -1, y: -1 }; addEventListener('mousemove', e => { MOUSE.x = e.clientX; MOUSE.y = e.clientY; }, { passive: true });
 function loop(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   if (G.st && C) {
@@ -605,7 +616,7 @@ function loop(now) {
     const nid = nearest(); if (nid !== G.nearId) { G.nearId = nid; refreshAct(); }
     slowT += dt; if (slowT > .3) { slowT = 0; hudPress(); if (G.mode === 'solo') saveSolo(); Snd.ambTick(); if (G.tut) Tut.tick(); if (G.st.boss && G.st.boss.mode === 'in' && G.nearId === 'boss') refreshAct(); }
   }
-  render(now);
+  render(now); try { placeAct(); } catch (e) { }
   requestAnimationFrame(loop);
 }
 
@@ -681,7 +692,20 @@ function objective() {
   return '👉 慢慢走、仔細看：靠近發亮的 <b>「!」</b> 用工具，工具隨便用，不用省';
 }
 const gameTime = () => { const m = 22 * 60 + 40 + Math.floor((100 - (G.st.patience == null ? 100 : G.st.patience)) / 100 * 410); return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+// 有人想溜走時的提示列：人少時可以按 E／點按鈕叫員警去攔
+function refreshAlert() {
+  const el = $('#alertBar'); if (!el) return; const st = G.st; const n = st && st.phase === 'play' && ENG.runner(st);
+  if (!n) { el.classList.add('hidden'); return; }
+  const nm = (C.suspects.find(x => x.id === n.id) || {}).name || '關係人', act = n.mode === 'flee' ? '往外跑了' : '很緊張，好像想溜走';
+  let html;
+  if (st.chase) { const D = (C.cops || []).find(c => c.id === st.chase.cop); html = `👮 ${esc(D ? D.name : '員警')}正在追 ${esc(nm)}…`; }
+  else if (ENG.canCallCops(st)) html = `😰 ${esc(nm)} ${act}　<button id="callCops"><span class="kbonly"><kbd class="k">E</kbd></span> 叫員警攔住他</button><small>或自己走過去碰他</small>`;
+  else html = `😰 ${esc(nm)} ${act}——走過去碰他就能攔下`;
+  if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
+  el.classList.toggle('run', n.mode === 'flee'); el.classList.remove('hidden');
+}
 function hudPress() {
+  try { refreshAlert(); } catch (e) { }
   if (!G.st || !C) return;
   const T = G.st.clock, P = C.pressure, rows = [];
   if (G.st.phase === 'play' && !G.tut) {
@@ -693,40 +717,65 @@ function hudPress() {
 }
 // 插曲提示：安靜的卡片＋輕柔音效（不閃爍、不用警報聲）
 function banner(text, k) {
-  k = k || ''; const bad = /fail|tamper|rookie_hit|fled|threat/.test(k), inter = /^(rookie|boss_in|flee)$/.test(k);
+  k = k || ''; const bad = /fail|tamper|rookie_hit|fled|threat/.test(k), inter = /^(rookie|boss_in|flee|nervous)$/.test(k);
   const box = $('#cards'); const d = document.createElement('div');
   d.className = 'evc soft'; d.style.borderColor = bad ? '#8a5a5a' : inter ? '#8a7a4a' : '#3a6a6a'; d.innerHTML = `<div><span style="font-size:14px;color:#e8eef6;line-height:1.6">${esc(text)}</span></div>`;
   d.onclick = () => d.remove(); box.appendChild(d); while (box.children.length > 3) box.firstChild.remove(); setTimeout(() => d.remove(), inter ? 9000 : 7000);
   if (inter) Snd.soft(); else if (bad) Snd.low(); else if (k !== 'decay') Snd.ding(false); else Snd.low();
 }
+// 互動清單：電腦版在物件旁邊顯示小小的半透明清單（數字鍵 1–5＝用工具、E＝互動），手機版是一排可滑動的小按鈕
+const isKB = () => document.body.classList.contains('kb');
+function keyed(items) { // 編號固定：工具動作依物件上的順序 1、2、3…（做完的變灰但號碼不變）；第一個還沒做的非工具互動＝E，其餘非工具接在後面
+  const isDone = x => x.why === '已完成' || x.why === '已送驗'; let n = 0, e = false;
+  for (const x of items) { x.done = isDone(x); if (x.tool) x.key = String(++n); }
+  for (const x of items) if (!x.tool) { if (!e && !x.done && !x.why) { x.key = 'e'; e = true; } else x.key = String(++n); }
+  const live = items.filter(x => !x.done), doneN = items.length - live.length;
+  return { live: items.sort((p, q) => (p.key === 'e') - (q.key === 'e') || (+p.key || 0) - (+q.key || 0)), doneN, anyLive: live.length };
+}
+function btnHtml(x, extra) { return `<button class="${x.done ? 'done' : ''}" data-k="${x.k}" data-a="${x.a || ''}" data-key="${x.key}" ${extra || ''} ${x.why ? 'disabled' : ''}><kbd>${x.key === 'e' ? 'E' : x.key}</kbd>${x.emoji || ''} ${esc(x.label)}${x.cost ? `<span class="cost">額度 -${x.cost}</span>` : x.uses != null ? `<span class="cost">剩 ${x.uses} 次</span>` : ''}${x.done ? '<span class="ok">✓</span>' : x.why ? `<span class="why">${esc(x.why)}</span>` : ''}</button>`; }
 function refreshAct(force) {
   const box = $('#act'); const id = G.nearId;
   if (!G.st || !id || !$('#ov').classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  box.dataset.at = id;
   if (id === 'boss') {
     const B = G.st.boss; if (!B || B.mode !== 'in') return box.classList.add('hidden');
     const d = B.demand, done = ENG.bossDone(C, G.st, d), R = C.reports[d.kind === 'progress' ? 'progress' : d.rep];
-    box.innerHTML = `<div class="bossp"><img src="${url(R.icon)}" alt=""><div><h3>👔 分局長・鄭督察</h3><p>「${esc(ENG.demandText(C, d))}。」${done ? '<br><b style="color:#8ff0df">✅ 已經做到了——站在他旁邊就會交差（每人 +1 點）</b>' : `<br>怎麼做：${esc(R.how)}${d.kind === 'progress' ? `（現在 ${ENG.progress(C, G.st)}%）` : ''}<br><small>他等得不耐煩會離開，那就會被扣點或拖慢實驗室。</small>`}</p></div></div>`;
+    box.innerHTML = `<div class="ah"><img class="ai" src="${url(R.icon)}" alt=""><b>👔 分局長：${esc(ENG.demandText(C, d))}</b></div><div class="ad">${done ? '<b style="color:#8ff0df">✅ 做到了——站在他旁邊就會交差</b>' : `怎麼做：${esc(R.how)}${d.kind === 'progress' ? `（現在 ${ENG.progress(C, G.st)}%）` : ''}`}</div>`;
     box.classList.remove('hidden'); return;
   }
   if (id.startsWith('npc:')) {
-    const s = C.suspects.find(x => x.id === id.slice(4)); if (!s) return box.classList.add('hidden');
-    box.innerHTML = `<h3>🧑 ${esc(s.name)}<small style="color:var(--dim);font-weight:400">（${esc(s.role)}）</small></h3><p>封鎖線外的關係人。兇手可能就是其中一位。</p><div class="btns"><button class="pri" data-person="${s.id}">💬 問話・查看資料（免費）</button></div>`;
+    const sp = C.suspects.find(x => x.id === id.slice(4)); if (!sp) return box.classList.add('hidden');
+    box.innerHTML = `<div class="ah"><b>🧑 ${esc(sp.name)}</b><small>（${esc(sp.role)}・關係人）</small></div><div class="btns">${btnHtml({ k: 'person', key: 'e', emoji: '💬', label: '問話・查看資料' }, `data-person="${sp.id}"`)}</div>`;
     box.classList.remove('hidden'); return;
   }
   const o = ENG.objById(C, id); if (!o) return box.classList.add('hidden');
   if (o.van) {
-    box.innerHTML = `<h3>🚐 ${esc(o.name)}</h3><p>${esc(o.desc)}</p><div class="btns"><button class="pri" data-van="1">🚐 打開鑑識車（換裝備／分析／送驗）</button></div>`;
+    box.innerHTML = `<div class="ah"><b>🚐 ${esc(o.name)}</b></div><div class="btns">${btnHtml({ k: 'van', key: 'e', emoji: '🚐', label: '打開鑑識車（換裝備／分析／送驗）' }, 'data-van="1"')}</div>`;
     box.classList.remove('hidden'); return;
   }
-  const opts = ENG.options(C, G.st, G.me, o.id); const done = G.st.obj[o.id];
-  const tam = done.f && (done.f.tampered || done.f.contam) ? `<span class="why">⚠️ ${done.f.tampered ? '有人動過這裡' : '被菜鳥員警碰過'}</span>` : '';
-  box.innerHTML = `<h3>${esc(o.name)} ${tam}</h3><p>${esc(o.desc || '')}</p><div class="btns">${opts.map(x => `<button data-k="${x.kind}" data-a="${x.id}" ${x.why ? 'disabled' : ''}>${x.emoji || ''} ${esc(x.label)} ${x.cost ? `<span class="cost">額度 -${x.cost}</span>` : x.uses != null ? `<span class="cost">剩 ${x.uses} 次</span>` : ''}${x.why ? `<span class="why">${esc(x.why)}</span>` : ''}</button>`).join('') || (o.deco ? '' : '<span class="note">這裡沒有可以做的事了</span>')}</div>`;
+  const opts = ENG.options(C, G.st, G.me, o.id); const st = G.st.obj[o.id];
+  const tam = st.f && (st.f.tampered || st.f.contam) ? `<span class="why">⚠️ ${st.f.tampered ? '有人動過' : '被菜鳥碰過'}</span>` : '';
+  const { live } = keyed(opts.map(x => ({ k: x.kind, a: x.id, label: x.label, emoji: x.emoji, why: x.why, cost: x.cost, uses: x.uses, tool: x.kind === 'use' && x.tool })));
+  box.innerHTML = `<div class="ah"><b>${esc(o.name)}</b>${tam}</div>${o.desc ? `<div class="ad">${esc(o.desc)}</div>` : ''}<div class="btns">${live.map(x => btnHtml(x)).join('')}${!live.length && !o.deco ? '<span class="dn">這裡沒有可以做的事</span>' : ''}</div>`;
   box.dataset.obj = o.id; box.classList.remove('hidden');
 }
+// 電腦版：把清單放在物件旁邊（每一格畫面更新位置）
+function placeAct() {
+  const box = $('#act'); if (!isKB() || box.classList.contains('hidden')) { if (box.style.left) { box.style.left = ''; box.style.top = ''; } return; }
+  const id = box.dataset.at; let wx = G.Me.x, wy = G.Me.y - 60;
+  const o = id && !id.startsWith('npc:') && id !== 'boss' ? ENG.objById(C, id) : null;
+  if (o) { wx = o.x; wy = o.flat ? o.y : o.y - (o.h || 80) * .55; }
+  const [px, py] = W2S(wx, wy), bw = box.offsetWidth, bh = box.offsetHeight, ow = o ? (o.w || 80) * Z / 2 : 40;
+  let x = px + ow + 18; if (x + bw > VW - 10) x = px - ow - 18 - bw; x = Math.max(10, Math.min(VW - bw - 10, x));
+  const y = Math.max(70, Math.min(VH - bh - 70, py - bh / 2));
+  box.style.left = Math.round(x) + 'px'; box.style.top = Math.round(y) + 'px';
+}
+document.addEventListener('click', e => { if (e.target.closest('#callCops')) doAct({ type: 'callcops' }); });
 $('#act').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.van) return openVan();
   if (b.dataset.person) return openPerson(b.dataset.person);
+  if (b.dataset.k === 'van' || b.dataset.k === 'person') return;
   const obj = $('#act').dataset.obj; const k = b.dataset.k;
   doAct(k === 'use' ? { type: 'use', obj, act: b.dataset.a } : { type: k, obj });
 });
@@ -746,7 +795,7 @@ function openBriefing() {
   const html = hdr('📋 案件簡報・' + esc(C.diffName)) + `<div class="body"><div class="ev"><img src="${url(C.victim.img)}" alt="" style="width:84px;height:84px"><div><b>死者：${esc(C.victim.name)}（${C.victim.age}）</b><span>${esc(C.victim.note)}</span></div></div>
     ${C.briefing.map(t => `<p style="line-height:1.7">${esc(t)}</p>`).join('')}
     <h4>怎麼玩（第一次玩建議先跑「新手教學」）</h4><div class="note" style="font-size:14px;line-height:1.8">
-    🚐 到<b>鑑識車</b>選 ${C.carryTools} 件工具 → 🔎 走近發亮的「<b>!</b>」用工具，工具<b>隨便用</b>（魯米諾一瓶 ${C.lumCharges} 次，回車上補充），結果會立刻跳出來、記進筆記本。<br>
+    🚐 到<b>鑑識車</b>選 ${C.carryTools} 件工具 → 🔎 走近發亮的「<b>!</b>」用工具（電腦：<b>數字鍵 1–5</b> 用工具、<b>E</b> 互動；手機：點小按鈕），工具<b>隨便用</b>（魯米諾一瓶 ${C.lumCharges} 次，回車上補充），結果會立刻跳出來、記進筆記本。<br>
     💡 魯米諾要<b>關燈</b>才看得到藍光：一人關燈、一人噴灑並記錄螢光位置。<br>
     🧫 樣本拿回車上分析；手機等證物交給小吳送實驗室：花<b>全隊共用的實驗室額度</b>（${C.labBudget} 點），約 ${C.labSec} 秒後報告回來。<br>
     📖 筆記本的<b>鑑識手冊</b>會自動打 ✔／✖，左上角「案情進度」跟著上升。<br>
@@ -1025,22 +1074,22 @@ const TUT_SEED = 7;
 const Tut = {
   steps: [
     { t: '這裡是命案別墅。慢慢來，這一關<b>不會失敗</b>。<br>用 <b>WASD／方向鍵</b>（手機：在畫面上<b>拖曳</b>）走到箭頭指的<b>封鎖線入口</b>。', at: () => ({ x: 470, y: 600 }), done: () => Math.hypot(G.Me.x - 470, G.Me.y - 600) < 90 },
-    { t: '很好。工具都在<b>鑑識車</b>裡：走回車子旁邊，點車子（或按 <b>E</b>）打開它。', at: () => ENG.objById(C, 'van'), done: () => G.ovKind === 'van', hl: ['#act [data-van]'] },
+    { t: '很好。工具都在<b>鑑識車</b>裡：走回車子旁邊，點車子<span class="kbonly">（或按 <kbd class="k">E</kbd>）</span>打開它。', at: () => ENG.objById(C, 'van'), done: () => G.ovKind === 'van', hl: ['#act [data-van]'] },
     { t: '選 <b>📷 鑑識相機</b>、<b>🧪 魯米諾</b>、<b>🔍 指紋採集組</b>，再按 <b>✅ 確認裝備</b>（隨時可以免費更換）。', done: () => { const p = meP(); return p.loaded && ['camera', 'luminol', 'prints'].every(t => p.tools.includes(t)); }, hl: ['[data-tool="camera"]', '[data-tool="luminol"]', '[data-tool="prints"]', '#gearOk'] },
-    { t: '關掉車上視窗，走到客廳的<b>屍體</b>旁，按 <b>📷 近拍傷口</b>。<br>用完工具會立刻跳出<b>結果卡</b>，告訴你發現什麼、記在哪裡。', at: () => ENG.objById(C, 'body'), done: () => ENG.hasEv(G.st, 'E_wound'), hl: ['#act [data-a="wound"]', '#win [data-close]'] },
+    { t: '關掉車上視窗，走到客廳的<b>屍體</b>旁，用 <b>📷 近拍傷口</b>。<br><span class="kbonly">靠近物件時旁邊會出現小清單：<b>數字鍵 1–5</b> 用工具、<b>E</b> 互動（裝袋、開關燈、記錄螢光、開車門、問話），滑鼠點也可以。這裡按清單上近拍傷口前面的數字。<br></span><span class="touchonly">靠近物件時下方會出現一排小按鈕，點它就好。<br></span>用完工具會立刻跳出<b>結果卡</b>，告訴你發現什麼、記在哪裡。', at: () => ENG.objById(C, 'body'), done: () => ENG.hasEv(G.st, 'E_wound'), hl: ['#act [data-a="wound"]', '#win [data-close]'] },
     { t: '看到結果卡了嗎？證據已經記進筆記本。<br>接著對<b>客廳地毯</b>按 <b>🧪 噴灑魯米諾</b>——燈亮著是看不到藍光的。<br>魯米諾一瓶 3 次，工具格右下角會顯示剩幾次，用完回車上補充。', at: () => ENG.objById(C, 'floor_living'), done: () => G.st.obj.floor_living.done.lum, hl: ['#act [data-a="lum"]'] },
-    { t: '去客廳門邊的 <b>💡 電燈開關</b>把燈關掉。<br>多人時可以一人關燈、一人噴灑記錄。', at: () => ENG.objById(C, 'sw_living'), done: () => G.st.lights.living === false, hl: ['#act [data-k="light"]'] },
-    { t: '暗下來了，手電筒照向你面對的方向。地毯浮出<b>藍色螢光</b>！<br>回到地毯按 <b>記錄螢光位置</b>。', at: () => ENG.objById(C, 'floor_living'), done: () => G.st.obj.floor_living.marked, hl: ['#act [data-a="lum_mk"]'] },
+    { t: '去客廳門邊的 <b>💡 電燈開關</b>把燈關掉<span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。<br>多人時可以一人關燈、一人噴灑記錄。', at: () => ENG.objById(C, 'sw_living'), done: () => G.st.lights.living === false, hl: ['#act [data-k="light"]'] },
+    { t: '暗下來了，手電筒照向你面對的方向。地毯浮出<b>藍色螢光</b>！<br>回到地毯按 <b>記錄螢光位置</b><span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。', at: () => ENG.objById(C, 'floor_living'), done: () => G.st.obj.floor_living.marked, hl: ['#act [data-a="lum_mk"]'] },
     { t: '記下來了（黃色標示牌，開燈後也會留著）。<br>燈還關著，去<b>銅雕獎座</b>：先 <b>🧪 噴灑魯米諾</b>、<b>記錄螢光位置</b>，再按 <b>🔍 採集指紋</b>。<br>指紋是「樣本」，要拿回車上分析才知道是誰的。', at: () => ENG.objById(C, 'w_statue'), done: () => ENG.hasEv(G.st, 'E_wb_statue') && ((meP().samples.length > 0) || G.st.rep.print > 0), hl: ['#act [data-a="lum"]', '#act [data-a="lum_mk"]', '#act [data-a="prints"]'] },
     { t: '左上角的 <b>📋 待處理</b> 會列出樣本。回<b>鑑識車</b>，在「指紋比對電腦」按 <b>分析</b>。', at: () => ENG.objById(C, 'van'), done: () => G.st.rep.print > 0, hl: ['#act [data-van]', '[data-an]'] },
-    { t: '指紋比對出來了！再去拿<b>死者的手機</b>：按 <b>🛍️ 裝袋帶走</b>。', at: () => ENG.objById(C, 'phone'), done: () => G.st.obj.phone.gone, hl: ['#act [data-k="bag"]', '#win [data-close]'] },
+    { t: '指紋比對出來了！再去拿<b>死者的手機</b>：按 <b>🛍️ 裝袋帶走</b><span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。', at: () => ENG.objById(C, 'phone'), done: () => G.st.obj.phone.gone, hl: ['#act [data-k="bag"]', '#win [data-close]'] },
     { t: '回車上把手機交給快遞員<b>小吳</b>（車旁那位）送實驗室：按 <b>送實驗室</b>。<br>送驗會花<b>全隊共用的實驗室額度</b>（上方 🧪），這是唯一要省著用的東西。', at: () => ENG.objById(C, 'courier'), done: () => G.st.labs.length > 0, hl: ['#act [data-van]', '[data-lab]'] },
     { t: '實驗室要等一下才回報（左上「待處理」看得到）。<br>咦，<b>分局長</b>走進封鎖線了。他頭上的<b>泡泡</b>就是他的要求——你剛好做完了，<b>走到他旁邊</b>交差。', enter() { G.st.forceBoss = { kind: 'report', rep: 'print' }; }, at: () => { const B = G.st.boss; return B && B.mode === 'in' ? { x: B.x, y: B.y - 110 } : null; }, done: () => G.st.bossOk > 0 },
     { t: '有位員警頭上冒出 <b>⚠️</b>——他其實是<b>菜鳥</b>，想去亂碰證物！<br>每局誰是菜鳥都不一定。<b>走過去碰他</b>，請他回崗位。', enter() { G.st.forceRookie = 'w_statue'; }, at: () => { const c = (G.st.cops || []).find(c => c.mode === 'in'); return c ? { x: c.x, y: c.y - 110 } : null; }, done: () => G.tut.ev.some(e => e.k === 'rookie_stop'), tick() { if (G.tut.ev.some(e => e.k === 'rookie_hit') && !(G.st.cops || []).some(c => c.mode === 'in')) { G.tut.ev = []; G.st.forceRookie = 'w_statue'; } } },
     { t: '做得好。打開 <b>📒 筆記本</b>，看看「證據」（新的有<span class="newb">新</span>標記），再切到 <b>📖 鑑識手冊</b>：每種手法有 3 個特徵，✔ 是確認、✖ 是排除。', enter() { for (const l of G.st.labs) if (!l.back) l.due = G.st.clock; }, done: () => G.tut.sawMan, hl: ['#bNote', '[data-tab="man"]'] },
     { t: '線索齊了（左上「案情進度」）。關掉筆記本，按 <b>⚖️ 結案推理</b>。', done: () => G.st.phase !== 'play', hl: ['#bClose', '#win [data-close]'] },
     { t: '照鑑識手冊選：兇手、行兇方式、兇器、第一現場，再勾 1～3 項關鍵證據，按 <b>📨 送出推理報告</b>。', done: () => G.st.phase === 'result', hl: ['#submit'] },
-    { t: '🎉 <b>教學完成！</b>正式案件裡兇手、手法、房間每局都不同，分局長和菜鳥偶爾才會出現。不理分局長，他的<b>耐心</b>會掉得更快；耐心歸零就得結案。<br>分數＝答對多少＋早點結案＋省下的實驗室額度。<br>多人時可以分工：一人關燈、一人噴灑、一人跑車上。', last: true }
+    { t: '🎉 <b>教學完成！</b>正式案件裡兇手、手法、房間每局都不同，分局長和菜鳥偶爾才會出現。兇手想溜走前頭上會冒 <b>😰</b>，人少時按 <b>E</b>（或點提示列的按鈕）叫員警攔住他。不理分局長，他的<b>耐心</b>會掉得更快；耐心歸零就得結案。<br>分數＝答對多少＋早點結案＋省下的實驗室額度。<br>多人時可以分工：一人關燈、一人噴灑、一人跑車上。', last: true }
   ],
   start() {
     Snd.init(); this.stop(); G.mode = 'solo'; G.me = 0; G.host = true; G.room = null;

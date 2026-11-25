@@ -16,7 +16,14 @@ async function toObj(pg, id) {
   }
   throw new Error('走不到 ' + id);
 }
-async function act(pg, label) { const b = pg.locator('#act button', { hasText: label }).first(); await b.waitFor({ timeout: 4000 }); await b.click(); await sleep(400); }
+const keyLog = [];
+// 電腦版（body.kb）用鍵盤：讀清單上的編號再按鍵；手機版用點的
+async function act(pg, label) {
+  const b = pg.locator('#act button', { hasText: label }).first(); await b.waitFor({ timeout: 4000 });
+  if (await pg.evaluate(() => document.body.classList.contains('kb'))) { const k = await b.getAttribute('data-key'); if (!k) throw new Error('沒有快捷鍵：' + label); keyLog.push(`${k.toUpperCase()}=${label}`); await pg.keyboard.press(k === 'e' ? 'e' : k); }
+  else await b.click();
+  await sleep(400);
+}
 async function van(pg) { await tp(pg, 300, 690); await pg.evaluate(() => __fs.openVan()); await sleep(300); }
 async function closeWin(pg) { await pg.evaluate(() => { const b = document.querySelector('#win header [data-close]'); if (b && b.offsetParent) b.click(); }); await sleep(250); }
 const tutStep = pg => pg.evaluate(() => __fs.G.tut ? __fs.G.tut.i : -1);
@@ -56,7 +63,7 @@ async function deduceAndSubmit(pg, name) {
   await shot(tg, 'tut_1_walk');
   await tp(tg, 470, 600); await waitStep(tg, 1);
   await tp(tg, 300, 690); await sleep(300); await shot(tg, 'tut_2_van');
-  await tg.evaluate(() => __fs.openVan()); await waitStep(tg, 2);
+  await tg.keyboard.press('e'); await waitStep(tg, 2);
   for (const t of ['camera', 'luminol', 'prints']) await tg.click(`[data-tool="${t}"]`);
   await shot(tg, 'tut_3_gear');
   await tg.click('#gearOk'); await waitStep(tg, 3); await closeWin(tg);
@@ -65,7 +72,7 @@ async function deduceAndSubmit(pg, name) {
   await shot(tg, 'tut_5_result_card');
   await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾'); await waitStep(tg, 5);
   await shot(tg, 'tut_6_lights_on_no_glow');
-  await toObj(tg, 'sw_living'); await tg.click('#act [data-k="light"]'); await waitStep(tg, 6); await sleep(500);
+  await toObj(tg, 'sw_living'); await act(tg, '燈'); await waitStep(tg, 6); await sleep(500);
   await toObj(tg, 'floor_living'); await sleep(300); await shot(tg, 'dark_1_glow');
   await act(tg, '記錄螢光位置'); await waitStep(tg, 7); await sleep(500); await shot(tg, 'dark_2_recorded');
   await toObj(tg, 'w_statue'); await act(tg, '噴灑魯米諾'); await act(tg, '記錄螢光位置'); await act(tg, '採集指紋'); await waitStep(tg, 8);
@@ -94,7 +101,12 @@ async function deduceAndSubmit(pg, name) {
   await pg.fill('#name', '百九'); await pg.selectOption('#diff', 'normal'); await pg.click('#bSolo'); await sleep(700);
   await shot(pg, 'briefing'); await closeWin(pg); await pg.click('#win footer [data-close]').catch(() => { }); await sleep(200);
   await van(pg); for (const t of ['camera', 'luminol', 'prints']) await pg.click(`[data-tool="${t}"]`); await pg.click('#gearOk'); await sleep(300); await closeWin(pg);
-  await toObj(pg, 'body'); await act(pg, '近拍傷口'); await sleep(200); await shot(pg, 'result_card');
+  await toObj(pg, 'body'); await sleep(400);
+  { const r = await pg.evaluate(() => { const b = document.querySelector('#act').getBoundingClientRect(), keys = [...document.querySelectorAll('#act button[data-key]')].map(x => x.dataset.key + ':' + x.textContent.trim().slice(0, 12)); return { w: Math.round(b.width), h: Math.round(b.height), area: Math.round(b.width * b.height / (innerWidth * innerHeight) * 1000) / 10, keys }; });
+    console.log('電腦版互動清單：', JSON.stringify(r)); if (r.area > 9 || !r.keys.some(k => k.startsWith('1:'))) errors.push('電腦版清單太大或沒有數字鍵：' + JSON.stringify(r));
+    await pg.screenshot({ path: '/workspace/forensic_v4_keys_desktop.png' }); shots.push('/workspace/forensic_v4_keys_desktop.png'); }
+  await act(pg, '近拍傷口'); await sleep(200); await shot(pg, 'result_card');
+  { const before = await pg.evaluate(() => __fs.G.st.found.length); await act(pg, '檢查屍斑'); const after = await pg.evaluate(() => __fs.G.st.found.length); if (after <= before) errors.push('按數字鍵沒有執行動作'); }
   // 員警巡邏，其中一位是菜鳥
   await pg.evaluate(() => { const st = __fs.G.st; st.quietUntil = 0; st.forceRookie = 'w_statue'; }); 
   await pg.waitForFunction(() => (__fs.G.st.cops || []).some(c => c.mode === 'in'), null, { timeout: 10000 });
@@ -112,15 +124,26 @@ async function deduceAndSubmit(pg, name) {
   for (let i = 0; i < 20; i++) { const b = await pg.evaluate(() => __fs.G.st.boss.mode === 'in' && ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); if (!b) break; await tp(pg, b.x + 10, b.y + 10); await sleep(200); }
   const bok = await pg.evaluate(() => __fs.G.st.bossOk); console.log('分局長交差次數：', bok);
   await sleep(400); await shot(pg, 'supervisor_satisfied');
+  // 單人：兇手想溜走 → 預警 → 按 E 叫員警攔
+  await pg.evaluate(() => { const st = __fs.G.st, n = st.npcs.find(x => x.id === __fs.C.culprit); n.mode = 'nervous'; n.fleeAt = st.clock + 12; n.path = []; __fs.refresh(); });
+  await sleep(900); await pg.screenshot({ path: '/workspace/forensic_v4_flee_alert.png' }); shots.push('/workspace/forensic_v4_flee_alert.png');
+  await pg.keyboard.press('e'); keyLog.push('E=叫員警攔人');
+  await pg.waitForFunction(() => __fs.G.st.npcs.find(x => x.id === __fs.C.culprit).mode === 'held', null, { timeout: 30000 }).catch(() => errors.push('員警沒有攔下兇手'));
+  console.log('兇手狀態：', await pg.evaluate(() => __fs.G.st.npcs.find(x => x.id === __fs.C.culprit).mode)); await sleep(500);
+  await pg.screenshot({ path: '/workspace/forensic_v4_flee_caught.png' }); shots.push('/workspace/forensic_v4_flee_caught.png');
   // 關燈噴魯米諾
   await van(pg); await pg.click('[data-tool="thermo"]').catch(() => { }); await pg.click('[data-tool="prints"]').catch(() => { });
   await pg.evaluate(() => { const p = __fs.G.st.players[0]; }); await pg.click('#gearOk').catch(() => { }); await sleep(300); await closeWin(pg);
   await toObj(pg, 'floor_living'); await act(pg, '噴灑魯米諾');
-  await toObj(pg, 'sw_living'); await pg.click('#act [data-k="light"]'); await sleep(500);
+  await toObj(pg, 'sw_living'); await act(pg, '燈'); await sleep(500);
   await toObj(pg, 'floor_living'); await sleep(300); await shot(pg, 'dark_3_case_glow');
   await act(pg, '記錄螢光位置'); await sleep(500);
-  await toObj(pg, 'sw_living'); await pg.click('#act [data-k="light"]'); await sleep(500); await toObj(pg, 'floor_living'); await sleep(200);
+  await toObj(pg, 'sw_living'); await act(pg, '燈'); await sleep(500); await toObj(pg, 'floor_living'); await sleep(200);
   await shot(pg, 'dark_4_lights_back_marker');
+  await pg.evaluate(() => document.querySelectorAll('#cards > *').forEach(e => e.remove()));
+  { const o = await pg.evaluate(() => { const o = __fs.ENG.objById(__fs.C, 'floor_living'); return { x: o.x + o.w * .3, y: o.y + o.h * .2 }; }); await tp(pg, o.x + 70, o.y - 40); await sleep(500); }
+  { const has = await pg.evaluate(() => { const f = __fs.G.st.obj.floor_living.marked; return f; }); if (!has) errors.push('地毯沒有證物標記'); }
+  await pg.screenshot({ path: '/workspace/forensic_v4_marker_label.png' }); shots.push('/workspace/forensic_v4_marker_label.png');
   // 送實驗室 → 待處理倒數
   await toObj(pg, 'phone'); await act(pg, '裝袋帶走'); await van(pg); await pg.locator('[data-lab]').first().click(); await sleep(400); await shot(pg, 'van_budget'); await closeWin(pg);
   await sleep(800); await shot(pg, 'hud_pending');
@@ -168,8 +191,12 @@ async function deduceAndSubmit(pg, name) {
   await tp(ip, 470, 600); await waitStep(ip, 1); await ip.evaluate(() => __fs.openVan()); await waitStep(ip, 2);
   for (const t of ['camera', 'luminol', 'prints']) await ip.tap(`[data-tool="${t}"]`); await ip.tap('#gearOk'); await waitStep(ip, 3); await closeWin(ip);
   await checkBody(ip, '教學・iPhone', 'forensic_v3_iphone_body.png');
+  await toObj(ip, 'body'); await sleep(400);
+  { const r = await ip.evaluate(() => { const b = document.querySelector('#act').getBoundingClientRect(); return { h: Math.round(b.height), area: Math.round(b.width * b.height / (innerWidth * innerHeight) * 1000) / 10, kb: document.body.classList.contains('kb') }; });
+    console.log('iPhone 互動列：', JSON.stringify(r)); if (r.kb || r.area > 14) errors.push('iPhone 互動列太大：' + JSON.stringify(r)); }
+  await ip.screenshot({ path: '/workspace/forensic_v4_iphone.png' }); shots.push('/workspace/forensic_v4_iphone.png');
   await toObj(ip, 'body'); await act(ip, '近拍傷口'); await sleep(300); await shot(ip, 'iphone_result_card');
-  await toObj(ip, 'floor_living'); await act(ip, '噴灑魯米諾'); await toObj(ip, 'sw_living'); await ip.tap('#act [data-k="light"]'); await sleep(500); await toObj(ip, 'floor_living'); await sleep(300);
+  await toObj(ip, 'floor_living'); await act(ip, '噴灑魯米諾'); await toObj(ip, 'sw_living'); await act(ip, '燈'); await sleep(500); await toObj(ip, 'floor_living'); await sleep(300);
   await shot(ip, 'dark_6_iphone');
   await ip.evaluate(() => { __fs.Tut.stop(); }); 
   const ip2 = await page(wk, devices['iPhone 13']);
@@ -179,6 +206,7 @@ async function deduceAndSubmit(pg, name) {
   { const b = await ip2.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(ip2, b.x + 120, b.y + 40); await sleep(500); }
   await shot(ip2, 'iphone_supervisor_hud');
   await wk.close();
+  console.log('鍵盤操作：', [...new Set(keyLog)].join('  '));
   console.log('截圖：\n' + shots.join('\n'));
   console.log('頁面錯誤：', errors.length ? errors : '無');
   process.exit(errors.length ? 1 : 0);

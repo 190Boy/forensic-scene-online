@@ -158,7 +158,7 @@ function cleanText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g,
 // 只留下動作需要的欄位、型別正確（規則引擎還會再驗證一次）
 function cleanAct(a) {
   if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
-  const T = ['gear', 'light', 'refill', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
+  const T = ['gear', 'light', 'refill', 'callcops', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
   if (!T.includes(a.type)) return null;
   const o = { type: a.type }, s = v => typeof v === 'string' ? v.slice(0, 40) : undefined;
   if (s(a.obj)) o.obj = s(a.obj);

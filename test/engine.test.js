@@ -219,4 +219,27 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   FS.act(C, st, 0, { type: 'submit' }); const R = st.result;
   ok(R.total <= 100 && R.total === Math.min(100, R.base + R.bonus + R.pen) && R.bonus === R.timeB + R.budB, `總分上限 100（基本 ${R.base}＋獎勵 ${R.bonus} → ${R.total}）`);
 }
+// 12. 兇手想溜走：先有幾秒預警；人少可以叫員警攔；3 人以上自己碰
+{
+  const mk = (n) => { const C = GEN.generate(31, 'normal'); const ps = Array.from({ length: n }, (_, i) => ({ pid: i, name: 'P' + i, ci: i }));
+    const st = FS.newGame(C, ps); st.found = Object.keys(C.evidence).map((id, k) => ({ id, n: k + 1 })); st.quietUntil = 1e9; st.boss.nextAt = 1e9; for (const c of st.cops) c.nextAt = 1e9; st.tamperAt = 1e9;
+    for (const p of Object.values(st.players)) { p.x = C.start[0].x; p.y = C.start[0].y - 200; } // 都在屋內深處，離關係人遠
+    return { C, st }; };
+  const run = (C, st, sec, f) => { const ev = []; for (let t = 0; t < sec; t += 0.2) { for (const e of FS.tick(C, st, 0.2)) ev.push(e); if (f && f(ev)) break; } return ev; };
+  { const { C, st } = mk(1); ok(FS.culpritHeat(C, st) >= 2, '測試設定：兇手熱度 ≥ 2');
+    const ev = run(C, st, 30, ev => ev.some(e => e.k === 'nervous')); const n = st.npcs.find(x => x.id === C.culprit);
+    ok(ev.some(e => e.k === 'nervous') && n.mode === 'nervous' && n.fleeAt - st.clock > 10, `單人：先緊張預警 ${Math.round(n.fleeAt - st.clock)} 秒才跑`);
+    ok(!ev.some(e => e.k === 'flee'), '預警期間還沒真的跑');
+    const r = FS.act(C, st, 0, { type: 'callcops' }); ok(r.ok && st.chase && st.cops.some(c => c.mode === 'chase'), '單人：按 E 叫員警去追');
+    ok(!FS.act(C, st, 0, { type: 'callcops' }).ok, '員警已經在追，不會重複叫');
+    const ev2 = run(C, st, 60, ev => ev.some(e => e.k === 'held' || e.k === 'fled'));
+    ok(n.mode === 'held' && !st.fled && FS.hasEv(st, 'E_held') && !st.chase, '員警追上並攔下兇手');
+    ok(st.cops.every(c => c.mode !== 'chase'), '員警攔完回崗位'); }
+  { const { C, st } = mk(1); run(C, st, 30, ev => ev.some(e => e.k === 'nervous')); const n = st.npcs.find(x => x.id === C.culprit);
+    const p = st.players[0]; p.x = n.x; p.y = n.y; run(C, st, 1); ok(n.mode === 'held', '預警時走過去碰他也能攔下'); }
+  { const { C, st } = mk(1); const ev = run(C, st, 120, ev => ev.some(e => e.k === 'fled')); ok(ev.some(e => e.k === 'flee') && st.fled === C.culprit, '完全不理 → 兇手跑掉（扣分）'); }
+  { const { C, st } = mk(2); run(C, st, 30, ev => ev.some(e => e.k === 'nervous')); const n = st.npcs.find(x => x.id === C.culprit); ok(Math.round(n.fleeAt - st.clock) <= 9 && FS.canCallCops(st), '2 人：預警 9 秒，也能叫員警'); }
+  { const { C, st } = mk(3); run(C, st, 30, ev => ev.some(e => e.k === 'nervous')); const n = st.npcs.find(x => x.id === C.culprit);
+    ok(Math.round(n.fleeAt - st.clock) <= 6 && !FS.act(C, st, 0, { type: 'callcops' }).ok, '3 人以上：預警 6 秒，要自己去攔'); }
+}
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

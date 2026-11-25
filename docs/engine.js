@@ -4,7 +4,7 @@
    壓力系統（tick）：證據劣化、混在關係人裡的兇手（動證物／逃跑／恐嚇落單隊員）、分局長時限、菜鳥員警闖入。 */
 (function (root) {
 'use strict';
-const SPEED = 270, NPC_SPEED = 75, FLEE_SPEED = 105, ROOKIE_SPEED = 80, COP_SPEED = 55, BOSS_SPEED = 70;
+const SPEED = 270, NPC_SPEED = 75, FLEE_SPEED = 105, CHASE_SPEED = 170, ROOKIE_SPEED = 80, COP_SPEED = 55, BOSS_SPEED = 70;
 const NEVER = 1e9;
 const REACH = 40;
 /* ---------- 地圖 ---------- */
@@ -64,7 +64,7 @@ function newGame(C, players, opts) {
   const st = { budget: C.labBudget, budgetMax: C.labBudget, costUp: 0, patience: 100, seed: C.seed, diff: C.diff, phase: 'play', spent: 0, seq: 0, sid: 0, clock: 0, rs: (C.seed * 7919 + 13) | 0, pressure: opts.pressure !== false,
     players: {}, obj: {}, found: [], labs: [], draft: { culprit: null, method: null, weapon: null, location: null, keys: [] }, result: null,
     flags: {}, ms: {}, labExtra: 0, analyzed: 0, npcs: [], fled: null, threats: 0, news: [], tut: !!opts.tut,
-    rep: { print: 0, blood: 0, shoe: 0, lab: 0 }, lights: {}, bossOk: 0, bossFail: 0, cops: [], boss: null, forceBoss: null, forceRookie: null };
+    rep: { print: 0, blood: 0, shoe: 0, lab: 0 }, lights: {}, bossOk: 0, bossFail: 0, cops: [], boss: null, forceBoss: null, forceRookie: null, chase: null };
   players.forEach((p, i) => {
     const s = C.start[i % C.start.length];
     st.players[p.pid] = { pid: p.pid, name: p.name, ci: p.ci, lum: 0, tools: [], loaded: false, bag: [], samples: [], x: s.x, y: s.y, dir: 1, active: true, benchUntil: 0 };
@@ -133,7 +133,17 @@ function act(C, st, pid, a) {
   if (a.type === 'close') { if (st.phase !== 'play') return err('已經在推理了'); st.phase = 'deduce'; st.seq++; return { ok: true, ev: [{ k: 'phase', phase: 'deduce', why: 'close', by: pid }] }; }
   if (st.phase !== 'play') return err('調查已經結束');
   if (!p.active) return err('你已經離隊');
-  if (p.benchUntil > st.clock && a.type !== 'light') return err(`你被分局長叫去車上寫報告，約 ${Math.ceil(p.benchUntil - st.clock)} 秒後回來`);
+  if (p.benchUntil > st.clock && a.type !== 'light' && a.type !== 'callcops') return err(`你被分局長叫去車上寫報告，約 ${Math.ceil(p.benchUntil - st.clock)} 秒後回來`);
+  if (a.type === 'callcops') {
+    const n = runner(st); if (!n) return err('現在沒有人想溜走');
+    if (!canCallCops(st)) return err('人手夠，自己去攔他（走過去碰他）');
+    if (st.chase) return err('員警已經去追了');
+    const pool = (st.cops || []).filter(c => c.mode !== 'in'), list = pool.length ? pool : (st.cops || []);
+    const c = list.slice().sort((a1, b1) => (a1.rk - b1.rk) || dist(a1, n) - dist(b1, n))[0]; if (!c) return err('附近沒有員警');
+    c.mode = 'chase'; c.tgt = n.id; c.repath = 0; st.chase = { cop: c.id, npc: n.id, by: pid };
+    const D = (C.cops || []).find(x => x.id === c.id);
+    out.push({ k: 'callcops', by: pid, cop: c.id, npc: n.id, name: D ? D.name : '員警' }); st.seq++; return { ok: true, ev: out };
+  }
   if (a.type === 'refill') { if (!nearVan(C, p)) return err('要回到鑑識車旁才能補充'); if (!p.tools.includes('luminol')) return err('你沒帶魯米諾'); p.lum = C.lumCharges; out.push({ k: 'refill', by: pid }); st.seq++; return { ok: true, ev: out }; }
   if (a.type === 'gear') {
     if (!nearVan(C, p)) return err('要回到鑑識車旁才能換裝備');
@@ -238,6 +248,11 @@ function walkNpc(C, n, dt, sp) {
   return !n.path.length;
 }
 const actives = st => Object.values(st.players).filter(p => p.active);
+// 兇手想溜走前的預警秒數：人越少，預警越長
+const warnSec = st => { const n = actives(st).length; return n <= 1 ? 12 : n === 2 ? 9 : 6; };
+// 人少（1～2 人）時可以叫員警去攔人；3 人以上維持「自己去碰他」
+const canCallCops = st => actives(st).length <= 2;
+const runner = st => (st.npcs || []).find(n => n.mode === 'nervous' || n.mode === 'flee');
 const anyNear = (st, pt, r) => actives(st).some(p => Math.hypot(p.x - pt.x, p.y - pt.y) <= r);
 function tick(C, st, dt) {
   const out = []; if (st.phase !== 'play') return out;
@@ -261,7 +276,7 @@ function tick(C, st, dt) {
   /* (c) 分局長巡視（像恐鬼症的鬼：進封鎖線、頭上冒出要求） */
   if (bossTick(C, st, dt, T, news, out)) return out;
   /* (d) 員警與混在其中的菜鳥 */
-  copsTick(C, st, dt, T, news);
+  copsTick(C, st, dt, T, news, out);
   if (!st.pressure) { checkEnd(st, out); return out; }
   /* (b) 關係人 NPC＋混在其中的兇手 */
   const heat = culpritHeat(C, st);
@@ -269,6 +284,12 @@ function tick(C, st, dt) {
     if (n.mode === 'gone') continue;
     const isC = n.id === C.culprit;
     if (n.mode === 'held') continue;
+    if (n.mode === 'nervous') {   // 預警：緊張、慢慢往出口挪；幾秒後才真的跑
+      if (anyNear(st, n, 80)) { n.mode = 'held'; n.path = null; addEv(C, st, ['E_held'], null, out); news('held', `🚨 ${sname(C, n.id)} 正想開溜，被你們攔下了！`, { npc: n.id }); continue; }
+      walkNpc(C, n, dt, NPC_SPEED * 0.35);
+      if (T >= n.fleeAt) { n.mode = 'flee'; n.path = findPath(C, n.x, n.y, C.exit.x, C.exit.y); news('flee', `🏃 ${sname(C, n.id)} 往封鎖線外跑了！${canCallCops(st) ? (st.chase ? '員警正在追。' : '按 E 叫員警攔住他，或自己追上去碰他。') : '快去攔住他！'}`, { npc: n.id }); }
+      continue;
+    }
     if (n.mode === 'flee') {
       if (anyNear(st, n, 80)) { n.mode = 'held'; n.path = null; addEv(C, st, ['E_held'], null, out); news('held', `🚨 ${sname(C, n.id)} 想偷偷離開封鎖線，被你們攔下了！`, { npc: n.id }); continue; }
       if (walkNpc(C, n, dt, FLEE_SPEED)) { n.mode = 'gone'; st.fled = n.id; news('fled', `🏃 ${sname(C, n.id)} 趁亂離開了現場！（結案時會扣分）`, { npc: n.id }); }
@@ -276,7 +297,11 @@ function tick(C, st, dt) {
     }
     if (n.mode === 'idle') {
       n.wait -= dt;
-      if (isC && heat >= 2 && !n.fleeTried) { n.fleeTried = true; n.mode = 'flee'; n.path = findPath(C, n.x, n.y, C.exit.x, C.exit.y); news('flee', `⚠️ 有關係人想趁亂溜走！快到封鎖線外攔住！`, { npc: n.id }); continue; }
+      if (isC && heat >= 2 && !n.fleeTried) {
+        n.fleeTried = true; n.mode = 'nervous'; n.fleeAt = T + warnSec(st);
+        const full = findPath(C, n.x, n.y, C.exit.x, C.exit.y) || []; n.path = full.slice(0, Math.max(1, Math.floor(full.length * .4)));
+        news('nervous', `😰 ${sname(C, n.id)} 看起來很緊張，一直往出口瞄…${canCallCops(st) ? '（按 E 請員警盯住他，或走過去碰他）' : '（走過去碰他就能攔下）'}`, { npc: n.id }); continue;
+      }
       if (isC && T >= st.tamperAt) {
         st.tamperAt = T + P.tamperEvery * (0.7 + rnd(st) * 0.6);
         const cand = C.objects.filter(o => o.tamper && !st.obj[o.id].gone && !st.obj[o.id].f.tampered && !Object.keys(st.obj[o.id].done).includes('prints'));
@@ -365,10 +390,17 @@ function bossTick(C, st, dt, T, news, out) {
   } else if (B.mode === 'leave') { if (walkNpc(C, B, dt, BOSS_SPEED * 1.2)) { B.mode = 'away'; B.demand = null; st.quietUntil = T + QUIET; } }
   return false;
 }
-function copsTick(C, st, dt, T, news) {
+function copsTick(C, st, dt, T, news, out) {
   const P = C.pressure;
   for (const c of st.cops || []) {
     const D = (C.cops || []).find(x => x.id === c.id); if (!D) continue;
+    if (c.mode === 'chase') {   // 被叫去攔人的員警：一路追，追上就攔下
+      const n = (st.npcs || []).find(x => x.id === c.tgt);
+      if (!n || n.mode === 'gone' || n.mode === 'held') { c.mode = 'back'; c.path = findPath(C, c.x, c.y, D.posts[c.leg].x, D.posts[c.leg].y) || []; st.chase = null; continue; }
+      if (dist(c, n) < 45) { n.mode = 'held'; n.path = null; addEv(C, st, ['E_held'], null, out); news('held', `🚨 ${D.name}攔下了 ${sname(C, n.id)}：「先別走，配合調查。」`, { npc: n.id, cop: c.id }); c.mode = 'back'; c.path = findPath(C, c.x, c.y, D.posts[c.leg].x, D.posts[c.leg].y) || []; st.chase = null; continue; }
+      c.repath -= dt; if (c.repath <= 0 || !c.path || !c.path.length) { c.repath = 0.4; c.path = findPath(C, c.x, c.y, n.x, n.y) || [{ x: n.x, y: n.y }]; }
+      walkNpc(C, c, dt, CHASE_SPEED); continue;
+    }
     if (c.mode === 'in') {
       if (anyNear(st, c, 80)) { c.mode = 'back'; c.known = true; c.path = findPath(C, c.x, c.y, D.posts[c.leg].x, D.posts[c.leg].y) || []; c.nextAt = T + P.rookieEvery * (0.7 + rnd(st) * 0.6); st.quietUntil = T + QUIET; news('rookie_stop', `✋ ${D.name}被攔下來了：「對不起！我回崗位站好……」`, { cop: c.id }); continue; }
       if (c.delay > 0) { c.delay -= dt; continue; }   // 先東張西望幾秒，給玩家反應時間
@@ -441,6 +473,6 @@ function flatOrder(C) {
   const rank = o => o.id === 'body' ? 1 : (o.w * o.h >= 15000 ? 0 : 2);
   return C.objects.filter(o => o.flat).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || (rank(a.o) === 0 ? b.o.w * b.o.h - a.o.w * a.o.h : 0) || a.i - b.i).map(x => x.o);
 }
-const FS = { SPEED, flatOrder, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
+const FS = { SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
 if (typeof module !== 'undefined' && module.exports) module.exports = FS; else root.FS = FS;
 })(typeof self !== 'undefined' ? self : this);

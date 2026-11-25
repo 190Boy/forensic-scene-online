@@ -77,6 +77,37 @@ select option{background:#0f1522;color:var(--ink)}
 .sep{width:8px}
 #act{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));width:min(560px,94vw);background:rgba(18,26,40,.95);border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
 #act h3{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+#act .ah{display:flex;align-items:center;gap:6px;font-size:15px;margin-bottom:4px;flex-wrap:wrap}
+#act .ah small{color:var(--dim);font-size:12px}
+#act .ai{width:28px;height:28px}
+#act .ad{color:var(--dim);font-size:12px;line-height:1.4;margin-bottom:6px}
+#act kbd{display:none;min-width:18px;padding:0 5px;border-radius:5px;background:#f2d045;color:#1d2333;font:700 12px/18px sans-serif;text-align:center;box-shadow:0 2px 0 #9c7f1c}
+#act .dn{font-size:12px;color:var(--dim);align-self:center}
+/* 電腦版：物件旁邊的小清單（半透明、數字鍵） */
+body.kb #act{left:0;top:0;bottom:auto;transform:none;width:auto;max-width:330px;min-width:200px;background:rgba(12,18,30,.72);backdrop-filter:blur(3px);border-color:rgba(120,140,170,.35);border-radius:12px;padding:7px 9px;pointer-events:auto}
+body.kb #act .ad{display:none}
+body.kb #act .btns{flex-direction:column;gap:2px}
+body.kb #act .btns button{background:transparent;border:0;padding:3px 4px;font-size:13px;justify-content:flex-start;text-align:left;box-shadow:none;color:#e9eef5;border-radius:6px}
+body.kb #act .btns button:hover:not([disabled]){background:rgba(255,255,255,.08)}
+body.kb #act .btns button[disabled]{opacity:.45}
+body.kb #act kbd{display:inline-block}
+body.kb #act .why{font-size:11px}
+#act button.done{opacity:.4;text-decoration:line-through}
+#act .ok{color:#8ff0df;font-size:12px;text-decoration:none}
+@media (max-width:640px){#act button.done{display:none}}
+body.kb .bar{left:auto;right:12px;transform:none;opacity:.78;gap:4px}
+body.kb .slot{width:42px;height:42px;border-radius:10px}
+body.kb .slot img{width:34px;height:34px}
+body.kb #toasts{bottom:calc(14px + env(safe-area-inset-bottom))}
+body.kb .keyhelp{display:block}
+.kbonly{display:none}body.kb .kbonly{display:inline}body.kb .touchonly{display:none}
+kbd.k{display:inline-block;min-width:16px;padding:0 4px;border-radius:4px;background:#f2d045;color:#1d2333;font:700 12px/17px sans-serif;text-align:center}
+#alertBar{position:absolute;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:6;background:rgba(40,24,22,.88);border:1px solid #b8574f;color:#ffe3dc;border-radius:12px;padding:6px 12px;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:min(560px,92vw)}
+#alertBar.run{border-color:#e07a5f}
+#alertBar button{background:#b8574f;color:#fff;border:0;border-radius:8px;padding:4px 10px;font-size:13px;display:flex;align-items:center;gap:5px}
+#alertBar small{color:#d9b8b0;font-size:11px}
+@media (max-width:640px){#alertBar{top:auto;bottom:calc(130px + env(safe-area-inset-bottom));font-size:13px}}
+.keyhelp{display:none;position:absolute;right:12px;bottom:62px;font-size:11px;color:rgba(220,230,240,.7);background:rgba(12,18,30,.5);padding:3px 8px;border-radius:8px;pointer-events:none}
 #act p{margin:0 0 8px;color:var(--dim);font-size:13px;line-height:1.5}
 #act .btns{display:flex;flex-wrap:wrap;gap:6px}
 #act .btns button{display:flex;align-items:center;gap:6px;font-size:14px;padding:7px 10px}
@@ -190,7 +221,13 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
   .slot{width:44px;height:44px}.slot img{width:36px;height:36px}
   #act{bottom:calc(62px + env(safe-area-inset-bottom));padding:8px 10px}
   #act p{font-size:12px;margin-bottom:6px}
-  #act .btns button{font-size:13px;padding:6px 8px}
+  #act{padding:6px 8px;border-radius:12px;background:rgba(18,26,40,.88)}
+  #act .ah{font-size:13px;margin-bottom:3px}
+  #act .ad{display:none}
+  #act .btns{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #act .btns::-webkit-scrollbar{display:none}
+  #act .btns button{font-size:13px;padding:6px 8px;white-space:nowrap;flex:0 0 auto}
+  #act .btns .why{font-size:10px}
   .win{border-radius:14px}
   .ov{padding:6px}
   .room{top:auto;bottom:calc(64px + env(safe-area-inset-bottom));font-size:13px}
@@ -270,9 +307,11 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
   </div>
   <div id="act" class="hidden"></div>
   <div id="toasts"></div>
+  <div id="alertBar" class="hidden"></div>
   <div id="tut" class="hidden"></div>
   <div id="cards"></div>
   <div class="bar" id="bar"></div>
+  <div class="keyhelp">WASD 移動・數字鍵 1–5 用工具・E 互動・N 筆記本</div>
 </div>
 
 <div id="chat" class="hidden">
@@ -283,9 +322,9 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
 
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 
-<script src="casegen.js?v=4"></script>
-<script src="engine.js?v=4"></script>
-<script src="assets.js?v=4"></script>
-<script src="app.js?v=4"></script>
+<script src="casegen.js?v=5"></script>
+<script src="engine.js?v=5"></script>
+<script src="assets.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
