@@ -1,0 +1,15 @@
+{
+  "name": "forensic-scene-online",
+  "version": "1.0.0",
+  "description": "鑑識現場：多人合作鑑識推理網頁遊戲（程序生成命案，含單機模式）",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/engine.test.js && node test/server.test.js",
+    "assets": "node tools/gen_assets.js",
+    "prompts": "node tools/gen_assets.js --prompts"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" }
+}

@@ -1,0 +1,19 @@
+# Render Blueprint — 免費方案（free）。Render 後台 → New → Blueprint → 選這個 repo 即可。
+# 不加任何 keep-alive／ping；免費方案閒置約 15 分鐘會休眠，第一位玩家連線時冷啟動約 30–60 秒。
+services:
+  - type: web
+    name: forensic-scene-online
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # 語音 TURN（可選，擇一）：Cloudflare / Metered / 自架 coturn。都不填 → 用 Open Relay 公開中繼。
+      - key: CF_TURN_KEY_ID
+        sync: false
+      - key: CF_TURN_API_TOKEN
+        sync: false
