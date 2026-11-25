@@ -209,7 +209,7 @@ function generate(seed, diff) {
     ev('E_nails_none', '指甲縫乾淨', 'ev_photo', '指甲縫裡沒有皮屑，死者沒有掙扎過。', {});
     bodyActs.push({ id: 'nails', tool: 'camera', ap: 1, label: '檢查指甲縫', ev: ['E_nails_none'] });
   }
-  O.push({ id: 'body', room: bodyRoom, x: B.x, y: B.y, img: 'prop_body', w: 190, h: 90, name: '死者・林志遠', flat: true, r: 120, desc: '死者倒在地上，已經沒有生命跡象。', acts: bodyActs });
+  O.push({ id: 'body', room: bodyRoom, x: B.x, y: B.y, img: 'prop_body', w: 210, h: 104, name: '屍體（死者・林志遠）', flat: true, label: '屍體（死者）', r: 120, desc: '死者倒在地上，已經沒有生命跡象。', acts: bodyActs });
   // 地板（每個房間一塊）
   for (const k of BASE.rooms3) {
     const F = FLOOR[k]; const isCrime = k === crime && method.blood;

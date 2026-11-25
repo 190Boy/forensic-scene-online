@@ -291,7 +291,25 @@ const D = {
   prop_coffee_table: (c, w, h) => { shadowE(c, w, h, .46); box(c, w * .04, h * .1, w * .92, h * .6, h * .3, '#6b4426'); rr(c, w * .1, h * .66, w * .06, h * .28, 3, '#4a2e18', K.ink, 3); rr(c, w * .84, h * .66, w * .06, h * .28, 3, '#4a2e18', K.ink, 3); },
   prop_wine_glasses: (c, w, h) => { for (const x of [.3, .7]) { pg(c, [[w * (x - .16), h * .1], [w * (x + .16), h * .1], [w * (x + .1), h * .48], [w * (x - .1), h * .48]], 'rgba(220,235,245,.8)', K.ink, 3); c.fillStyle = '#7a1424'; c.fillRect(w * (x - .1), h * .34, w * .2, h * .12); c.fillStyle = K.ink; c.fillRect(w * x - 2, h * .48, 4, h * .32); el(c, w * x, h * .84, w * .14, h * .05, '#dfe8ef', K.ink, 2); } },
   prop_wine_bottle: (c, w, h) => { rr(c, w * .38, h * .02, w * .24, h * .3, 4, '#2c4a2a', K.ink, 3); rr(c, w * .12, h * .28, w * .76, h * .68, 12, '#24402a', K.ink, 3); rr(c, w * .2, h * .5, w * .6, h * .22, 3, '#efe6d2'); },
-  prop_body: (c, w, h) => { c.setLineDash([10, 8]); rr(c, 6, 6, w - 12, h - 12, 40, null, 'rgba(255,255,255,.7)', 4); c.setLineDash([]); rr(c, w * .24, h * .26, w * .48, h * .44, 30, '#7a2633', K.ink, 4); el(c, w * .82, h * .46, w * .1, h * .2, '#bfbfbf', K.ink, 4); rr(c, w * .06, h * .3, w * .2, h * .14, 8, '#3a3f4a', K.ink, 3); rr(c, w * .06, h * .52, w * .2, h * .14, 8, '#3a3f4a', K.ink, 3); rr(c, w * .4, h * .06, w * .2, h * .16, 8, '#7a2633', K.ink, 3); rr(c, w * .44, h * .72, w * .2, h * .16, 8, '#7a2633', K.ink, 3); el(c, w * .9, h * .36, w * .04, h * .06, '#5a1a1a'); },
+  prop_body: (c, w, h) => { // 俯視：死者趴在地上（頭朝右），外面一圈白色粉筆輪廓；卡通、不血腥
+    const X = v => v * w, Y = v => v * h, ch = 'rgba(255,255,255,.95)';
+    const limb = (x1, y1, x2, y2, t, col) => { c.lineCap = 'round'; c.strokeStyle = K.ink; c.lineWidth = Y(t) + 6; c.beginPath(); c.moveTo(X(x1), Y(y1)); c.lineTo(X(x2), Y(y2)); c.stroke(); c.strokeStyle = col; c.lineWidth = Y(t); c.stroke(); };
+    // 粉筆輪廓：身體外擴一圈的白色剪影（半透明），再加一圈虛線
+    const halo = (pad, col) => { c.lineCap = 'round'; c.strokeStyle = col; c.fillStyle = col;
+      for (const [x1, y1, x2, y2, t] of [[.12, .34, .4, .4, .18], [.12, .66, .4, .6, .18], [.62, .32, .54, .18, .16], [.66, .68, .72, .82, .16]]) { c.lineWidth = Y(t) + pad * 2; c.beginPath(); c.moveTo(X(x1), Y(y1)); c.lineTo(X(x2), Y(y2)); c.stroke(); }
+      rr(c, X(.34) - pad, Y(.24) - pad, X(.42) + pad * 2, Y(.52) + pad * 2, Y(.2) + pad, col); el(c, X(.86), Y(.5), X(.075) + pad, Y(.2) + pad, col); };
+    halo(12, 'rgba(255,255,255,.92)'); halo(7, 'rgba(60,50,50,.85)');
+    // 身體
+    limb(.12, .34, .4, .4, .18, '#3a3f4a'); limb(.12, .66, .4, .6, .18, '#3a3f4a');           // 雙腿（深色長褲）
+    el(c, X(.1), Y(.34), X(.035), Y(.08), '#1f1a17', K.ink, 3); el(c, X(.1), Y(.66), X(.035), Y(.08), '#1f1a17', K.ink, 3); // 鞋
+    limb(.62, .32, .54, .18, .16, '#7a2633'); limb(.66, .68, .72, .82, .16, '#7a2633');    // 雙臂（酒紅毛衣）
+    el(c, X(.53), Y(.15), X(.03), Y(.07), '#e7b58f', K.ink, 3); el(c, X(.73), Y(.85), X(.03), Y(.07), '#e7b58f', K.ink, 3); // 手
+    rr(c, X(.34), Y(.24), X(.42), Y(.52), Y(.2), '#7a2633', K.ink, 4);                       // 軀幹
+    c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 3; c.beginPath(); c.moveTo(X(.36), Y(.5)); c.lineTo(X(.74), Y(.5)); c.stroke();
+    el(c, X(.86), Y(.5), X(.075), Y(.2), '#e7b58f', K.ink, 4);                                // 頭
+    c.save(); c.beginPath(); c.ellipse(X(.86), Y(.5), X(.075), Y(.2), 0, 0, Math.PI * 2); c.clip(); el(c, X(.88), Y(.5), X(.07), Y(.22), '#4a3a30'); c.restore(); el(c, X(.86), Y(.5), X(.075), Y(.2), null, K.ink, 4); // 頭髮（趴著看到後腦）
+    el(c, X(.95), Y(.38), X(.03), Y(.06), 'rgba(90,20,26,.75)');                             // 頭旁一小塊深色痕跡
+  },
   prop_fireplace: (c, w, h) => { shadowE(c, w, h, .46); rr(c, w * .02, h * .06, w * .96, h * .2, 18, '#f3f1ec', K.ink, 4); rr(c, w * .08, h * .22, w * .84, h * .72, 14, '#e8e5de', K.ink, 4); rr(c, w * .26, h * .4, w * .48, h * .54, 40, '#2a2a2a', K.ink, 4); el(c, w * .14, h * .9, w * .1, h * .06, '#8a1f1f'); },
   prop_poker: (c, w, h) => { shadowE(c, w, h, .4); rr(c, w * .2, h * .84, w * .6, h * .1, 4, '#333', K.ink, 3); for (const x of [.32, .5, .68]) { c.strokeStyle = '#2a2a2a'; c.lineWidth = 6; c.beginPath(); c.moveTo(w * x, h * .86); c.lineTo(w * x, h * .08); c.stroke(); } el(c, w * .5, h * .06, w * .12, h * .04, '#c8a050', K.ink, 2); },
   prop_desk: (c, w, h) => { shadowE(c, w, h, .46); box(c, w * .04, h * .2, w * .92, h * .72, h * .26, '#7a3b24'); rr(c, w * .55, h * .58, w * .3, h * .12, 3, '#5f2c19', K.ink, 3); rr(c, w * .14, h * .06, w * .24, h * .2, 3, '#f3efe3', K.ink, 3); rr(c, w * .42, h * .1, w * .2, h * .16, 3, '#2d4a6b', K.ink, 3); el(c, w * .82, h * .1, w * .07, h * .08, K.amber, K.ink, 3); },

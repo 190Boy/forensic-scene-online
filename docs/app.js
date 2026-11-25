@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '3';
+const VER = '4';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const AGENT_COL = ['#2bb3a3', '#f2a541', '#8a6fd1', '#f2d045'];
@@ -379,17 +379,22 @@ function render(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#0b0f18'; ctx.fillRect(0, 0, VW, VH);
   if (!G.st || !C) return;
   const M = C.map; const hw = VW / 2 / Z, hh = VH / 2 / Z;
-  CAM.x = M.w < hw * 2 ? M.w / 2 : Math.max(hw - 40, Math.min(M.w - hw + 40, G.Me.x));
-  CAM.y = M.h < hh * 2 ? M.h / 2 + 60 : Math.max(hh + 100, Math.min(M.h - hh + 40, G.Me.y - 30));
+  CAM.x = M.w < hw * 2 ? M.w / 2 : Math.max(hw - 40, Math.min(M.w - hw + 40, G.camAt ? G.camAt.x : G.Me.x));
+  CAM.y = M.h < hh * 2 ? M.h / 2 + 60 : Math.max(hh + 100, Math.min(M.h - hh + 40, (G.camAt ? G.camAt.y : G.Me.y) - 30));
   const WT = [DPR * Z, 0, 0, DPR * Z, DPR * (VW / 2 - CAM.x * Z), DPR * (VH / 2 - CAM.y * Z)];
   ctx.setTransform(...WT);
   drawMap();
   // 屍體所在的房間：微微偏冷的紫紅色調（氣氛用，不洩漏答案）
   const br = roomOf(bodyRoom()); if (br) { ctx.fillStyle = 'rgba(70,20,70,.13)'; ctx.fillRect(br.x, br.y, br.w, br.h); }
   const near = G.nearId, lights = G.st.lights || {};
-  for (const o of C.objects) {
-    if (!o.flat || G.st.obj[o.id].gone) continue;
-    drawImg(o.img, o.x, o.y, o.w, o.h, { flat: true });
+  G.flatDrawn = [];
+  for (const o of ENG.flatOrder(C)) {
+    if (G.st.obj[o.id].gone || (o.id === 'body' && G.hideBody)) continue;
+    if (o.id === 'body') { // 屍體：先畫一圈淡淡的粉筆輪廓與陰影，讓它在任何地毯上都看得清楚
+      ctx.save(); ctx.fillStyle = 'rgba(10,12,20,.28)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 4, o.w * .56, o.h * .62, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.setLineDash([9, 7]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(o.x, o.y, o.w * .58, o.h * .66, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    drawImg(o.img, o.x, o.y, o.w, o.h, { flat: true }); G.flatDrawn.push(o.id);
   }
   const items = [];
   for (const o of C.objects) if (!o.flat && !G.st.obj[o.id].gone && !(o.id === 'chief' && G.st.boss && G.st.boss.mode !== 'away')) items.push({ kind: 'o', o, y: o.sw ? o.y - 60 : o.y });
@@ -477,6 +482,7 @@ function render(now) {
     ctx.fillStyle = '#1d2333'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', o.x, yy + 1);
     if (a === 2 && !G.glinted.has(o.id) && Math.hypot(G.Me.x - o.x, G.Me.y - o.y) < 150) { G.glinted.add(o.id); Snd.glint(); }
   }
+  { const bo = ENG.objById(C, 'body'); if (bo && near !== 'body') label(bo.label || '屍體', bo.x, bo.y + bo.h / 2 + 18, '#ffd9d9'); }
   if (near && !near.startsWith('npc:') && near !== 'boss') { const o = ENG.objById(C, near); if (o) label(o.name, o.x, o.npc ? o.y - o.h - 12 : o.flat ? o.y + o.h / 2 + 16 : o.y + 18, '#bfefff'); }
   // 教學箭頭
   const tg = Tut.target(); if (tg) drawImg('ui_tut_arrow', tg.x, tg.y - 20 - Math.abs(Math.sin(t * 3)) * 12, 46, 46);
@@ -501,7 +507,7 @@ function render(now) {
   const B = G.st.boss; if (B && B.mode === 'in') marks.push([B.vx != null ? B.vx : B.x, B.vy != null ? B.vy : B.y, '👔', '#5a6a8a']);
   for (const n of G.st.npcs || []) if (n.mode === 'flee') marks.push([n.vx != null ? n.vx : n.x, n.vy != null ? n.vy : n.y, '🏃', '#b8574f']);
   if (tg) marks.push([tg.x, tg.y + 40, '⬇️', '#1f8f82']);
-  for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); if (px > 30 && px < VW - 30 && py > 60 && py < VH - 60) continue; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(90, Math.min(VH - 90, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
+  for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); const [fx, fy] = W2S(x, y), [hx, hy] = W2S(x, y - 130); if (fx > -20 && fx < VW + 20 && fy > -10 && hy < VH + 10) continue; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(90, Math.min(VH - 90, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
 }
 // 分局長頭上的泡泡：要求圖示＋文字，下方一條慢慢變短的「耐心」條（不顯示秒數）
 function bossBubble(B, x, y, t) {
@@ -615,6 +621,17 @@ function enterGame(needGear) {
   closeOv(); refresh();
   if (G.st.phase === 'deduce') openDeduce(); else if (G.st.phase === 'result') openResult(); else if (needGear) openBriefing();
 }
+// 手機：結果卡／提示卡放在左上 HUD（和教學框）的下方，不要蓋住它們
+function layoutCards() {
+  const cards = $('#cards'); if (!cards) return;
+  const tut = $('#tut');
+  if (innerWidth > 640) { cards.style.top = ''; if (tut) tut.style.top = ''; return; }
+  const tl = document.querySelector('.tl'); if (tut && tl) tut.style.top = Math.round(tl.getBoundingClientRect().bottom + 6) + 'px';
+  let bottom = 0; for (const sel of ['.tl', '#tut']) { const e = document.querySelector(sel); if (e && e.offsetParent && !e.classList.contains('hidden')) bottom = Math.max(bottom, e.getBoundingClientRect().bottom); }
+  if (bottom) cards.style.top = Math.round(bottom + 8) + 'px';
+}
+setInterval(() => { try { layoutCards(); } catch (e) { } }, 250);
+addEventListener('resize', () => layoutCards());
 function refresh() {
   if (!G.st || !C) return;
   const p = meP(); if (!p) return;
@@ -833,7 +850,7 @@ function openDeduce() {
 }
 function openResult() {
   const R = G.st.result; if (!R) return;
-  const html = hdr('📁 結案報告', true) + `<div class="body res"><div class="rank">${R.rank}</div><p style="text-align:center;font-size:20px;margin:4px 0 12px">${R.total} 分</p>
+  const html = hdr('📁 結案報告', true) + `<div class="body res"><div class="rank">${R.rank}</div><p style="text-align:center;font-size:20px;margin:4px 0 12px">${R.total} / 100 分${R.bonus ? `<br><small style="color:var(--dim);font-size:13px">基本 ${R.base}＋獎勵 ${R.bonus}${R.pen ? ` ${R.pen}` : ''}${R.raw > 100 ? '（滿分 100）' : ''}</small>` : ''}</p>
     <table>${R.rows.map(r => `<tr><td>${r.label}</td><td class="${r.ok ? 'ok' : 'ng'}">${r.ok ? '✔' : '✖'} ${esc(r.pick)}${r.ok ? '' : `<br><small>正解：${esc(r.right)}</small>`}</td><td style="text-align:right">${r.pts}/${r.max}</td></tr>`).join('')}
     <tr><td>關鍵證據</td><td>${R.keys.map(k => `${esc(k.name)}（+${k.pts}）`).join('<br>') || '—'}</td><td style="text-align:right">${R.keyPts}/15</td></tr>
     ${R.timeB != null ? `<tr><td>結案速度</td><td>分局長耐心還剩 ${Math.round(G.st.patience)}%</td><td style="text-align:right">+${R.timeB || 0}/10</td></tr><tr><td>實驗室額度</td><td>花了 ${R.spent} 點（剩 ${G.st.budget}／${G.st.budgetMax}）</td><td style="text-align:right">+${R.budB || 0}/5</td></tr>` : ''}
@@ -1049,4 +1066,18 @@ const Tut = {
 };
 $('#tut').addEventListener('click', e => { if (e.target.closest('#tutSkip') && confirm('跳過新手教學？')) { Tut.stop(); backHome(); } if (e.target.closest('#tutHome')) { Tut.stop(); closeOv(); backHome(); } });
 loadAssets().then(() => { initHome(); requestAnimationFrame(loop); if (/autosolo/.test(location.hash)) startSolo(false); if (/tutorial/.test(location.hash)) Tut.start(); });
-window.__fs = { G, get C() { return C; }, ENG, doAct, openVan, openNote, openDeduce, refresh, Tut };
+// 測試用：屍體有沒有真的畫在畫面上（畫的順序＋實際像素：有屍體 vs 暫時拿掉屍體，畫面要明顯不同）
+async function bodyCheck() {
+  const o = ENG.objById(C, 'body'), fd = G.flatDrawn || [], i = fd.indexOf('body');
+  const covers = ENG.flatOrder(C).filter(q => q.id !== 'body' && q.w * q.h >= 15000 && Math.abs(q.x - o.x) < (q.w + o.w) / 2 && Math.abs(q.y - o.y) < (q.h + o.h) / 2).map(q => q.id);
+  const drawnOnTop = i >= 0 && covers.every(id => fd.indexOf(id) < i);
+  const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const grab = () => { const [x0, y0] = W2S(o.x - o.w * .35, o.y - o.h * .25), [x1, y1] = W2S(o.x + o.w * .35, o.y + o.h * .25), k = cv.width / VW;
+    const sx = Math.max(0, Math.round(x0 * k)), sy = Math.max(0, Math.round(y0 * k)), sw = Math.min(Math.round((x1 - x0) * k), cv.width - sx), sh = Math.min(Math.round((y1 - y0) * k), cv.height - sy);
+    return sw > 0 && sh > 0 ? ctx.getImageData(sx, sy, sw, sh).data : null; };
+  await frame(); const A = grab(); if (!A) return { drawnOnTop, covers, onScreen: false, ratio: 0 };
+  G.hideBody = true; await frame(); const B = grab(); G.hideBody = false; await frame();
+  let diff = 0; for (let j = 0; j < A.length; j += 4) if (Math.abs(A[j] - B[j]) + Math.abs(A[j + 1] - B[j + 1]) + Math.abs(A[j + 2] - B[j + 2]) > 45) diff++;
+  return { drawnOnTop, covers, onScreen: true, ratio: +(diff / (A.length / 4)).toFixed(3) };
+}
+window.__fs = { G, get C() { return C; }, ENG, doAct, openVan, openNote, openDeduce, refresh, Tut, bodyCheck };

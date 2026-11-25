@@ -22,6 +22,16 @@ async function closeWin(pg) { await pg.evaluate(() => { const b = document.query
 const tutStep = pg => pg.evaluate(() => __fs.G.tut ? __fs.G.tut.i : -1);
 async function waitStep(pg, n, ms = 8000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if ((await tutStep(pg)) >= n) return; await sleep(150); } throw new Error(`教學卡在第 ${await tutStep(pg)} 步（要到 ${n}）`); }
 const errors = [];
+// 屍體一定要真的畫在畫面上：畫的順序在地毯之後，而且畫面上那一塊有屍體的顏色
+async function checkBody(pg, tag, file) {
+  const o = await pg.evaluate(() => { const o = __fs.ENG.objById(__fs.C, 'body'); return { x: o.x, y: o.y, w: o.w, h: o.h }; });
+  let spot = null; for (const [dx, dy] of [[0, 140], [0, -130], [-220, 60], [220, 60], [0, 180], [-260, 0], [260, 0]]) if (await pg.evaluate(([x, y]) => __fs.ENG.walkable(__fs.C, x, y), [o.x + dx, o.y + dy])) { spot = [o.x + dx, o.y + dy]; break; }
+  if (spot) await tp(pg, spot[0], spot[1]); await sleep(600);
+  const r = await pg.evaluate(() => __fs.bodyCheck());
+  console.log(`屍體檢查［${tag}］：`, JSON.stringify(r));
+  if (!(r.drawnOnTop && r.onScreen && r.ratio > 0.3)) errors.push(`屍體沒有畫出來［${tag}］：${JSON.stringify(r)}`);
+  if (file) { await pg.screenshot({ path: '/workspace/' + file }); shots.push('/workspace/' + file); }
+}
 async function page(browser, opts) { const ctx = await browser.newContext(opts); const pg = await ctx.newPage(); pg.on('pageerror', e => errors.push(e.message)); pg.on('console', m => { if (m.type() === 'error' && !/ERR_|404|WebSocket/.test(m.text())) errors.push(m.text()); }); pg.on('dialog', d => d.accept()); return pg; }
 async function chase(pg, find, ms = 15000) { // 追上某個移動中的人（員警／分局長）
   const t0 = Date.now(); while (Date.now() - t0 < ms) { const p = await pg.evaluate(find); if (p) await tp(pg, p.x, p.y + 6); else await sleep(200); if (await pg.evaluate(() => 0)) break; await sleep(150); if (!(await pg.evaluate(find))) return true; } return false;
@@ -50,6 +60,7 @@ async function deduceAndSubmit(pg, name) {
   for (const t of ['camera', 'luminol', 'prints']) await tg.click(`[data-tool="${t}"]`);
   await shot(tg, 'tut_3_gear');
   await tg.click('#gearOk'); await waitStep(tg, 3); await closeWin(tg);
+  await checkBody(tg, '教學・桌機', 'forensic_v3_body_tutorial.png');
   await toObj(tg, 'body'); await shot(tg, 'tut_4_highlight'); await act(tg, '近拍傷口'); await waitStep(tg, 4); await sleep(300);
   await shot(tg, 'tut_5_result_card');
   await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾'); await waitStep(tg, 5);
@@ -118,6 +129,13 @@ async function deduceAndSubmit(pg, name) {
   await pg.click('#bClose'); await sleep(800); await deduceAndSubmit(pg, null);
   await shot(pg, 'result');
   const res = await pg.evaluate(() => __fs.G.st.result); console.log('正式案件：', res.rank, res.total, 'time+', res.timeB, 'budget+', res.budB);
+  /* ---------- 2b. 屍體在每個可能的房間都看得到（客廳／書房＝偽裝意外移屍／廚房） ---------- */
+  for (const [seed, room] of [[1, '客廳'], [4, '書房（偽裝意外）'], [5, '廚房']]) {
+    const bp = await page(br, { viewport: { width: 1280, height: 800 } });
+    await bp.goto(BASE + '?seed=' + seed); await sleep(900); await bp.fill('#name', '百九'); await bp.click('#bSolo'); await sleep(700); await bp.click('#win footer [data-close]').catch(() => { }); await sleep(300);
+    await checkBody(bp, '正式案件・' + room, seed === 4 ? 'forensic_v3_body_case.png' : `forensic_v3_body_case_seed${seed}.png`);
+    await bp.context().close();
+  }
   /* ---------- 3. 連線：燈的開關同步 ---------- */
   const p1 = await page(br, { viewport: { width: 1280, height: 800 } }), p2 = await page(br, { viewport: { width: 1280, height: 800 } });
   await p1.goto(BASE); await sleep(800); await p1.fill('#name', '百九'); await p1.click('#bCreate');
@@ -127,6 +145,13 @@ async function deduceAndSubmit(pg, name) {
   await shot(p1, 'room');
   await p1.click('#rmStart'); await sleep(1500);
   for (const p of [p1, p2]) await p.click('#win footer [data-close]').catch(() => { });
+  { const o = await p2.evaluate(() => { const o = __fs.ENG.objById(__fs.C, 'body'); return { x: o.x, y: o.y }; }); await p2.evaluate(() => { __fs.G.Me.x = 400; __fs.G.Me.y = 700; }); await sleep(300); }
+  { // 連線時鏡頭跟著自己，直接看屍體那一塊：先把鏡頭（本機畫面）移過去檢查像素
+    const r = await p1.evaluate(async () => { const o = __fs.ENG.objById(__fs.C, 'body'); const G = __fs.G; G.camAt = { x: o.x, y: o.y + 60 }; await new Promise(r => setTimeout(r, 700)); const res = __fs.bodyCheck(); return res; });
+    await p1.screenshot({ path: '/workspace/forensic_v3_body_online.png' }); shots.push('/workspace/forensic_v3_body_online.png'); await p1.evaluate(() => { __fs.G.camAt = null; });
+    console.log('屍體檢查［連線］：', JSON.stringify(r)); if (!(r.drawnOnTop && r.onScreen && r.ratio > 0.3)) errors.push('連線時屍體沒有畫出來：' + JSON.stringify(r));
+    await sleep(800);
+  }
   for (const [x, y] of [[400, 690], [440, 640], [480, 610], [540, 600], [600, 590], [660, 590], [700, 580], [740, 540], [760, 500], [760, 480]]) { await p2.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }
   for (const [x, y] of [[400, 700], [440, 650], [480, 620], [540, 610], [600, 610], [640, 640]]) { await p1.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }
   await sleep(400); await p2.evaluate(() => __fs.doAct({ type: 'light', obj: 'sw_living' })); await sleep(900);
@@ -142,6 +167,7 @@ async function deduceAndSubmit(pg, name) {
   await ip.tap('#bTut'); await sleep(900); await shot(ip, 'iphone_tutorial');
   await tp(ip, 470, 600); await waitStep(ip, 1); await ip.evaluate(() => __fs.openVan()); await waitStep(ip, 2);
   for (const t of ['camera', 'luminol', 'prints']) await ip.tap(`[data-tool="${t}"]`); await ip.tap('#gearOk'); await waitStep(ip, 3); await closeWin(ip);
+  await checkBody(ip, '教學・iPhone', 'forensic_v3_iphone_body.png');
   await toObj(ip, 'body'); await act(ip, '近拍傷口'); await sleep(300); await shot(ip, 'iphone_result_card');
   await toObj(ip, 'floor_living'); await act(ip, '噴灑魯米諾'); await toObj(ip, 'sw_living'); await ip.tap('#act [data-k="light"]'); await sleep(500); await toObj(ip, 'floor_living'); await sleep(300);
   await shot(ip, 'dark_6_iphone');

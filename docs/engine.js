@@ -432,10 +432,15 @@ function grade(C, st) {
   const pen = st.fled ? -10 : 0;
   const base = rows.reduce((t, r) => t + r.pts, 0) + Math.min(kp, 15);
   const timeB = base >= 50 ? Math.round((st.patience || 0) / 10) : 0, budB = base >= 50 ? Math.round(5 * (st.budget || 0) / Math.max(1, st.budgetMax || 1)) : 0;   // 答得夠好才有效率獎勵
-  const total = Math.max(0, base + timeB + budB + pen);
+  const bonus = timeB + budB, raw = base + bonus + pen, total = Math.max(0, Math.min(100, raw));
   const rank = total >= 100 ? 'S' : total >= 82 ? 'A' : total >= 60 ? 'B' : total >= 40 ? 'C' : 'D';
-  return { rows, keys, keyPts: Math.min(kp, 15), timeB, budB, pen, fled: st.fled, total, rank, found: st.found.length, spent: st.spent, clock: Math.round(st.clock), ms: Object.assign({}, st.ms), bossOk: st.bossOk || 0, bossFail: st.bossFail || 0 };
+  return { rows, keys, keyPts: Math.min(kp, 15), timeB, budB, pen, base, bonus, raw, fled: st.fled, total, rank, found: st.found.length, spent: st.spent, clock: Math.round(st.clock), ms: Object.assign({}, st.ms), bossOk: st.bossOk || 0, bossFail: st.bossFail || 0 };
 }
-const FS = { SPEED, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
+// 平放在地上的物件畫的順序：大塊地毯／地板先畫 → 屍體（壓在地毯上面）→ 小證物（手機、相框等，放在屍體旁也看得到）
+function flatOrder(C) {
+  const rank = o => o.id === 'body' ? 1 : (o.w * o.h >= 15000 ? 0 : 2);
+  return C.objects.filter(o => o.flat).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || (rank(a.o) === 0 ? b.o.w * b.o.h - a.o.w * a.o.h : 0) || a.i - b.i).map(x => x.o);
+}
+const FS = { SPEED, flatOrder, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
 if (typeof module !== 'undefined' && module.exports) module.exports = FS; else root.FS = FS;
 })(typeof self !== 'undefined' ? self : this);

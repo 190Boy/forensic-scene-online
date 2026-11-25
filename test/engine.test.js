@@ -200,4 +200,23 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   ok(d.methods.length === 1 && d.methods[0] === C.method && d.suspects.length === 1 && d.suspects[0] === C.culprit && d.weapon === C.weapon && d.location === C.location, '教學步驟的證據 → 推理完整且正確');
   ok(C.labSec <= 10 && st.patience === 100, '教學：實驗室很快、分局長不會沒耐心');
 }
+// 10. 屍體一定畫在地毯上面（所有房間、所有手法，包括偽裝意外移屍到書房）
+{
+  let bad = 0, rooms = new Set();
+  for (const diff of ['easy', 'normal', 'hard', 'tut']) for (let seed = 1; seed <= (diff === 'tut' ? 10 : 300); seed++) {
+    const C = GEN.generate(seed, diff), order = FS.flatOrder(C), b = C.objects.find(o => o.id === 'body'); rooms.add(b.room);
+    const bi = order.indexOf(b);
+    if (order.some((o, i) => o.w * o.h >= 15000 && i > bi) || order.some((o, i) => o !== b && o.w * o.h < 15000 && i < bi) || !b.label || b.w < 150) bad++;
+    if (!FS.walkable(C, b.x, b.y + b.h / 2 + 30) && !FS.walkable(C, b.x - b.w / 2 - 30, b.y) && !FS.walkable(C, b.x + b.w / 2 + 30, b.y)) bad++;
+  }
+  ok(bad === 0, `屍體畫在所有地毯之上、小證物之下、有「屍體（死者）」標籤、走得到旁邊（出現在 ${[...rooms].join('／')}）`);
+}
+// 11. 總分最多 100（獎勵另外顯示）
+{
+  const C = GEN.generate(5, 'easy'), st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: false }); st.phase = 'deduce';
+  for (const [f, v] of [['culprit', C.culprit], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, st, 0, { type: 'draft', field: f, v });
+  st.found = C.objects.flatMap(o => (o.acts || []).flatMap(a => a.ev || [])).map(id => ({ id })); FS.act(C, st, 0, { type: 'draft', field: 'keys', v: C.keyEv || st.found.slice(0, 3).map(f => f.id) });
+  FS.act(C, st, 0, { type: 'submit' }); const R = st.result;
+  ok(R.total <= 100 && R.total === Math.min(100, R.base + R.bonus + R.pen) && R.bonus === R.timeB + R.budB, `總分上限 100（基本 ${R.base}＋獎勵 ${R.bonus} → ${R.total}）`);
+}
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);
