@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '5';
+const VER = '6';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const AGENT_COL = ['#2bb3a3', '#f2a541', '#8a6fd1', '#f2d045'];
@@ -460,7 +460,7 @@ function render(now) {
     const S = G.st.obj[o.id]; if (S.gone || !S.revealed.length) continue;
     const isDark = lights[o.room] === false;
     if (isDark) for (const fx of S.revealed) {
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .8 + .2 * Math.sin(t * 1.6);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .6 + .15 * Math.sin(t * 1.6);
       const big = fx === 'fx_luminol_pool';
       if (o.flat) drawImg(fx, o.x, o.y, big ? o.w : Math.max(110, o.w * .8), big ? o.h : Math.max(80, o.h), { flat: true }); else drawImg(fx, o.x, o.y - o.h * .1, 120, 120);
       ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 30; ctx.globalAlpha = .25; ctx.fillStyle = '#4fd2ff'; ctx.beginPath(); ctx.ellipse(o.x, o.flat ? o.y : o.y - o.h * .4, big ? o.w * .4 : 40, big ? o.h * .35 : 30, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
@@ -605,8 +605,18 @@ function interactNearest() { const id = nearest(); if (!id || id === 'boss') ret
 /* ================= 主迴圈 ================= */
 let last = performance.now(), slowT = 0;
 // 電腦（滑鼠＋鍵盤）用精簡的鍵盤清單；觸控裝置用按鈕
-function setKB() { document.body.classList.toggle('kb', matchMedia('(hover: hover) and (pointer: fine)').matches && innerWidth > 640); }
+// 輸入方式：先猜（滑鼠＋寬螢幕＝鍵盤清單），之後依「實際」輸入切換並記住——
+// 按鍵或滑鼠移動 → 鍵盤清單；手指觸控 → 觸控按鈕列（觸控筆電也能正確切換）
+let INPUT = null; try { INPUT = localStorage.getItem('fs_input'); } catch (e) { }
+function setKB() { const kb = INPUT ? INPUT === 'kb' : (matchMedia('(hover: hover) and (pointer: fine)').matches || matchMedia('(any-pointer: fine)').matches) && innerWidth > 640; document.body.classList.toggle('kb', kb); }
+function useInput(m) { if (INPUT === m) return; INPUT = m; try { localStorage.setItem('fs_input', m); } catch (e) { } setKB(); if (typeof refreshAct === 'function' && G.st) refreshAct(); }
 setKB(); addEventListener('resize', setKB);
+addEventListener('keydown', e => { if (/^(w|a|s|d|e|n|arrow\w+|[1-9]| )$/i.test(e.key)) useInput('kb'); }, true);
+// 滑鼠只在「有精細指標」的裝置上才算數，而且剛摸過螢幕的 1 秒內不算（手機點擊會附帶模擬的滑鼠事件）
+let lastTouch = 0; const realMouse = e => e.pointerType === 'mouse' && performance.now() - lastTouch > 1000 && matchMedia('(any-pointer: fine)').matches;
+addEventListener('touchstart', () => { lastTouch = performance.now(); useInput('touch'); }, { passive: true, capture: true });
+addEventListener('pointermove', e => { if (realMouse(e) && (Math.abs(e.movementX) + Math.abs(e.movementY) > 0)) useInput('kb'); }, { passive: true });
+addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || e.pointerType === 'pen') { lastTouch = performance.now(); useInput('touch'); } else if (realMouse(e)) useInput('kb'); }, { passive: true, capture: true });
 const MOUSE = { x: -1, y: -1 }; addEventListener('mousemove', e => { MOUSE.x = e.clientX; MOUSE.y = e.clientY; }, { passive: true });
 function loop(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;

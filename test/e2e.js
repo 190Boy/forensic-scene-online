@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v2_';
+const OUT = '/workspace/forensic_v6_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -152,6 +152,24 @@ async function deduceAndSubmit(pg, name) {
   await pg.click('#bClose'); await sleep(800); await deduceAndSubmit(pg, null);
   await shot(pg, 'result');
   const res = await pg.evaluate(() => __fs.G.st.result); console.log('正式案件：', res.rank, res.total, 'time+', res.timeB, 'budget+', res.budB);
+  /* ---------- 2a. 觸控筆電（寬螢幕＋觸控）：按一下鍵盤就切到精簡鍵盤清單（教學裡也一樣） ---------- */
+  { const tp2 = await page(br, { viewport: { width: 1366, height: 768 }, hasTouch: true });
+    await tp2.goto(BASE); await sleep(900); await tp2.fill('#name', '百九');
+    await tp2.evaluate(() => document.getElementById('bTut').click()); await sleep(900);
+    await tp2.evaluate(() => { document.body.classList.remove('kb'); });
+    await tp2.keyboard.press('d'); await sleep(300);
+    const kb = await tp2.evaluate(() => document.body.classList.contains('kb') && localStorage.getItem('fs_input'));
+    console.log('觸控筆電按鍵後：', kb); if (kb !== 'kb') errors.push('觸控筆電按鍵後沒有切到鍵盤清單');
+    await tp(tp2, 470, 600); await waitStep(tp2, 1); await tp(tp2, 300, 690); await tp2.keyboard.press('e'); await waitStep(tp2, 2);
+    for (const t of ['camera', 'luminol', 'prints']) await tp2.evaluate(t => document.querySelector(`[data-tool="${t}"]`).click(), t);
+    await tp2.evaluate(() => document.getElementById('gearOk').click()); await waitStep(tp2, 3); await closeWin(tp2);
+    await toObj(tp2, 'body'); await sleep(400);
+    const r = await tp2.evaluate(() => { const b = document.querySelector('#act').getBoundingClientRect(); return { kb: document.body.classList.contains('kb'), area: Math.round(b.width * b.height / (innerWidth * innerHeight) * 1000) / 10, key1: !!document.querySelector('#act button[data-key="1"] kbd') }; });
+    console.log('觸控筆電・教學清單：', JSON.stringify(r)); if (!r.kb || r.area > 9 || !r.key1) errors.push('觸控筆電教學清單不是精簡鍵盤版：' + JSON.stringify(r));
+    await tp2.keyboard.press('1'); await waitStep(tp2, 4); console.log('觸控筆電按 1 → 近拍傷口完成');
+    await tp2.touchscreen.tap(600, 400); await sleep(300);
+    const t2 = await tp2.evaluate(() => document.body.classList.contains('kb')); console.log('之後用手指點畫面 → 觸控版：', !t2); if (t2) errors.push('手指觸控後沒有切回觸控版');
+    await tp2.context().close(); }
   /* ---------- 2b. 屍體在每個可能的房間都看得到（客廳／書房＝偽裝意外移屍／廚房） ---------- */
   for (const [seed, room] of [[1, '客廳'], [4, '書房（偽裝意外）'], [5, '廚房']]) {
     const bp = await page(br, { viewport: { width: 1280, height: 800 } });
