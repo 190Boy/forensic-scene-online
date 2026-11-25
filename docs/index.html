@@ -56,6 +56,9 @@ select option{background:#0f1522;color:var(--ink)}
 .pips{display:flex;gap:3px;flex-wrap:wrap;max-width:200px}
 .pips i{width:9px;height:14px;border-radius:3px;background:var(--amber);display:block}
 .pips i.u{background:#3a465c}
+.pips .patl{font-size:11px;color:var(--dim);white-space:nowrap}
+.pips .patb{display:block;width:120px;height:6px;border-radius:3px;background:#2a3446;overflow:hidden;align-self:center}
+.pips .patb i{height:100%;width:100%;border-radius:3px;transition:width 1s}
 .team{display:flex;gap:6px;flex-wrap:wrap}
 .team .chip{padding:3px 8px;font-size:13px;display:flex;align-items:center;gap:5px}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
@@ -68,6 +71,8 @@ select option{background:#0f1522;color:var(--ink)}
 .slot{width:54px;height:54px;border-radius:12px;background:rgba(18,26,40,.88);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;position:relative}
 .slot img{width:44px;height:44px}
 .slot.bag{border-style:dashed}
+.slot .chg{position:absolute;right:-4px;bottom:-4px;background:#1d6b63;color:#dff;font-size:11px;font-weight:700;border-radius:8px;padding:1px 5px}
+.slot .chg.z{background:#7a3b2e}
 .slot small{position:absolute;bottom:-1px;right:3px;font-size:11px;color:var(--amber);font-weight:700}
 .sep{width:8px}
 #act{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));width:min(560px,94vw);background:rgba(18,26,40,.95);border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
@@ -145,12 +150,43 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 .vcBadge{font-size:12px;margin-left:2px}
 .vcBadge.failed{color:#ff9d93;cursor:pointer;text-decoration:underline}
 .speak{box-shadow:0 0 0 2px #8ff0a8}
+/* ---- v2：進度、目標、待處理、結果卡、教學 ---- */
+.tutb{display:flex;flex-direction:column;align-items:center;width:100%;margin:6px 0 8px;padding:10px;background:linear-gradient(180deg,#1d4a52,#16343e);border:1px solid #2bb3a3;font-size:17px;font-weight:700}
+.tutb small{font-weight:400;font-size:12px;color:#bfe;margin-top:2px}
+.tutb.glow{box-shadow:0 0 0 2px rgba(43,179,163,.5),0 0 22px rgba(43,179,163,.35)}
+.prog .pt{font-size:13px;font-weight:700}.prog b{color:#8ff0df}
+.pbar{height:7px;border-radius:5px;background:#26324a;margin-top:4px;overflow:hidden;width:180px;max-width:100%}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2bb3a3,#8ff0df);transition:width .8s}
+.obj{font-size:13px;line-height:1.5;color:#e6f4ff;border-color:#2b6f7a}
+.obj b{color:#8ff0df}
+.labs .pend{display:flex;gap:6px;align-items:baseline}
+.labs .pend small{color:var(--dim)}
+.evc.rc{flex-direction:column;gap:8px;border-color:#8ff0df;padding:12px 14px}
+.evc.rc .rh{display:flex;gap:12px;align-items:center}
+.evc.rc img{width:84px;height:84px;border-radius:12px;background:#0b1220}
+.evc.rc .big{font-size:18px;font-weight:800;color:#fff}
+.evc.rc .where{font-size:12px;color:#8ff0df;border-top:1px solid #2a3a50;padding-top:6px}
+.evc.rc .where.wait{color:#ffd58a}
+.evc.soft{border-color:#5a6a8a;box-shadow:0 0 20px rgba(0,0,0,.4);opacity:.96}
+.newb{display:inline-block;font-size:11px;background:#2bb3a3;color:#04221e;border-radius:6px;padding:0 5px;margin-right:4px;font-weight:800}
+.ev.isnew{border-color:#2bb3a3;box-shadow:0 0 0 1px #2bb3a3 inset}
+#tut{position:absolute;left:50%;transform:translateX(-50%);top:calc(60px + env(safe-area-inset-top));width:min(480px,94vw);background:rgba(14,24,36,.96);border:1px solid #2bb3a3;border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#tut img{width:52px;height:52px;border-radius:50%;flex:none;border:2px solid #2bb3a3}
+#tut .tx{font-size:14px;line-height:1.6;flex:1}
+#tut .tx b{color:#8ff0df}
+#tut .st{font-size:11px;color:var(--dim)}
+#tut button{margin-top:6px}
+body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
+.hl{animation:hl 1.4s infinite;position:relative;z-index:2}
+@keyframes hl{0%,100%{box-shadow:0 0 0 2px rgba(43,211,191,.9),0 0 14px rgba(43,211,191,.6)}50%{box-shadow:0 0 0 4px rgba(43,211,191,.4),0 0 24px rgba(43,211,191,.2)}}
+.bossp{display:flex;gap:10px;align-items:center}
+.bossp img{width:46px;height:46px}
 @media (max-width:640px){
   .tr button .lbl{display:none}
   .tr{max-width:46vw}
   .tl{max-width:54vw}
   .ap .n{font-size:18px}
-  .pips{display:none}
+  .pips .patl{display:none}.pips .patb{width:60px}
   .slot{width:44px;height:44px}.slot img{width:36px;height:36px}
   #act{bottom:calc(62px + env(safe-area-inset-bottom));padding:8px 10px}
   #act p{font-size:12px;margin-bottom:6px}
@@ -161,6 +197,12 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
   .labs{font-size:12px}
   #toasts{bottom:calc(66px + env(safe-area-inset-bottom))}
   #act:not(.hidden) ~ #toasts{display:none}
+  .pbar{width:120px}
+  .obj{font-size:12px}
+  #tut{top:calc(112px + env(safe-area-inset-top));padding:8px}
+  #tut img{width:40px;height:40px}
+  #tut .tx{font-size:13px}
+  body.tutOn #cards{top:calc(250px + env(safe-area-inset-top))}
 }
 </style>
 </head>
@@ -175,7 +217,8 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
     <div class="logo sub">每一局都是新的命案</div>
     <div class="row"><label>名字</label><input id="name" maxlength="10" placeholder="你的名字" style="flex:1"></div>
     <div class="row"><label>隊員</label><div class="agents" id="agents"></div></div>
-    <div class="row"><label>難度</label><select id="diff"><option value="easy">簡單（32 點、1 個誘餌）</option><option value="normal" selected>普通（28 點、2 個誘餌）</option><option value="hard">困難（24 點、3 個誘餌）</option></select></div>
+    <div class="row"><label>難度</label><select id="diff"><option value="easy">簡單（實驗室額度 14、1 個誘餌）</option><option value="normal" selected>普通（額度 11、2 個誘餌）</option><option value="hard">困難（額度 9、3 個誘餌）</option></select></div>
+    <button id="bTut" class="tutb">🎓 新手教學<small>第一次玩先來這裡・約 5 分鐘・不會失敗</small></button>
     <div class="big">
       <button class="pri" id="bSolo">🕵️ 單人調查</button>
       <button id="bCreate">🏠 建立房間</button>
@@ -184,7 +227,7 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
       <input id="joinCode" inputmode="numeric" maxlength="4" placeholder="房號">
       <button id="bJoin">🔑 加入房間</button>
     </div>
-    <div class="note">一台行動鑑識車、一棟命案別墅，每局兇手、手法、兇器、第一現場都不一樣。帶對工具、花對行動點數，對照鑑識手冊推理出<b>行兇方式</b>與<b>兇手</b>——兇手就混在封鎖線外的關係人裡。<br>電腦：WASD／方向鍵移動、E 互動、點地板自動走過去；手機：拖曳畫面當搖桿、點物件互動。</div>
+    <div class="note">一台行動鑑識車、一棟命案別墅，每局兇手、手法、兇器、第一現場都不一樣。帶對工具、關燈噴魯米諾、把關鍵證物送實驗室，對照鑑識手冊推理出<b>行兇方式</b>與<b>兇手</b>——兇手就混在封鎖線外的關係人裡。<br>電腦：WASD／方向鍵移動、E 互動、點地板自動走過去；手機：拖曳畫面當搖桿、點物件互動。</div>
     <div class="srv" id="srvLine"></div>
   </div>
 </div>
@@ -197,7 +240,7 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
     <div class="row" style="justify-content:center"><button id="bCopy">🔗 複製邀請連結</button><button id="rmVoice">🎤 加入語音</button><button id="rmChat">💬 聊天</button></div>
     <div class="row" style="justify-content:center"><label>難度</label><select id="rmDiff"><option value="easy">簡單</option><option value="normal">普通</option><option value="hard">困難</option></select></div>
     <div class="plist" id="plist"></div>
-    <div class="note" id="rmNote">1～4 人合作。行動點數總共 30 點，依人數平分給每位隊員。</div>
+    <div class="note" id="rmNote">1～4 人合作。工具隨便用，送實驗室共用一份額度。</div>
     <div class="row" style="justify-content:space-between">
       <div class="row" style="margin:0"><button id="rmLeave">🚪 離開房間</button><button class="warn hidden" id="rmDissolve">💥 解散</button></div>
       <button class="pri" id="rmStart">▶ 開始調查</button>
@@ -208,8 +251,10 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 <!-- 遊戲 HUD -->
 <div id="hud" class="hidden">
   <div class="tl">
-    <div class="chip"><div class="ap">⚡ 行動點數 <span class="n" id="apN">0</span><span id="apMax" style="color:var(--dim);font-weight:400"></span></div><div class="pips" id="pips"></div></div>
+    <div class="chip"><div class="ap">🧪 實驗室額度 <span class="n" id="apN">0</span><span id="apMax" style="color:var(--dim);font-weight:400"></span></div><div class="pips" id="pips"></div></div>
+    <div class="chip prog" id="prog" title="案情進度：鑑識手冊能排除多少手法與關係人、確定兇器與第一現場"><div class="pt">🧩 案情進度 <b id="progN">0%</b></div><div class="pbar"><i id="progBar"></i></div></div>
     <div class="team" id="team"></div>
+    <div class="chip obj" id="obj"></div>
     <div class="chip labs hidden" id="labs"></div>
   </div>
   <div class="room" id="roomName"></div>
@@ -224,6 +269,7 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
   </div>
   <div id="act" class="hidden"></div>
   <div id="toasts"></div>
+  <div id="tut" class="hidden"></div>
   <div id="cards"></div>
   <div class="bar" id="bar"></div>
 </div>
@@ -236,9 +282,9 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 
-<script src="casegen.js?v=2"></script>
-<script src="engine.js?v=2"></script>
-<script src="assets.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="casegen.js?v=3"></script>
+<script src="engine.js?v=3"></script>
+<script src="assets.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

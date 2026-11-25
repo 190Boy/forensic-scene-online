@@ -148,8 +148,9 @@ function flushPos(room) {
   const st = room.st;
   const p = Object.values(st.players).filter(q => q.active).map(q => [q.pid, q.x, q.y, q.dir]);
   const n = st.npcs.filter(q => q.mode !== 'gone').map(q => [q.id, Math.round(q.x), Math.round(q.y), q.mode]);
-  const k = st.rookie ? [Math.round(st.rookie.x), Math.round(st.rookie.y)] : null;
-  each(room, s => send(s.ws, { t: 'pos', p, n, k, clock: Math.round(st.clock) }));
+  const c = (st.cops || []).map(q => [q.id, Math.round(q.x), Math.round(q.y), q.mode]);
+  const b = st.boss ? [Math.round(st.boss.x), Math.round(st.boss.y), st.boss.mode] : null;
+  each(room, s => send(s.ws, { t: 'pos', p, n, c, b, clock: Math.round(st.clock) }));
 }
 function cleanName(n) { return String(n || '').replace(/[<>&"'`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 10) || '鑑識員'; }
 function cleanCi(ci) { ci = +ci; return Number.isInteger(ci) && ci >= 0 && ci < 4 ? ci : 0; }
@@ -157,7 +158,7 @@ function cleanText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g,
 // 只留下動作需要的欄位、型別正確（規則引擎還會再驗證一次）
 function cleanAct(a) {
   if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
-  const T = ['gear', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
+  const T = ['gear', 'light', 'refill', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
   if (!T.includes(a.type)) return null;
   const o = { type: a.type }, s = v => typeof v === 'string' ? v.slice(0, 40) : undefined;
   if (s(a.obj)) o.obj = s(a.obj);

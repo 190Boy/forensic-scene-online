@@ -1,6 +1,6 @@
 # 美術提示詞（給 MUSE 生圖用）
 
-共 **84 張圖**。每張圖都放在 `docs/assets/<檔名>.png`，**用同樣檔名、同樣比例的 PNG 直接覆蓋**就會換上（不用改程式）。
+共 **98 張圖**。每張圖都放在 `docs/assets/<檔名>.png`，**用同樣檔名、同樣比例的 PNG 直接覆蓋**就會換上（不用改程式）。
 現在資料夾裡的是程式畫的佔位圖；檔案不見時遊戲也會自動畫佔位圖，不會壞掉。
 
 ## 共用風格（每一張提示詞都已經包含，換風格時兩段一起改）
@@ -17,7 +17,7 @@
 - 角色一律朝右（隊員）或朝鏡頭偏左（NPC），遊戲會自動左右翻轉。
 
 
-## 角色（14）
+## 角色（18）
 
 ### `agent_1.png`
 - 尺寸：192×256px（0.75:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
@@ -117,21 +117,53 @@ full-body game sprite of a tanned Taiwanese gardener in a straw hat, green work 
 
 ### `npc_supervisor.png`
 - 尺寸：160×240px（0.67:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
-- 說明：分局長・鄭督察（設時限的上司）
+- 說明：分局長・鄭督察（會走進封鎖線巡視，頭上冒出要求泡泡）
 
 ```
-full-body game sprite of a stern 55-year-old Taiwanese police superintendent in a dark uniform with an overcoat and cap, holding a clipboard and a stopwatch, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+full-body game sprite of a stern 55-year-old Taiwanese police superintendent in a long dark overcoat and peaked cap, holding a clipboard, tired heavy eyes, quiet imposing presence, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```
 
-### `npc_rookie.png`
+### `npc_officer_1.png`
 - 尺寸：160×240px（0.67:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
-- 說明：菜鳥員警小林（會闖進現場搗亂）
+- 說明：制服員警 A（站崗，外觀中性，可能是菜鳥）
 
 ```
-full-body game sprite of a clumsy young Taiwanese rookie police officer, oversized cap tilted, coffee cup in one hand, tripping forward with a goofy worried face, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+full-body game sprite of a Taiwanese uniformed patrol officer, light-blue short-sleeve police shirt, dark navy trousers, peaked cap, reflective vest, standing at attention holding a flashlight, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```
 
-## 肖像（8）
+### `npc_officer_2.png`
+- 尺寸：160×240px（0.67:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：制服員警 B（女警，拿無線電）
+
+```
+full-body game sprite of a young Taiwanese female patrol officer, light-blue police shirt, navy trousers, cap, hair in a low bun, holding a radio near her shoulder, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `npc_officer_3.png`
+- 尺寸：160×240px（0.67:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：制服員警 C（壯碩、雙手背後）
+
+```
+full-body game sprite of a stocky middle-aged Taiwanese patrol officer, light-blue police shirt with rolled sleeves, navy trousers, cap, hands behind back, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `npc_officer_4.png`
+- 尺寸：160×240px（0.67:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：制服員警 D（瘦高、披雨衣）
+
+```
+full-body game sprite of a lanky young Taiwanese patrol officer, light-blue police shirt, navy raincoat over shoulders, cap slightly too big, holding a notebook, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `npc_officer_5.png`
+- 尺寸：160×240px（0.67:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：制服員警 E（戴眼鏡、拿封鎖線膠帶）
+
+```
+full-body game sprite of a Taiwanese patrol officer with glasses, light-blue police shirt, navy trousers, cap, holding a roll of yellow police tape, standing pose facing the camera slightly to the left, feet at the bottom center, about 2.5 heads tall, same chibi proportions as the forensic team. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+## 肖像（9）
 
 ### `victim_photo.png`
 - 尺寸：512×512px（1.00:1）・透明背景：否・視角：正面半身
@@ -179,6 +211,14 @@ bust portrait of a 55-year-old Taiwanese man, retired neighbor, balding with gre
 
 ```
 bust portrait of a 30-year-old Taiwanese woman, crime reporter, short bob haircut, trench coat, press badge lanyard, holding a phone, sharp curious expression, plain dark slate background. cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
+```
+
+### `mentor_portrait.png`
+- 尺寸：512×512px（1.00:1）・透明背景：否・視角：3/4 斜俯視（Among Us 式）
+- 說明：新手教學的學姊・沈組長（教學提示的頭像）
+
+```
+bust portrait of a calm 35-year-old Taiwanese female senior forensic investigator, white Tyvek hood down, short bob hair, mask hanging at chin, kind but serious eyes, holding a flashlight, plain dark slate background. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
 ```
 
 ### `suspect_gardener.png`
@@ -299,7 +339,7 @@ seamless horizontally tileable interior back wall front face, deep green wallpap
 seamless horizontally tileable interior back wall front face, white subway tile backsplash with pale blue painted wall above, front view. cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
 ```
 
-## 場景物件（29）
+## 場景物件（30）
 
 ### `prop_police_tape.png`
 - 尺寸：120×300px（0.40:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
@@ -453,6 +493,14 @@ single game prop: a thick braided curtain cord with tassel hanging down beside a
 single game prop: a wooden kitchen knife block with chef knives, one slot slightly askew, isolated. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```
 
+### `prop_light_switch.png`
+- 尺寸：48×88px（0.55:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：房間電燈開關（關燈才看得到魯米諾螢光）
+
+```
+single game prop: a cream wall light switch plate with a single rocker toggle and a tiny glowing amber locator dot, mounted on a wall, seen straight on, isolated. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
 ### `prop_teacup.png`
 - 尺寸：80×72px（1.11:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
 - 說明：茶杯（下毒兇器候選）
@@ -551,7 +599,7 @@ glowing cyan-blue luminol reaction overlay: a large irregular blood pool stain s
 glowing cyan-blue luminol reaction overlay: small wiped smear and speckles, soft neon glow, transparent background. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```
 
-## 圖示（17）
+## 圖示（25）
 
 ### `tool_camera.png`
 - 尺寸：128×128px（1.00:1）・透明背景：是・視角：圖示
@@ -687,6 +735,70 @@ game UI icon: a clock and thermometer symbol for time of death, centered, simple
 
 ```
 game UI icon: a shoe sole print card, centered, simple readable silhouette, slight 3/4 angle. cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `icon_req_wound.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：分局長要求：傷口照片
+
+```
+game UI icon: a camera viewfinder framing a wound outline with a small red mark, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `icon_req_tod.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：分局長要求：死亡時間
+
+```
+game UI icon: a clock face with a small thermometer beside it, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `icon_req_print.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：分局長要求：指紋比對
+
+```
+game UI icon: a fingerprint inside a magnifier with a check mark, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `icon_req_blood.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：分局長要求：血液報告
+
+```
+game UI icon: a blood drop above a test tube, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `icon_req_lab.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：分局長要求：實驗室報告
+
+```
+game UI icon: a sealed lab envelope with a police stamp, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `icon_req_progress.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：分局長要求：案情進度百分比
+
+```
+game UI icon: a clipboard with a progress bar half filled, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `ui_alert.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：菜鳥動手時浮在他頭上的提示
+
+```
+game UI icon: a soft amber exclamation mark inside a round badge, gentle not alarming, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `ui_tut_arrow.png`
+- 尺寸：128×128px（1.00:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：新手教學指示箭頭（朝下）
+
+```
+game UI icon: a thick downward-pointing arrow in warm teal with a soft glow, centered, simple readable silhouette, slight 3/4 angle. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```
 
 ## 介面（2）

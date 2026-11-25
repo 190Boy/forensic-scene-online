@@ -51,18 +51,26 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   A.send({ t: 'start' });
   const sa = await A.wait(m => m.t === 'state'), sb = await B2.wait(m => m.t === 'state');
   ok(sa && sb && sa.s.seed === sb.s.seed && sa.s.diff === 'easy', '兩人收到同一個案件（種子相同、難度＝簡單）');
-  ok(Object.keys(sa.s.players).length === 2 && sa.s.players[0].ap + sa.s.players[1].ap === 32, '點數依人數平分（簡單 32 點）');
+  ok(Object.keys(sa.s.players).length === 2 && sa.s.budget === 14 && sa.s.players[0].ap === undefined, '全隊共用實驗室額度（簡單 14），沒有個人點數');
   ok(!JSON.stringify(sa.s).includes(ja.token), '同步狀態裡沒有 token');
   /* 移動同步 */
   B2.msgs = []; A.send({ t: 'mv', x: 320, y: 700, d: -1 });
   const pos = await B2.wait(m => m.t === 'pos' && m.p.some(q => q[0] === 0 && q[1] === 320));
   ok(!!pos, 'A 移動 → B 收到位置');
   ok(pos && Array.isArray(pos.n) && pos.n.length === 4, '位置封包也帶 4 位關係人 NPC');
+  ok(pos && Array.isArray(pos.c) && pos.c.length === sa.s.cops.length && pos.c.length >= 3, `位置封包帶封鎖線內 ${pos && pos.c ? pos.c.length : 0} 位員警`);
+  ok(pos && Array.isArray(pos.b) && pos.b.length === 3, '位置封包帶分局長位置與狀態');
+  ok(sa.s.cops.filter(c => c.rk).length >= 1, '員警裡至少有一位是菜鳥（由伺服器決定）');
   A.msgs = []; A.send({ t: 'mv', x: 1500, y: 900, d: 1 }); ok(!!(await A.wait(m => m.t === 'fix')), '瞬移太遠 → 伺服器拉回');
   /* 動作同步 */
   B2.msgs = []; A.send({ t: 'act', a: { type: 'gear', tools: ['camera', 'luminol', 'thermo'] } });
   const sg = await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
-  ok(sg && sg.s.players[0].tools.length === 3, 'A 換裝備 → B 看到');
+  ok(sg && sg.s.players[0].tools.length === 3 && sg.s.players[0].lum === 3, 'A 換裝備（魯米諾 3 次）→ B 看到');
+  B2.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } }); ok(!!(await B2.wait(m => m.t === 'err' && /太遠/.test(m.msg))), '離開關太遠不能關燈');
+  for (const [x, y] of [[400, 690], [440, 640], [480, 610], [540, 600], [600, 590], [660, 590], [700, 580], [740, 540], [760, 500], [760, 480]]) { B2.send({ t: 'mv', x, y, d: 1 }); await sleep(130); }
+  A.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } });
+  const lt = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'light'));
+  ok(lt && lt.s.lights.living === false, 'B 關掉客廳的燈 → A 同步看到燈關了');
   A.msgs = []; A.send({ t: 'act', a: { type: 'use', obj: 'body', act: 'wound' } });
   ok(((await A.wait(m => m.t === 'err')) || {}).msg === '距離太遠，走近一點', '伺服器檢查距離');
   A.send({ t: 'act', a: { type: 'gear', tools: ['camera', 'camera', 'x', 'luminol', 'prints', 'swab'] } });
@@ -79,18 +87,19 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   A.send({ t: 'rtc', to: 1, vid: rv.room.players[1].voice.id, d: { type: 'offer', sdp: 'v=0 test' } });
   const sig = await B2.wait(m => m.t === 'rtc'); ok(sig && sig.from === 0 && sig.d.sdp === 'v=0 test', '語音信令只轉送給語音中的隊友');
   /* 壓力系統（TIME_SCALE=30 加速） */
-  const pe = await A.wait(m => m.t === 'state' && m.ev.some(e => ['decay', 'rookie', 'ms_fail', 'tampered', 'ms_ok'].includes(e.k)), 12000);
+  const pe = await A.wait(m => m.t === 'state' && m.ev.some(e => ['decay', 'rookie', 'boss_in', 'tampered'].includes(e.k)), 12000);
   ok(!!pe, '伺服器會推進壓力系統（' + (pe ? pe.ev.map(e => e.k).join(',') : '無') + '）');
+  const bi = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'boss_in'), 12000);
+  ok(bi && bi.s.boss.mode === 'in' && bi.s.boss.demand, '分局長進封鎖線，要求同步給所有人（' + (bi ? JSON.stringify(bi.s.boss.demand) : '無') + '）');
   /* 斷線重連拿回狀態 */
   await B2.close(); await sleep(150);
   const B3 = await client(); B3.send({ t: 'join', code, token: jb.token }); const jb3 = await joined(B3);
   const s3 = await B3.wait(m => m.t === 'state');
   ok(jb3.t === 'joined' && jb3.slot === 1 && s3 && s3.s.seed === sa.s.seed, '調查中斷線 → 用 token 重連拿回同一局');
   const Y = await client(); Y.send({ t: 'join', code, name: 'Y' }); ok(((await joined(Y)) || {}).code === 'playing', '調查中不能用新身分加入');
-  /* 離隊 → 點數分給隊友 */
-  const before = s3.s.players[0].ap + s3.s.players[1].ap;
+  /* 離隊 */
   A.msgs = []; B3.send({ t: 'leave' }); const sl = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'left'));
-  ok(sl && sl.s.players[0].ap === before - 0 - (sl.s.players[1].ap) && !sl.s.players[1].active, '隊友離隊 → 剩下點數分給還在的人');
+  ok(sl && !sl.s.players[1].active && sl.s.phase === 'play', '隊友離隊 → 其他人繼續調查');
   /* 推理 → 結果 */
   A.send({ t: 'act', a: { type: 'close' } }); await A.wait(m => m.t === 'state' && m.s.phase === 'deduce');
   const Cg = require('../docs/casegen.js').generate(sa.s.seed, sa.s.diff);

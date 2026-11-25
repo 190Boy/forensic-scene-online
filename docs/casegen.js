@@ -9,9 +9,26 @@ const hhmm = m => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(
 
 /* ---------- 難度 ---------- */
 const DIFF = {
-  easy:   { name: '簡單', teamAP: 32, labDelay: 3, decoys: 1, tamperEvery: 160, rookieEvery: 150, rainAt: 600, oxidizeAt: 540, ms: [300, 540, 1080], partialPrint: false },
-  normal: { name: '普通', teamAP: 28, labDelay: 4, decoys: 2, tamperEvery: 115, rookieEvery: 110, rainAt: 420, oxidizeAt: 400, ms: [240, 420, 900], partialPrint: true },
-  hard:   { name: '困難', teamAP: 24, labDelay: 5, decoys: 3, tamperEvery: 80, rookieEvery: 80, rainAt: 300, oxidizeAt: 300, ms: [180, 360, 720], partialPrint: true }
+  easy:   { name: '簡單', labBudget: 14, labSec: 40, patience: 1500, decoys: 1, tamperEvery: 300, rookieEvery: 380, rainAt: 960, oxidizeAt: 900, todWide: 660, ms: [0, 0, 1260], partialPrint: false, cops: 3, rookies: 1, boss: [170, 360, 210] },
+  normal: { name: '普通', labBudget: 11, labSec: 55, patience: 1260, decoys: 2, tamperEvery: 240, rookieEvery: 320, rainAt: 780, oxidizeAt: 720, todWide: 540, ms: [0, 0, 1080], partialPrint: true, cops: 4, rookies: 1, boss: [150, 300, 180] },
+  hard:   { name: '困難', labBudget: 9, labSec: 70, patience: 1020, decoys: 3, tamperEvery: 180, rookieEvery: 260, rainAt: 600, oxidizeAt: 560, todWide: 420, ms: [0, 0, 900], partialPrint: true, cops: 5, rookies: 2, boss: [130, 250, 150] },
+  // 新手教學：固定案件、點數很多、沒有誘餌，壓力事件由教學腳本觸發
+  tut:    { name: '新手教學', labBudget: 20, labSec: 6, patience: 1e9, decoys: 0, tamperEvery: 1e9, rookieEvery: 1e9, rainAt: 1e9, oxidizeAt: 1e9, todWide: 1e9, ms: [1e9, 1e9, 1e9], partialPrint: false, cops: 3, rookies: 1, boss: [1e9, 1e9, 1e9], hidden: true }
+};
+// 封鎖線內的員警崗哨（每位在兩點間來回巡邏）
+const COP_POSTS = [
+  [{ x: 520, y: 700 }, { x: 660, y: 700 }], [{ x: 1560, y: 880 }, { x: 1440, y: 1000 }], [{ x: 780, y: 1040 }, { x: 930, y: 1050 }],
+  [{ x: 760, y: 700 }, { x: 1200, y: 720 }], [{ x: 1320, y: 620 }, { x: 1600, y: 620 }]
+];
+const COP_NAMES = ['王警員', '李警員', '張警員', '劉警員', '蔡警員', '許警員', '鄧警員'];
+// 分局長會要求的報告（像恐鬼症的鬼：進封鎖線後頭上冒泡泡）
+const REPORTS = {
+  wound: { t: '傷口照片', icon: 'icon_req_wound', how: '用📷相機近拍屍體傷口' },
+  tod: { t: '死亡時間', icon: 'icon_req_tod', how: '用🌡️肝溫計量屍體' },
+  print: { t: '指紋比對', icon: 'icon_req_print', how: '採指紋 → 回車上用指紋比對電腦分析' },
+  blood: { t: '血液報告', icon: 'icon_req_blood', how: '採血液 → 回車上用離心機分析' },
+  lab: { t: '實驗室報告', icon: 'icon_req_lab', how: '證物交給小吳送驗，等報告回來' },
+  progress: { t: '案情進度', icon: 'icon_req_progress', how: '找到能縮小範圍的證據（看筆記本的鑑識手冊）' }
 };
 
 /* ---------- 鑑識特徵（像恐鬼症的證據種類） ---------- */
@@ -52,7 +69,7 @@ const BLOOD = ['A', 'B', 'O', 'AB'];
 
 /* ---------- 固定地圖 ---------- */
 const BASE = {
-  carryTools: 3, bagSlots: 3, gearSwapAP: 1, labCost: { 1: 3, 2: 5 }, sampleLabAP: 3,
+  carryTools: 3, bagSlots: 3, lumCharges: 3, labCost: { 1: 3, 2: 5 }, sampleLabAP: 3,
   start: [{ x: 300, y: 690 }, { x: 350, y: 720 }, { x: 260, y: 740 }, { x: 390, y: 680 }],
   van: { x: 200, y: 600, r: 190 },
   exit: { x: 30, y: 1050 },
@@ -124,7 +141,7 @@ const DECO = [
 
 function generate(seed, diff) {
   const D = DIFF[diff] || DIFF.normal; const r = rng(seed);
-  const C = Object.assign({}, BASE, { id: 'gen', seed, diff: diff in DIFF ? diff : 'normal', diffName: D.name, teamAP: D.teamAP, labDelay: D.labDelay, sigs: SIGS });
+  const C = Object.assign({}, BASE, { id: 'gen', seed, diff: diff in DIFF ? diff : 'normal', diffName: D.name, labBudget: D.labBudget, labSec: D.labSec, sigs: SIGS });
   C._walk = null;
   /* --- 真相 --- */
   const method = pick(r, METHODS); const wid = pick(r, method.weapons); const W = WEAPONS[wid];
@@ -153,7 +170,7 @@ function generate(seed, diff) {
   C.briefing = [
     `晚上 22:10，有人報案：林志遠（58 歲，遠山畫廊老闆）陳屍在自家${BASE.roomName[bodyRoom]}。轄區員警初判可能是意外。`,
     `封鎖線外有 4 位關係人：${sus.map(s => s.name + '（' + s.role + '）').join('、')}。兇手可能就混在他們之中——他會趁你們不注意偷偷動證物，被逼急了還可能逃走。`,
-    `難度「${D.name}」：全隊 ${D.teamAP} 點行動點數、實驗室延遲 ${D.labDelay} 點、${D.decoys} 個誘餌線索。分局長會設下時限，菜鳥員警也可能闖進來搗亂。`
+    `難度「${D.name}」：工具隨便用，但送實驗室要花全隊共用的「實驗室額度」（${D.labBudget} 點），報告約 ${D.labSec} 秒後回來；現場有 ${D.decoys} 個誘餌線索。分局長的耐心有限，偶爾會進來巡視。`
   ];
   /* --- 證據與物件 --- */
   const E = {}; const O = DECO.map(o => Object.assign({}, o));
@@ -298,14 +315,14 @@ function generate(seed, diff) {
   C.objects = O; C.evidence = E;
   /* --- 壓力系統設定 --- */
   C.pressure = {
-    todWideAt: 300 + (diff === 'easy' ? 120 : diff === 'hard' ? -60 : 0),   // 這之後量肝溫只得到不精確的死亡時間
+    todWideAt: D.todWide,   // 這之後量肝溫只得到不精確的死亡時間
     oxidizeAt: D.oxidizeAt, rainAt: D.rainAt,
     tamperEvery: D.tamperEvery, rookieEvery: D.rookieEvery,
     milestones: [
-      { id: 'm1', at: D.ms[0], t: '完成屍體初步鑑定（傷口＋死亡時間）', need: ['E_wound', ['E_tod', 'E_tod_wide']], fail: 'ap', failT: '分局長不耐煩：扣全隊 2 點', okT: '分局長點頭：全隊 +1 點' },
-      { id: 'm2', at: D.ms[1], t: '交出第一份車上檢驗報告（離心機／指紋／鞋印任一）', need: ['analyze'], fail: 'lab', failT: '小吳被調去支援別案：之後送驗延遲 +2', okT: '分局長滿意：全隊 +1 點' },
       { id: 'm3', at: D.ms[2], t: '結案時限', need: ['never'], fail: 'verdict', failT: '時間到！分局長要你們立刻提出推理' }
-    ]
+    ],
+    deadline: D.patience, patienceRate: 100 / D.patience,
+    bossFirst: D.boss[0], bossEvery: D.boss[1], bossWait: D.boss[2], bossStrikes: 3
   };
   // NPC：4 位關係人在封鎖線外
   const SPOT = [{ x: 120, y: 800 }, { x: 330, y: 880 }, { x: 230, y: 980 }, { x: 80, y: 960 }];
@@ -318,8 +335,24 @@ function generate(seed, diff) {
     `指向兇手的特徵：鞋號 ${culprit.shoe}${method.nails ? `、血型 ${culprit.blood}` : ''}${method.hand ? `、慣用${culprit.hand === 'R' ? '右' : '左'}手` : ''}；直接證據：兇器指紋／實驗室 DNA、手機通聯${method.blood ? '、毛巾皮屑' : ''}。`,
     C.decoys.length ? `誘餌：${C.decoys.join('；')}。` : ''
   ].filter(Boolean);
+  /* --- 每個房間的電燈開關：魯米諾的螢光只有關燈才看得到（一人關燈、一人噴灑記錄） --- */
+  const SW = { living: { x: 732, y: 470 }, study: { x: 1292, y: 600 }, kitchen: { x: 732, y: 1010 } };
+  for (const k of Object.keys(SW)) O.push({ id: 'sw_' + k, room: k, x: SW[k].x, y: SW[k].y, img: 'prop_light_switch', w: 22, h: 40, name: BASE.roomName[k] + '電燈開關', sw: k, r: 50, acts: [], desc: '關燈後，噴過魯米諾的地方才看得到藍色螢光。' });
+  C.switches = Object.keys(SW);
+  for (const o of O) {
+    const acts = o.acts || []; const lum = acts.filter(a => a.tool === 'luminol');
+    for (const a of lum) {
+      const mk = { id: a.id + '_mk', tool: null, ap: 1, label: '記錄螢光位置', need: a.id, dark: true, ev: a.ev, glow: !!a.reveal };
+      a.ap = 1; a.ev = []; acts.splice(acts.indexOf(a) + 1, 0, mk);
+    }
+  }
+  /* --- 封鎖線內的員警（其中有菜鳥，誰是菜鳥由開局亂數決定） --- */
+  const r2 = rng((seed ^ 0x5bd1e995) >>> 0);
+  const posts = shuffle(r2, COP_POSTS).slice(0, D.cops), names = shuffle(r2, COP_NAMES);
+  C.cops = posts.map((pp, i) => ({ id: 'cop' + i, name: names[i], img: 'npc_officer_' + (1 + Math.floor(r2() * 5)), posts: pp }));
+  C.rookies = D.rookies; C.reports = REPORTS;
   return C;
 }
-const API = { generate, DIFF, METHODS, SIGS, PEOPLE, WEAPONS, BASE, rng, hhmm };
+const API = { generate, DIFF, REPORTS, COP_POSTS, METHODS, SIGS, PEOPLE, WEAPONS, BASE, rng, hhmm };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.FS_GEN = API;
 })(typeof self !== 'undefined' ? self : this);
