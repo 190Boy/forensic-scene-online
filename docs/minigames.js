@@ -56,11 +56,21 @@ const SPOTS = {
 function photo(o) {
   const T = (SPOTS[o.act] || SPOTS.wound).map(([x, y, l, t]) => ({ x: x + rnd(-7, 7), y: y + rnd(-7, 7), l, t, got: false }));
   let film = 6, focus = 0, flash = 0, miss = 0, endIn = 0;
-  const mark = (s, a) => { g.globalAlpha = a; if (s.t === 'w') { g.fillStyle = '#5a1010'; g.beginPath(); g.ellipse(s.x, s.y, 9, 5, .6, 0, 7); g.fill(); g.strokeStyle = '#2a0505'; g.lineWidth = 2; g.stroke(); }
-    else if (s.t === 'd') { g.fillStyle = '#4a0c0c'; for (let i = 0; i < 4; i++) { g.beginPath(); g.arc(s.x + i * 7 - 10, s.y + (i % 2) * 6, 3 - i * .4, 0, 7); g.fill(); } }
-    else if (s.t === 'l') { g.fillStyle = 'rgba(110,60,140,.9)'; g.beginPath(); g.ellipse(s.x, s.y, 16, 7, 0, 0, 7); g.fill(); }
-    else { g.fillStyle = 'rgba(190,70,50,.95)'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(s.x - 5 + i * 5, s.y - 3 + (i % 2) * 5, 2.6, 0, 7); g.fill(); } } g.globalAlpha = 1; };
-  const scene = a => { bg('mg_body_closeup', a); T.forEach(s => mark(s, a * .55)); };
+  // 重點痕跡：取景框裡全亮（有濕亮反光、淺色邊），框外較暗，保留「自己找」的感覺
+  const drop = (x, y, r, rim, body, hi) => { g.fillStyle = body; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.strokeStyle = rim; g.lineWidth = 1.6; g.stroke(); g.fillStyle = hi; g.beginPath(); g.ellipse(x - r * .35, y - r * .4, r * .32, r * .2, -.6, 0, 7); g.fill(); };
+  const mark = (s, a) => { g.save(); g.globalAlpha = a;
+    if (s.t === 'w') { g.fillStyle = 'rgba(150,25,25,.55)'; g.beginPath(); g.ellipse(s.x + 4, s.y + 3, 15, 8, .6, 0, 7); g.fill();
+      g.fillStyle = '#7a0f12'; g.beginPath(); g.ellipse(s.x, s.y, 11, 6, .6, 0, 7); g.fill(); g.strokeStyle = '#d0453f'; g.lineWidth = 2; g.stroke();
+      g.strokeStyle = '#3a0406'; g.lineWidth = 2; g.beginPath(); g.moveTo(s.x - 6, s.y - 4); g.lineTo(s.x + 6, s.y + 4); g.stroke();
+      g.fillStyle = 'rgba(255,215,210,.75)'; g.beginPath(); g.ellipse(s.x - 4, s.y - 3, 3, 1.4, .6, 0, 7); g.fill();
+      g.strokeStyle = '#a3201f'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(s.x + 8, s.y + 5); g.quadraticCurveTo(s.x + 12, s.y + 12, s.x + 10, s.y + 18); g.stroke(); }
+    else if (s.t === 'd') { g.fillStyle = 'rgba(160,30,30,.35)'; g.beginPath(); g.ellipse(s.x, s.y + 2, 20, 9, .2, 0, 7); g.fill();
+      [[-13, -2, 5.5], [-3, 5, 4.6], [6, -3, 5], [14, 4, 3.8], [21, -1, 2.8]].forEach(([dx, dy, r]) => drop(s.x + dx, s.y + dy, r, '#e0574f', '#9a1a1c', 'rgba(255,225,220,.85)')); }
+    else if (s.t === 'l') { const gr = g.createRadialGradient(s.x, s.y, 2, s.x, s.y, 18); gr.addColorStop(0, 'rgba(185,110,225,.95)'); gr.addColorStop(.7, 'rgba(140,75,190,.8)'); gr.addColorStop(1, 'rgba(120,60,170,0)');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(s.x, s.y, 19, 9, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(215,160,245,.8)'; g.beginPath(); g.ellipse(s.x - 5, s.y - 1, 6, 2.5, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(s.x + 7, s.y + 2, 4, 2, 0, 0, 7); g.fill(); }
+    else { [[-6, -3, 3.4], [0, 3, 3], [6, -2, 3.6], [2, -6, 2.2]].forEach(([dx, dy, r]) => drop(s.x + dx, s.y + dy, r, '#ffc08a', '#e2552e', 'rgba(255,240,220,.8)')); }
+    g.restore(); };
+  const scene = (a, m) => { bg('mg_body_closeup', a); T.forEach(s => mark(s, m == null ? a * .75 : m)); };
   const shoot = () => {
     if (film <= 0 || endIn) return; film--; flash = .22; if (opt.snd) opt.snd('shutter');
     const tg = T.filter(s => !s.got).sort((a, b) => dist(a.x, a.y, inp.x, inp.y) - dist(b.x, b.y, inp.x, inp.y))[0];
@@ -74,8 +84,8 @@ function photo(o) {
     btns: () => [{ label: '📸 拍照', k: '空白', fn: shoot, main: true }, { label: '完成', k: 'Enter', fn: () => { endIn = .01; } }],
     step(dt) { focus = inp.speed < 55 ? Math.min(1, focus + dt / (.8 * F)) : Math.max(0, focus - dt * 4); flash -= dt; if (endIn && (endIn -= dt) <= 0) game.done = true; },
     draw() {
-      scene(.42); dark(.25);
-      const r = 66, z = 1.9; g.save(); g.beginPath(); g.arc(inp.x, inp.y, r, 0, 7); g.clip(); g.translate(inp.x, inp.y); g.scale(z, z); g.translate(-inp.x, -inp.y); scene(1);
+      scene(.42, .38); dark(.25);
+      const r = 66, z = 1.9; g.save(); g.beginPath(); g.arc(inp.x, inp.y, r, 0, 7); g.clip(); g.translate(inp.x, inp.y); g.scale(z, z); g.translate(-inp.x, -inp.y); scene(1, 1);
       if (focus < .6) { g.fillStyle = `rgba(20,24,30,${.5 - focus * .6})`; g.fillRect(0, 0, W, H); } g.restore();
       const ok = focus >= .6, col = ok ? '#7dff9a' : '#f2d045', o = 8 + (1 - focus) * 18;
       g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.arc(inp.x, inp.y, r, 0, 7); g.stroke();
@@ -85,7 +95,7 @@ function photo(o) {
       label(`底片 ${film}　已拍到 ${T.filter(s => s.got).length}/${T.length} 個重點`, W / 2, H - 14, '#e8ecf2', 15);
     },
     score: () => T.filter(s => s.got).length / T.length - .04 * miss,
-    dbg: () => ({ targets: T.filter(s => !s.got).map(s => [s.x, s.y]), focus, film })
+    dbg: () => ({ targets: T.filter(s => !s.got).map(s => [s.x, s.y, s.t]), focus, film })
   };
 }
 
@@ -196,6 +206,7 @@ function shoe(o) {
   const tr = new Set(); while (tr.size < 2) tr.add(2 + Math.floor(Math.random() * (N - 4)));
   for (let k = 0; k < 40 && D.length < 5; k++) { const x = rnd(40, W - 40), y = rnd(40, H - 60); if (T.every(t => dist(t.x, t.y, x, y) > 60) && D.every(d => dist(d.x, d.y, x, y) > 50)) D.push({ x, y, a: rnd(0, 6) }); }
   let next = 0, pen = 0; const R = 92;
+  const gr = o.ground || 'mud', PC = gr === 'blood' ? ['rgba(165,32,30,.92)', 'rgba(120,110,100,.55)'] : gr === 'floor' ? ['rgba(215,205,180,.75)', 'rgba(140,135,125,.5)'] : ['rgba(25,18,10,.85)', 'rgba(18,14,10,.75)'];
   const mark = () => {
     const near = (arr) => arr.map((t, i) => [dist(t.x, t.y, inp.x, inp.y), i]).sort((a, b) => a[0] - b[0])[0];
     const nt = near(T), nd = near(D);
@@ -210,9 +221,9 @@ function shoe(o) {
     btns: () => [{ label: '👣 標記腳印', k: '空白', fn: mark, main: true }, { label: '完成', k: 'Enter', fn: () => { game.done = true; } }],
     step() {},
     draw() {
-      bg('mg_mud_ground', 1);
-      T.forEach((t, i) => { foot(t.x, t.y, t.a, t.ok ? 'rgba(242,208,69,.9)' : 'rgba(25,18,10,.85)'); if (tr.has(i)) foot(t.x + 8, t.y - 4, t.a + .7, 'rgba(18,14,10,.7)', true); });
-      D.forEach(d => foot(d.x, d.y, d.a, 'rgba(18,14,10,.75)', true));
+      if (gr === 'mud') bg('mg_mud_ground', 1); else { bg('mg_floor_dark', 1); g.fillStyle = 'rgba(255,240,220,.07)'; g.fillRect(0, 0, W, H); }
+      T.forEach((t, i) => { foot(t.x, t.y, t.a, t.ok ? 'rgba(242,208,69,.9)' : PC[0]); if (tr.has(i)) foot(t.x + 8, t.y - 4, t.a + .7, PC[1], true); });
+      D.forEach(d => foot(d.x, d.y, d.a, PC[1], true));
       dark(0); hole(inp.on ? inp.x : -999, inp.on ? inp.y : -999, R, .9);
       label('起點', T[0].x, T[0].y - 22, '#f2d045', 13);
       T.forEach((t, i) => { if (t.ok) label(String(i + 1), t.x, t.y - 16, '#f2d045', 12); });

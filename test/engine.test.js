@@ -335,4 +335,75 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   ok(bad > tried * 0.4, `全部玩很差 → ${bad}/${tried} 局推不出正確答案（品質真的有影響）`);
   ok(fixed === tried, `重做玩好 → ${fixed}/${tried} 局手法推回正確`);
 }
+
+// 12. v10 回歸：量完肝溫（小遊戲）走到分局長旁邊一定能交差（畫面提示半徑＝交差半徑；殘留的「分析中」不會卡住）
+{
+  const C = GEN.generate(158, 'normal');
+  const mk = () => { const st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }, { pid: 1, name: 'B', ci: 1 }], { pressure: true }); for (const pid of [0, 1]) { at(st, pid, C.start[pid]); FS.act(C, st, pid, { type: 'gear', tools: ['camera', 'thermo', 'swab'] }); } st.quietUntil = 0; st.forceBoss = { kind: 'report', rep: 'tod', wait: 400 }; FS.tick(C, st, 0.2); return st; };
+  const park = (st, pid, dx, dy) => { const B = st.boss, p = st.players[pid]; p.x = B.x + dx; p.y = B.y + dy; };
+  let st = mk(); ok(st.boss.mode === 'in' && st.boss.demand.rep === 'tod', '分局長進場要「死亡時間」');
+  at(st, 0, FS.objById(C, 'body')); MG(C, st, 0, { type: 'use', obj: 'body', act: 'temp' }, 0.9);
+  ok(FS.bossDone(C, st, st.boss.demand) && !st.players[0].mg, '肝溫小遊戲做完 → 要求達成、分析中狀態清掉');
+  st.players[1].x = 1600; st.players[1].y = 420; park(st, 0, 0, 100); const t0 = st.bossOk; FS.tick(C, st, 0.2);
+  ok(st.bossOk === t0 + 1 && st.boss.mode === 'leave', `腳底相距 100（畫面上已經疊在一起、提示列顯示分局長）→ 自動交差（半徑 ${FS.BOSS_R}）`);
+  st = mk(); at(st, 0, FS.objById(C, 'body')); MG(C, st, 0, { type: 'use', obj: 'body', act: 'temp' }, 0.9);
+  st.players[0].mg = { obj: 'body', act: 'temp', kind: 'thermo', t0: st.clock, redo: false }; st.players[1].x = 1600; st.players[1].y = 420; park(st, 0, 20, 30); FS.tick(C, st, 0.2);
+  ok(st.bossOk === 1, '殘留的「分析中」狀態不會擋住交差');
+  st = mk(); at(st, 0, FS.objById(C, 'body')); MG(C, st, 0, { type: 'use', obj: 'body', act: 'temp' }, 0.9); st.players[0].benchUntil = st.clock + 60;
+  st.players[1].x = 1600; st.players[1].y = 420; park(st, 0, 30, 0); FS.tick(C, st, 0.2); ok(st.bossOk === 1, '被叫去寫報告的人也能交差');
+  st = mk(); at(st, 0, FS.objById(C, 'body')); MG(C, st, 0, { type: 'use', obj: 'body', act: 'temp' }, 0.9); st.players[1].x = 1600; st.players[1].y = 420;
+  park(st, 0, 400, 0); ok(/走近/.test(FS.act(C, st, 0, { type: 'boss' }).err), '太遠按「交差」→ 提示走近');
+  park(st, 0, 0, 140); const rb = FS.act(C, st, 0, { type: 'boss' }); ok(rb.ok && st.bossOk === 1 && rb.ev.some(e => e.k === 'boss_ok'), '站在旁邊按 E／點「交差」→ 交差成功');
+  st = mk(); ok(/還沒做到/.test(FS.act(C, st, 0, { type: 'boss' }).err), '還沒量肝溫就按交差 → 說明還缺什麼');
+  st = mk(); at(st, 0, FS.objById(C, 'body')); FS.act(C, st, 0, { type: 'mgStart', obj: 'body', act: 'temp' }); for (let t = 0; t < 125; t += 1) FS.tick(C, st, 1);
+  ok(!st.players[0].mg, '小遊戲放著不管 → 最多 2 分鐘自動取消');
+}
+
+// 13. v10：兇手鞋印每局出現的地方不同（後院／玄關／廚房／客廳／書房），名稱、房間、位置一致，走得到；雨只會沖掉後院的
+{
+  const rooms = {}; let bad = 0;
+  for (let sd = 1; sd <= 600; sd++) {
+    const c = GEN.generate(sd, ['easy', 'normal', 'hard'][sd % 3]), m = FS.objById(c, 'mud'); rooms[m.room] = (rooms[m.room] || 0) + 1;
+    const where = c.roomName[m.room], inRoom = FS.roomAt(c, m.x, m.y) === m.room, named = m.name.startsWith(where) && c.evidence.E_shoe.name.startsWith(where);
+    const path = FS.findPath(c, c.start[0].x, c.start[0].y, m.x, m.y, Math.max(30, m.r - 30));
+    const rain = (m.acts[0].cond || []).some(x => x.flag === 'rain');
+    if (!inRoom || !named || !path || rain !== (m.room === 'yard')) { bad++; if (bad < 4) console.log('鞋印問題', sd, m.room, m.x, m.y, inRoom, named, !!path, rain); }
+  }
+  ok(Object.keys(rooms).length >= 5, '鞋印出現在 5 種地方：' + JSON.stringify(rooms));
+  ok(bad === 0, `鞋印的房間、名稱、位置都一致而且走得到（${600 - bad}/600）`);
+  ok(FS.objById(GEN.generate(7, 'tut'), 'mud').room === 'yard', '新手教學的鞋印固定在後院');
+}
+
+// 14. v10：關係人身上的血漬可以用棉棒採（小遊戲）→ 離心機看血型／實驗室驗 DNA；誘餌污漬會被排除
+{
+  const find = f => { for (let sd = 1; sd < 3000; sd++) { const c = GEN.generate(sd, 'normal'); if (f(c)) return c; } };
+  const CV = find(c => c.stains.some(x => x.npc === c.culprit)), CD = find(c => c.stains.some(x => x.npc !== c.culprit));
+  const setup = (C) => { const st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: true }); at(st, 0, C.start[0]); FS.act(C, st, 0, { type: 'gear', tools: ['swab', 'camera', 'thermo'] }); st.quietUntil = 1e9; return st; };
+  const toNpc = (st, id) => { const n = st.npcs.find(q => q.id === id), p = st.players[0]; p.x = n.x + 20; p.y = n.y + 10; return n; };
+  const toVan = st => { const p = st.players[0]; p.x = CV.van.x; p.y = CV.van.y + 40; };
+  { const C = CV, st = setup(C), sid = C.culprit, so = 'stain_' + sid, k = 'E_st_' + sid;
+    ok(C.suspects.find(x => x.id === sid).stain, '有血漬的關係人在資料上看得到（袖口／衣角…）');
+    const p = st.players[0]; p.x = 3000; p.y = 3000;
+    ok(/太遠/.test(FS.act(C, st, 0, { type: 'mgStart', obj: so, act: 'swab' }).err), '離關係人太遠 → 不能採');
+    const n = toNpc(st, sid); FS.act(C, st, 0, { type: 'mgStart', obj: so, act: 'swab' }); const x0 = n.x, y0 = n.y; for (let t = 0; t < 6; t += .5) FS.tick(C, st, .5);
+    ok(n.x === x0 && n.y === y0, '被採血漬的人會站著不動');
+    FS.act(C, st, 0, { type: 'use', obj: so, act: 'swab', score: .9 }); const sm = st.players[0].samples.find(q => q.src === so);
+    ok(sm && sm.kind === 'blood' && sm.lab === k + '_dna' && sm.label.includes(C.suspects.find(x => x.id === sid).name), '用棉棒採到「某某袖口上的血漬」樣本（可離心或送 DNA）');
+    toVan(st); FS.act(C, st, 0, { type: 'analyze', sid: sm.sid }); ok(FS.hasEv(st, k) && C.evidence[k].name.includes(C.victim.blood + ' 型') && /同型/.test(C.evidence[k].name), '離心機：血型和死者一樣 → 可疑');
+    const stP = setup(C); toNpc(stP, sid); MG(C, stP, 0, { type: 'use', obj: so, act: 'swab' }, 0.05); const s2 = stP.players[0].samples.find(q => q.src === so); ok(s2 && s2.res === k + '_x', '棉棒玩很差 → 樣本被污染');
+    const st2 = setup(C); toNpc(st2, sid); MG(C, st2, 0, { type: 'use', obj: so, act: 'swab' }, .9); toVan(st2); const s3 = st2.players[0].samples[0]; FS.act(C, st2, 0, { type: 'slab', sid: s3.sid });
+    for (let t = 0; t < C.labSec + 2; t += 1) FS.tick(C, st2, 1);
+    ok(FS.hasEv(st2, k + '_dna') && C.evidence[k + '_dna'].f.who === C.culprit, '送實驗室：與死者 DNA 吻合 → 直接指向兇手');
+    ok(FS.deduce(C, st2).suspects.length === 1 && FS.deduce(C, st2).suspects[0] === C.culprit, 'DNA 吻合的血漬能用在推理上'); }
+  { const C = CD, d = C.stains.find(x => x.npc !== C.culprit), k = 'E_st_' + d.npc, st = setup(C);
+    toNpc(st, d.npc); MG(C, st, 0, { type: 'use', obj: d.id, act: 'swab' }, .9); toVan(st); FS.act(C, st, 0, { type: 'slab', sid: st.players[0].samples[0].sid }); for (let t = 0; t < C.labSec + 2; t += 1) FS.tick(C, st, 1);
+    ok(FS.hasEv(st, k + '_dna') && /不是死者的血/.test(C.evidence[k + '_dna'].name) && !C.evidence[k + '_dna'].f.who, '無辜的人身上的誘餌污漬：實驗室說「不是死者的血」（本人割傷／生肉／紅酒）');
+    ok(FS.deduce(C, st).suspects.includes(C.culprit), '誘餌污漬不會把真兇排除掉'); }
+  { const C = CV, st = setup(C), n = st.npcs.find(q => q.id === C.culprit); n.mode = 'gone'; toNpc(st, C.culprit);
+    ok(/離開/.test(FS.act(C, st, 0, { type: 'mgStart', obj: 'stain_' + C.culprit, act: 'swab' }).err), '人已經逃走 → 採不到'); }
+  let stained = 0, nonBloodyDecoyOnly = true;
+  for (let sd = 1; sd <= 900; sd++) { const c = GEN.generate(sd, ['easy', 'normal', 'hard'][sd % 3]); if (c.stains.length) stained++; if (!['blunt', 'stab', 'staged'].includes(c.method) && c.stains.some(x => x.npc === c.culprit)) nonBloodyDecoyOnly = false; }
+  ok(stained === 900 && nonBloodyDecoyOnly, `每局都有 1–2 位關係人身上有污漬（${stained}/900）；不流血的手法只有誘餌污漬`);
+  ok(!GEN.generate(7, 'tut').stains.length, '新手教學沒有血漬');
+}
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

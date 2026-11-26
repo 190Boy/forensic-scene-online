@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '9';
+const VER = '10';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -78,6 +78,7 @@ function qualHtml(q, sc, obj, act) {
   return `<div class="qline q-${q}">樣本品質：<span class="qv">${ENG.QN[q]}</span>${pct}${hint}</div>`;
 }
 function nextStep(smp, use) {
+  if (smp.kind === 'blood' && use && /^stain_/.test(use.obj)) return '帶回車上用<b>離心機</b>看血型（和死者比對），或直接<b>送實驗室驗 DNA</b>，確定是不是死者的血';
   if (smp.kind === 'blood') return use && use.act === 'nails' ? '帶回車上的<b>離心機</b>分析，可以知道<b>兇手的血型</b>' : use && use.obj === 'body' ? '帶回車上的<b>離心機</b>分析，可以知道<b>死者血型、有沒有中毒</b>' : '帶回車上的<b>離心機</b>分析，可以知道<b>是誰的血、血型</b>';
   if (smp.kind === 'print') return smp.lab ? '只採到<b>半枚</b>：比對電腦比不出來，回車上可以<b>送實驗室強化</b>（要花額度）' : '回車上用<b>指紋比對電腦</b>，可以比出<b>是誰的指紋</b>';
   if (smp.kind === 'shoe') return '回車上用<b>鞋印資料庫</b>比對，可以知道<b>鞋號</b>（筆記本「🧬 比對」頁對照關係人）';
@@ -147,7 +148,7 @@ G.mgFast = /[?&]mgfast/.test(location.search) ? .3 : null;
 function openMg(e) {
   const o = ENG.objById(C, e.obj), a = (o.acts || []).find(x => x.id === e.act) || {};
   for (const k in KEYS) KEYS[k] = false; G.path = null; G.autoOpen = null; closeOv();
-  MG.open({ kind: e.kind, obj: e.obj, act: e.act, specks: e.specks, room: C.room, redo: e.redo, title: `${MG.NAMES[e.kind]}・${o.name}`, sub: a.label || '',
+  MG.open({ kind: e.kind, obj: e.obj, act: e.act, specks: e.specks, room: C.room, ground: o.ground, redo: e.redo, title: `${MG.NAMES[e.kind]}・${o.name}`, sub: a.label || '',
     img: n => IMG[n], touch: !isKB(), fast: G.mgFast, minSec: (C.mgMin || 0) + (G.mode === 'online' ? .5 : .1),
     snd: k => k === 'shutter' ? Snd.sw() : Snd.glint(),
     onDone: sc => { doAct({ type: 'use', obj: e.obj, act: e.act, score: sc }); setTimeout(() => { const p = meP(); if (p && p.mg && !MG.on) doAct({ type: 'mgCancel' }); }, 2500); },
@@ -201,6 +202,7 @@ function startSolo(resume) {
     const seed = qs.get('seed') ? +qs.get('seed') : 1 + Math.floor(Math.random() * 2147483000);
     C = GEN.generate(seed, $('#diff').value); st = ENG.newGame(C, [{ pid: 0, name: myName(), ci: myCi() }]);
   } else C = GEN.generate(st.seed, st.diff);
+  if (st.players && st.players[0]) st.players[0].mg = null;   // 重新整理：沒做完的小遊戲作廢
   G.st = st; loadSeen(); enterGame(!resume || !st.players[0].loaded);
 }
 function loadSeen() { G.seen = new Set(); G.glinted = new Set(); try { const a = JSON.parse(LS.get('fs_seen_' + G.st.seed, '[]')); a.forEach(x => G.seen.add(x)); } catch (e) { } }
@@ -409,18 +411,20 @@ function render(now) {
   const t = now / 1000; const late = [];
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#0b0f18'; ctx.fillRect(0, 0, VW, VH);
   if (!G.st || !C) return;
-  const M = C.map; const hw = VW / 2 / Z, hh = VH / 2 / Z;
+  const M = C.map; const hw = VW / 2 / Z, hh = VH / 2 / Z, MO = G.mapOnly, ZZ = MO ? Math.min(VW / M.w, VH / M.h) : Z;
   CAM.x = M.w < hw * 2 ? M.w / 2 : Math.max(hw - 40, Math.min(M.w - hw + 40, G.camAt ? G.camAt.x : G.Me.x));
   CAM.y = M.h < hh * 2 ? M.h / 2 + 60 : Math.max(hh + 100, Math.min(M.h - hh + 40, (G.camAt ? G.camAt.y : G.Me.y) - 30));
-  const WT = [DPR * Z, 0, 0, DPR * Z, DPR * (VW / 2 - CAM.x * Z), DPR * (VH / 2 - CAM.y * Z)];
+  if (MO) { CAM.x = M.w / 2; CAM.y = M.h / 2; }   // 全地圖總覽（給美術用）：整張地圖 1:1
+  const WT = [DPR * ZZ, 0, 0, DPR * ZZ, DPR * (VW / 2 - CAM.x * ZZ), DPR * (VH / 2 - CAM.y * ZZ)];
   ctx.setTransform(...WT);
   drawMap();
   // 屍體所在的房間：微微偏冷的紫紅色調（氣氛用，不洩漏答案）
-  const br = roomOf(bodyRoom()); if (br) { ctx.fillStyle = 'rgba(70,20,70,.13)'; ctx.fillRect(br.x, br.y, br.w, br.h); }
-  const near = G.nearId, lights = G.st.lights || {}; const tentLabels = [];
+  const br = !MO && roomOf(bodyRoom()); if (br) { ctx.fillStyle = 'rgba(70,20,70,.13)'; ctx.fillRect(br.x, br.y, br.w, br.h); }
+  const near = MO ? null : G.nearId, lights = G.st.lights || {}; const tentLabels = [];
   G.flatDrawn = [];
   for (const o of ENG.flatOrder(C)) {
     if (G.st.obj[o.id].gone || (o.id === 'body' && G.hideBody)) continue;
+    if (MO && (o.id === 'mud' || (o.id === 'body' && MO === 'clean'))) continue;
     if (o.id === 'body') { // 屍體：先畫一圈淡淡的粉筆輪廓與陰影，讓它在任何地毯上都看得清楚
       ctx.save(); ctx.fillStyle = 'rgba(10,12,20,.28)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 4, o.w * .56, o.h * .62, 0, 0, Math.PI * 2); ctx.fill();
       ctx.setLineDash([9, 7]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(o.x, o.y, o.w * .58, o.h * .66, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
@@ -428,8 +432,8 @@ function render(now) {
     drawImg(o.img, o.x, o.y, o.w, o.h, { flat: true }); G.flatDrawn.push(o.id);
   }
   const items = [];
-  for (const o of C.objects) if (!o.flat && !G.st.obj[o.id].gone && !(o.id === 'chief' && G.st.boss && G.st.boss.mode !== 'away')) items.push({ kind: 'o', o, y: o.sw ? o.y - 60 : o.y });
-  for (const q of people()) items.push(Object.assign(q, { y: q.y }));
+  for (const o of C.objects) if (!o.flat && !G.st.obj[o.id].gone && !(o.id === 'chief' && G.st.boss && G.st.boss.mode !== 'away') && !(MO === 'clean' && (o.id === 'chief' || o.id === 'courier'))) items.push({ kind: 'o', o, y: o.sw ? o.y - 60 : o.y });
+  if (MO !== 'clean') for (const q of people()) items.push(Object.assign(q, { y: q.y }));
   items.sort((a, b) => a.y - b.y);
   for (const it of items) {
     if (it.kind === 'o') {
@@ -449,10 +453,11 @@ function render(now) {
       ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
       if (near === 'npc:' + n.id) { ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 20; }
       const nh = n.id === 'daughter' ? CH * .94 : CH; drawImg('npc_' + n.id, it.x, it.y - bob, nh * 2 / 3, nh);
+      if (s && s.stain && !G.st.obj['stain_' + n.id].done.swab) { const sy = s.stain === '鞋尖' ? it.y - 6 : s.stain === '褲管' ? it.y - nh * .25 : s.stain === '衣角' ? it.y - nh * .42 : it.y - nh * .5; ctx.save(); ctx.fillStyle = 'rgba(150,20,22,.9)'; ctx.strokeStyle = 'rgba(255,140,130,.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(it.x + nh * .16, sy - bob, 6, 4.5, .4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(it.x + nh * .16 + 7, sy - bob + 4, 2.2, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
       if (near === 'npc:' + n.id) ctx.restore();
       const tag = n.mode === 'flee' ? '🏃 ' : n.mode === 'nervous' ? '😰 ' : n.mode === 'held' ? '🔒 ' : '';
-      label(tag + (s ? s.name : ''), it.x, it.y - nh - 12, n.mode === 'flee' || n.mode === 'nervous' ? '#ffb3a8' : '#e6dcc8');
-      if (n.mode === 'nervous') { ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('😰', it.x + 34, it.y - nh - 28 - Math.abs(Math.sin(t * 3)) * 4); }
+      if (!MO) label(tag + (s ? s.name : ''), it.x, it.y - nh - 12, n.mode === 'flee' || n.mode === 'nervous' ? '#ffb3a8' : '#e6dcc8');
+      if (n.mode === 'nervous' && !MO) { ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('😰', it.x + 34, it.y - nh - 28 - Math.abs(Math.sin(t * 3)) * 4); }
     } else if (it.kind === 'c') {
       const c = it.c, d = copDef(c.id), bob = it.mv ? Math.abs(Math.sin(t * 7)) * 3 : 0;
       ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
@@ -470,6 +475,7 @@ function render(now) {
       if (B.mode === 'in' && B.demand) late.push(['boss', B, it.x, it.y - CH - 50]);
     }
   }
+  if (MO) return;   // 總覽圖：不畫燈光、標記、名牌
   // 關燈的房間：暗下來，只有手電筒照得到（燈亮的房間維持正常亮度）
   const dark = (C.switches || []).filter(k => lights[k] === false);
   if (dark.length) {
@@ -629,7 +635,7 @@ function nearest() {
     if ((r ? d <= r : ENG.near(C, p, o)) && d < bd) { bd = d; best = o.id; }
   }
   for (const n of G.st.npcs || []) { if (n.mode === 'gone') continue; const x = n.vx != null ? n.vx : n.x, y = n.vy != null ? n.vy : n.y, d = Math.hypot(x - p.x, y - p.y); if (d < 90 && d < bd) { bd = d; best = 'npc:' + n.id; } }
-  const B = G.st.boss; if (B && B.mode === 'in') { const x = B.vx != null ? B.vx : B.x, y = B.vy != null ? B.vy : B.y, d = Math.hypot(x - p.x, y - p.y); if (d < 110 && d < bd + 40) { bd = d; best = 'boss'; } }
+  const B = G.st.boss; if (B && B.mode === 'in') { const x = B.vx != null ? B.vx : B.x, y = B.vy != null ? B.vy : B.y, d = Math.hypot(x - p.x, y - p.y); if (d < ENG.BOSS_R && d < bd + 40) { bd = d; best = 'boss'; } }
   return best;
 }
 function interactNearest() { const id = nearest(); if (!id || id === 'boss') return; const ob = ENG.objById(C, id); if (ob && ob.sw) return doAct({ type: 'light', obj: id }); if (id.startsWith('npc:')) return openPerson(id.slice(4)); const o = ENG.objById(C, id); if (o && o.van) openVan(); }
@@ -656,7 +662,8 @@ function loop(now) {
     step(dt);
     if (G.mode === 'solo' && G.st.phase === 'play' && document.visibilityState === 'visible') { const ev = ENG.tick(C, G.st, dt); if (ev.length) { onEvents(ev); refresh(); saveSolo(); } }
     const nid = nearest(); if (nid !== G.nearId) { G.nearId = nid; refreshAct(); }
-    slowT += dt; if (slowT > .3) { slowT = 0; hudPress(); if (G.mode === 'solo') saveSolo(); Snd.ambTick(); if (G.tut) Tut.tick(); if (G.st.boss && G.st.boss.mode === 'in' && G.nearId === 'boss') refreshAct(); }
+    slowT += dt; if (slowT > .3) { slowT = 0; hudPress(); if (G.mode === 'solo') saveSolo(); Snd.ambTick(); if (G.tut) Tut.tick(); if (G.st.boss && G.st.boss.mode === 'in' && G.nearId === 'boss') refreshAct();
+      const me = meP(); if (me && me.mg && !MG.on) { G.mgStale = (G.mgStale || 0) + .3; if (G.mgStale > 3.5) { G.mgStale = 0; doAct({ type: 'mgCancel' }); } } else G.mgStale = 0; }
   }
   render(now); try { placeAct(); } catch (e) { }
   requestAnimationFrame(loop);
@@ -782,13 +789,15 @@ function refreshAct(force) {
   if (id === 'boss') {
     const B = G.st.boss; if (!B || B.mode !== 'in') return box.classList.add('hidden');
     const d = B.demand, done = ENG.bossDone(C, G.st, d), R = C.reports[d.kind === 'progress' ? 'progress' : d.rep];
-    box.innerHTML = `<div class="ah"><img class="ai" src="${url(R.icon)}" alt=""><b>👔 分局長：${esc(ENG.demandText(C, d))}</b></div><div class="ad">${done ? '<b style="color:#8ff0df">✅ 做到了——站在他旁邊就會交差</b>' : `怎麼做：${esc(R.how)}${d.kind === 'progress' ? `（現在 ${ENG.progress(C, G.st)}%）` : ''}`}</div>`;
+    box.innerHTML = `<div class="ah"><img class="ai" src="${url(R.icon)}" alt=""><b>👔 分局長：${esc(ENG.demandText(C, d))}</b></div><div class="ad">${done ? `<b style="color:#8ff0df">✅ 做到了——碰他或按下面的按鈕交差</b><div class="btns">${btnHtml({ k: 'boss', key: 'e', emoji: '👔', label: '交差' }, 'data-boss="1"')}</div>` : `怎麼做：${esc(R.how)}${d.kind === 'progress' ? `（現在 ${ENG.progress(C, G.st)}%）` : ''}`}</div>`;
     box.classList.remove('hidden'); return;
   }
   if (id.startsWith('npc:')) {
     const sp = C.suspects.find(x => x.id === id.slice(4)); if (!sp) return box.classList.add('hidden');
-    box.innerHTML = `<div class="ah"><b>🧑 ${esc(sp.name)}</b><small>（${esc(sp.role)}・關係人）</small></div><div class="btns">${btnHtml({ k: 'person', key: 'e', emoji: '💬', label: '問話・查看資料' }, `data-person="${sp.id}"`)}</div>`;
-    box.classList.remove('hidden'); return;
+    const so = (C.stains || []).find(x => x.npc === sp.id); let extra = '', cue = '';
+    if (so) { cue = `<div class="ad stn">🩸 ${esc(so.spot)}有疑似血漬</div>`; const { live } = keyed(ENG.options(C, G.st, G.me, so.id).map(x => ({ k: x.kind, a: x.id, label: x.label, emoji: x.emoji, why: x.why, tool: x.kind === 'use' && x.tool, mg: x.mg, redo: x.redo }))); extra = live.map(x => btnHtml(x)).join(''); }
+    box.innerHTML = `<div class="ah"><b>🧑 ${esc(sp.name)}</b><small>（${esc(sp.role)}・關係人）</small></div>${cue}<div class="btns">${extra}${btnHtml({ k: 'person', key: 'e', emoji: '💬', label: '問話・查看資料' }, `data-person="${sp.id}"`)}</div>`;
+    box.dataset.obj = so ? so.id : ''; box.classList.remove('hidden'); return;
   }
   const o = ENG.objById(C, id); if (!o) return box.classList.add('hidden');
   if (o.van) {
@@ -815,6 +824,7 @@ function placeAct() {
 document.addEventListener('click', e => { if (e.target.closest('#callCops')) doAct({ type: 'callcops' }); });
 $('#act').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.boss) return doAct({ type: 'boss' });
   if (b.dataset.van) return openVan();
   if (b.dataset.person) return openPerson(b.dataset.person);
   if (b.dataset.k === 'van' || b.dataset.k === 'person') return;
@@ -829,6 +839,15 @@ $('#ov').addEventListener('change', e => { if (e.target.id === 'relT') { G.relia
 $('#ov').addEventListener('click', e => { if (e.target.id === 'ov' && G.ovKind !== 'deduce' && G.ovKind !== 'result') closeOv(); const c = e.target.closest('[data-close]'); if (c) closeOv(); });
 const hdr = (t, noClose) => `<header><h2>${t}</h2>${noClose ? '' : '<button data-close="1">✕</button>'}</header>`;
 const evRow = f => { const e = C.evidence[f.id], nw = !G.seen.has(f.id); return `<div class="ev ${nw ? 'isnew' : ''}"><img src="${url(e.icon)}" alt=""><div><b>${nw ? '<span class="newb">新</span>' : ''}${esc(e.name)}</b><span>${esc(e.text)}</span><br><small>#${f.n}・${f.by == null ? '現場觀察' : esc(pname(f.by))}</small>${f.q ? ` <span class="qb q-${f.q}">樣本品質：${ENG.QN[f.q]}</span>` : ''}</div></div>`; };
+/* v10：關係人身上的血漬——目前查到哪裡 */
+function stainInfo(sid) {
+  const so = (C.stains || []).find(x => x.npc === sid); if (!so) return null;
+  const fs = G.st.found.map(f => [f, C.evidence[f.id]]).filter(([, e]) => e.f && e.f.stain && e.f.stain[0] === sid);
+  const has = k => fs.find(([, e]) => e.f.stain[1] === k);
+  const r = has('dna') ? { cls: 'ok', t: '與死者 DNA 吻合', m: '✔' } : has('clear') ? { cls: 'dim', t: '不是死者的血（排除）', m: '' } : has('type') ? { cls: 'mix', t: '和死者同型（待 DNA）', m: '？' } : has('no') ? { cls: 'dim', t: '不是死者的血（排除）', m: '' } : null;
+  const smp = (meP() && meP().samples || []).some(x => x.src === so.id) || G.st.obj[so.id].done.swab;
+  return { so, r, txt: r ? r.t : smp ? `${so.spot}的血漬：已採樣，待分析` : `${so.spot}有疑似血漬（未採）`, e: fs.map(([f, e]) => e) };
+}
 /* v9：🧬 比對頁——現場證據 vs. 關係人的鞋號／血型／慣用手／指紋 */
 function compareHtml() {
   const st = G.st, T = { shoe: [], blood: [], hand: [], who: [] };
@@ -842,16 +861,18 @@ function compareHtml() {
   const fits = (k, s, x) => k === 'who' ? x.v === s.id : x.lo != null ? s[k] >= x.lo && s[k] <= x.hi : s[k] === x.v;
   const cell = (k, s, show) => { const L = T[k]; if (!L.length) return `<td>${show}</td>`; const ok = L.filter(x => fits(k, s, x)).length; const cls = ok === L.length ? 'ok' : ok ? 'mix' : 'ng'; return `<td class="${cls}">${show} ${ok === L.length ? '✔' : ok ? '？' : '✖'}</td>`; };
   const vb = st.found.map(f => C.evidence[f.id]).find(e => e.f && e.f.vblood);
-  const rows = C.suspects.map(s => `<tr><td><b>${esc(s.name)}</b><br><small>${esc(s.role)}</small></td>${cell('shoe', s, s.shoe + ' 號')}${cell('blood', s, s.blood + ' 型')}${cell('hand', s, s.hand === 'R' ? '右手' : '左手')}${cell('who', s, '指紋 ' + s.print)}</tr>`).join('');
+  const stc = s => { const I = stainInfo(s.id); return I ? `<td class="${I.r ? I.r.cls : ''}">${esc(I.txt)} ${I.r ? I.r.m : ''}</td>` : '<td class="dim">—</td>'; };
+  const rows = C.suspects.map(s => `<tr><td><b>${esc(s.name)}</b><br><small>${esc(s.role)}</small></td>${cell('shoe', s, s.shoe + ' 號')}${cell('blood', s, s.blood + ' 型')}${cell('hand', s, s.hand === 'R' ? '右手' : '左手')}${cell('who', s, '指紋 ' + s.print)}${stc(s)}</tr>`).join('');
   return `<p class="note">把現場採到的結果和警方建檔的關係人資料並排比對。✔＝符合、✖＝不符合、？＝不同證據說法不一致（看樣本品質，品質差的結果可能不可靠）。</p>
-    <div style="overflow:auto"><table class="cmp"><tr><th></th><th>👣 鞋號</th><th>🩸 血型</th><th>✋ 慣用手</th><th>🖐️ 指紋／DNA</th></tr>
-    <tr class="sc"><td><b>現場證據</b></td><td>${head('shoe')}</td><td>${head('blood')}</td><td>${head('hand')}</td><td>${head('who')}</td></tr>${rows}</table></div>
-    <p class="note" style="font-size:13px">👣 鞋號：泥巴地鞋印 → 鑑識車鞋印資料庫　🩸 兇手血型：死者指甲縫（棉棒）→ 離心機　✋ 慣用手：傷口照片　🖐️ 指紋：刷指紋 → 指紋比對電腦${vb ? '' : '　（死者血型：死者血液 → 離心機）'}</p>`;
+    <div style="overflow:auto"><table class="cmp"><tr><th></th><th>👣 鞋號</th><th>🩸 血型</th><th>✋ 慣用手</th><th>🖐️ 指紋／DNA</th><th>🩸 身上血漬</th></tr>
+    <tr class="sc"><td><b>現場證據</b></td><td>${head('shoe')}</td><td>${head('blood')}</td><td>${head('hand')}</td><td>${head('who')}</td><td><small>死者 ${vb ? esc(C.victim.blood) + ' 型' : '血型未驗'}</small></td></tr>${rows}</table></div>
+    <p class="note" style="font-size:13px">👣 鞋號：泥巴地鞋印 → 鑑識車鞋印資料庫　🩸 兇手血型：死者指甲縫（棉棒）→ 離心機　✋ 慣用手：傷口照片　🖐️ 指紋：刷指紋 → 指紋比對電腦　🩸 身上血漬：帶棉棒靠近那個人採樣 → 離心機看血型（和死者比）或送實驗室驗 DNA；不是死者的血＝誘餌，排除${vb ? '' : '　（死者血型：死者血液 → 離心機）'}</p>`;
 }
-function suspectCard(s, pick) {
-  const st = G.st; const on = pick && st.draft.culprit === s.id; const n = (st.npcs || []).find(q => q.id === s.id);
-  return `<div class="su ${pick ? 'pick' : ''} ${on ? 'on' : ''}" ${pick ? `data-cul="${s.id}"` : ''}><img src="${url(s.img)}" alt=""><div><b>${esc(s.name)}</b>（${esc(s.role)}）${n && n.mode === 'gone' ? ' <span class="tag off">已逃離</span>' : n && n.mode === 'held' ? ' <span class="tag host">被攔下</span>' : ''}<q>${esc(s.say)}</q>
-    <span style="color:var(--dim)">警方建檔：</span>鞋 ${s.shoe} 號・${s.blood} 型・慣用${s.hand === 'R' ? '右' : '左'}手・指紋 ${s.print}</div></div>`;
+function suspectCard(s, pick, wide) {
+  const st = G.st; const on = pick && st.draft.culprit === s.id; const n = (st.npcs || []).find(q => q.id === s.id), I = stainInfo(s.id);
+  const stain = I ? `<span class="stn ${I.r ? I.r.cls : ''}">🩸 ${esc(I.txt)}</span>${wide && !I.r ? `<small class="stnh">帶 🧪 棉棒靠近他，在提示列按「採集${esc(I.so.spot)}的血漬」→ 回車上用離心機看血型，或送實驗室驗 DNA</small>` : ''}` : '';
+  return `<div class="su ${wide ? 'wide' : ''} ${pick ? 'pick' : ''} ${on ? 'on' : ''}" ${pick ? `data-cul="${s.id}"` : ''}><img src="${url(s.img)}" alt=""><div><b>${esc(s.name)}</b>（${esc(s.role)}）${n && n.mode === 'gone' ? ' <span class="tag off">已逃離</span>' : n && n.mode === 'held' ? ' <span class="tag host">被攔下</span>' : ''}<q>${esc(s.say)}</q>
+    <span style="color:var(--dim)">警方建檔：</span>鞋 ${s.shoe} 號・${s.blood} 型・慣用${s.hand === 'R' ? '右' : '左'}手・指紋 ${s.print}${stain}</div></div>`;
 }
 function openBriefing() {
   const html = hdr('📋 案件簡報・' + esc(C.diffName)) + `<div class="body"><div class="ev"><img src="${url(C.victim.img)}" alt="" style="width:84px;height:84px"><div><b>死者：${esc(C.victim.name)}（${C.victim.age}）</b><span>${esc(C.victim.note)}</span></div></div>
@@ -869,7 +890,7 @@ function openBriefing() {
 }
 function openPerson(id) {
   const s = C.suspects.find(x => x.id === id); if (!s) return;
-  openOv('person', hdr('🧑 ' + esc(s.name)) + `<div class="body"><div class="sus" style="grid-template-columns:1fr">${suspectCard(s)}</div><p class="note">兇手如果被你們撞見偷動證物、被攔下逃跑，筆記本會記下「可疑舉動」。</p></div><footer><button data-close="1">關閉</button></footer>`);
+  openOv('person', hdr('🧑 ' + esc(s.name)) + `<div class="body">${suspectCard(s, false, true)}<p class="note">兇手如果被你們撞見偷動證物、被攔下逃跑，筆記本會記下「可疑舉動」。</p></div><footer><button data-close="1">關閉</button></footer>`);
 }
 let vanSel = null;
 function openVan() {
@@ -1195,4 +1216,5 @@ async function bodyCheck() {
   let diff = 0; for (let j = 0; j < A.length; j += 4) if (Math.abs(A[j] - B[j]) + Math.abs(A[j + 1] - B[j + 1]) + Math.abs(A[j + 2] - B[j + 2]) > 45) diff++;
   return { drawnOnTop, covers, onScreen: true, ratio: +(diff / (A.length / 4)).toFixed(3) };
 }
-window.__fs = { G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openVan, openNote, openDeduce, refresh, Tut, bodyCheck };
+function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; try { render(performance.now()); return cv.toDataURL('image/png'); } finally { G.mapOnly = keep; } }
+window.__fs = { mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck };

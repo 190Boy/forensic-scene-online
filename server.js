@@ -158,7 +158,7 @@ function cleanText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g,
 // 只留下動作需要的欄位、型別正確（規則引擎還會再驗證一次）
 function cleanAct(a) {
   if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
-  const T = ['gear', 'light', 'refill', 'callcops', 'mgStart', 'mgCancel', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
+  const T = ['gear', 'light', 'refill', 'callcops', 'boss', 'mgStart', 'mgCancel', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
   if (!T.includes(a.type)) return null;
   const o = { type: a.type }, s = v => typeof v === 'string' ? v.slice(0, 40) : undefined;
   if (s(a.obj)) o.obj = s(a.obj);
@@ -177,7 +177,8 @@ function attach(ws, room, s, isNew) {
   p.ws = ws; p.offAt = 0; ws.ctx = { room, slot: s }; room.lastActive = room.lastMsg = Date.now();
   send(ws, { t: 'joined', code: room.code, slot: s, token: p.token, rejoin: !isNew });
   broadcastRoom(room);
-  if (room.st) send(ws, { t: 'state', s: room.st, ev: [{ k: 'sync' }] });
+  if (room.st) { const q = room.st.players[s]; if (q && q.mg) q.mg = null;   // 重新連線：之前沒做完的小遊戲作廢（不然會一直卡在「分析中」）
+    send(ws, { t: 'state', s: room.st, ev: [{ k: 'sync' }] }); }
 }
 function detach(ws) {
   const c = ws.ctx; if (!c) return; ws.ctx = null;

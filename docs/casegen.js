@@ -290,15 +290,50 @@ function generate(seed, diff) {
     o.courier = { ap: w.size === 2 ? 6 : 4, label: '請小吳到現場取件送驗', res: lab };
     O.push(o);
   }
-  // 後院鞋印（兇手從後門離開）
-  ev('E_shoe', `後院鞋印：${culprit.shoe} 號`, 'ev_shoe', `新鮮鞋印 ${culprit.shoe} 號，從後門走向側門，步伐很急。`, { trait: [['shoe', culprit.shoe]] });
-  ev('E_shoe_rain', '後院鞋印：被雨沖掉了', 'ev_shoe', '雨太大，鞋印已經糊成一片，採不到了。', {});
+  // 兇手的鞋印：每局出現的地方不同（後院泥地／玄關、廚房的泥鞋印／客廳、書房的灰塵或血鞋印）；教學固定在後院
+  const SPOTS = {
+    yard: { x: 1440, y: 900, img: 'prop_mud_prints', where: '後院', name: '後院泥地上的鞋印', desc: '後院泥地上有一串鞋印，從後門走到側門。', trail: '從後門走向側門，步伐很急', ground: 'mud', out: true },
+    foyer: { x: 625, y: 690, w: 160, h: 76, img: 'prop_mud_prints', where: '玄關', name: '玄關地上的泥鞋印', desc: '玄關大理石地上有一串帶泥的鞋印，從大門往屋裡走。', trail: '從大門往屋裡走，步伐很急', ground: 'mud' },
+    kitchen: { x: 820, y: 1060, w: 140, h: 64, img: 'prop_mud_prints', where: '廚房', name: '廚房地板上的泥鞋印', desc: '廚房磁磚上有幾個帶泥的鞋印，從後門方向走進來。', trail: '從後門方向走進廚房', ground: 'mud' },
+    living: { x: 1165, y: 440, w: 150, h: 70, img: 'prop_floor_prints', where: '客廳', name: '客廳地板上的鞋印', desc: '手電筒斜照，客廳地板浮出一串淡淡的灰塵鞋印。', trail: '在客廳裡來回走動', ground: 'floor' },
+    study: { x: 1650, y: 510, w: 150, h: 70, img: 'prop_floor_prints', where: '書房', name: '書房地板上的鞋印', desc: '手電筒斜照，書房地板浮出一串淡淡的灰塵鞋印。', trail: '走到書桌前又折返', ground: 'floor' }
+  };
+  const sk = D.hidden ? 'yard' : ['yard', 'yard', 'foyer', 'kitchen', 'living', 'study'][Math.floor(rv() * 6)];
+  const SP = Object.assign({ room: sk }, SPOTS[sk]);
+  if (!SP.out && sk === crime && method.blood) Object.assign(SP, { img: 'prop_blood_prints', ground: 'blood', name: `${SP.where}地板上的血鞋印`, desc: `${SP.where}地板上有幾個沾了血的鞋印，像是踩過血泊後走開。`, trail: '踩過血泊後往門口走' });
+  C.shoeSpot = { room: sk, out: !!SP.out, ground: SP.ground, where: SP.where };
+  const SWN = SP.where + '鞋印';
+  ev('E_shoe', `${SWN}：${culprit.shoe} 號`, 'ev_shoe', `新鮮鞋印 ${culprit.shoe} 號，${SP.trail}。`, { trait: [['shoe', culprit.shoe]] });
+  ev('E_shoe_rain', `${SWN}：被雨沖掉了`, 'ev_shoe', '雨太大，鞋印已經糊成一片，採不到了。', {});
   { const cs = culprit.shoe, lo = cs - (rv() < .5 ? 1 : 0), off = rv() < .5 ? [cs + 1, cs + 2] : [cs - 2, cs - 1];
-    ev('E_shoe_f', `後院鞋印：${lo}–${lo + 1} 號`, 'ev_shoe', `鞋印有一段被踩亂，只能估出鞋號範圍 ${lo}–${lo + 1} 號。`, { range: [['shoe', lo, lo + 1]] }, ALT('fair'));
-    ev('E_shoe_p', `後院鞋印：${off[0]}–${off[1]} 號`, 'ev_shoe', `鞋印斷斷續續，估出鞋號範圍 ${off[0]}–${off[1]} 號。`, { range: [['shoe', off[0], off[1]]] }, ALT('poor')); }
-  O.push({ id: 'mud', room: 'yard', x: 1440, y: 900, img: 'prop_mud_prints', w: 200, h: 90, name: '後院泥地上的鞋印', flat: true, r: 120, desc: '後院泥地上有一串鞋印，從後門走到側門。',
-    acts: [{ id: 'cast', tool: 'shoe', ap: 2, label: '追蹤並採集鞋印', mg: 'shoe', sample: { kind: 'shoe', label: '後院鞋印', res: 'E_shoe' }, q: { fair: { sample: { kind: 'shoe', label: '後院鞋印（不完整）', res: 'E_shoe_f' } }, poor: { sample: { kind: 'shoe', label: '後院鞋印（斷斷續續）', res: 'E_shoe_p' } } }, cond: [{ flag: 'rain', ev: ['E_shoe_rain'], sample: null }] }] });
+    ev('E_shoe_f', `${SWN}：${lo}–${lo + 1} 號`, 'ev_shoe', `鞋印有一段被踩亂，只能估出鞋號範圍 ${lo}–${lo + 1} 號。`, { range: [['shoe', lo, lo + 1]] }, ALT('fair'));
+    ev('E_shoe_p', `${SWN}：${off[0]}–${off[1]} 號`, 'ev_shoe', `鞋印斷斷續續，估出鞋號範圍 ${off[0]}–${off[1]} 號。`, { range: [['shoe', off[0], off[1]]] }, ALT('poor')); }
+  O.push({ id: 'mud', room: sk, x: SP.x, y: SP.y, img: SP.img, w: SP.w || 200, h: SP.h || 90, ownSize: !SP.out, name: SP.name, flat: true, r: 120, desc: SP.desc, ground: SP.ground,
+    acts: [{ id: 'cast', tool: 'shoe', ap: 2, label: '追蹤並採集鞋印', mg: 'shoe', sample: { kind: 'shoe', label: SWN, res: 'E_shoe' }, q: { fair: { sample: { kind: 'shoe', label: SWN + '（不完整）', res: 'E_shoe_f' } }, poor: { sample: { kind: 'shoe', label: SWN + '（斷斷續續）', res: 'E_shoe_p' } } }, cond: SP.out ? [{ flag: 'rain', ev: ['E_shoe_rain'], sample: null }] : [] }] });
   // 手機（通聯）
+  // 關係人身上的血漬（v10）：兇手可能沾到死者的血；無辜的人也可能有誘餌污漬（自己割傷／生肉血水／紅酒）——光有血漬不代表是兇手
+  C.stains = [];
+  if (!D.hidden) {
+    const inn = sus.filter(x => x.id !== culprit.id), list = [];
+    if (method.blood && rv() < .7) list.push([culprit, 'victim']);
+    if (!list.length || rv() < .5) list.push([inn[Math.floor(rv() * inn.length)], ['own', 'meat', 'wine'][Math.floor(rv() * 3)]]);
+    const vb = C.victim.blood;
+    for (const [sp, src] of list) {
+      const spot = ['袖口', '衣角', '鞋尖', '褲管'][Math.floor(rv() * 4)], L = `${sp.name}${spot}上的血漬`, k = 'E_st_' + sp.id;
+      const same = src === 'own' && sp.blood === vb;
+      const cent = src === 'victim' ? [`${L}：${vb} 型（和死者同型）`, `離心快篩：人血，${vb} 型，和死者血型一樣——很可疑。送實驗室驗 DNA 可以確定是不是死者的血。`]
+        : src === 'own' ? [`${L}：${sp.blood} 型（${same ? '和死者同型' : '和死者不同'}）`, `離心快篩：人血，${sp.blood} 型。${same ? '剛好和死者同型，要送實驗室驗 DNA 才能確定。' : `死者是 ${vb} 型，這不是死者的血。`}`]
+        : src === 'meat' ? [`${L}：不是人血`, '離心快篩：動物血（像是生肉的血水），不是死者的血。']
+        : [`${L}：不是血`, '離心快篩：沒有血紅素反應，是紅酒或顏料之類的污漬，不是死者的血。'];
+      ev(k, cent[0], 'ev_blood', cent[1], { stain: [sp.id, src === 'victim' || same ? 'type' : 'no'] });
+      if (src === 'victim') ev(k + '_dna', `實驗室：${L}與死者 DNA 吻合`, 'ev_lab', `DNA 比對：${sp.name}${spot}上的血就是死者的血。`, { who: sp.id, stain: [sp.id, 'dna'] });
+      else ev(k + '_dna', `實驗室：${L}不是死者的血`, 'ev_lab', `DNA 比對：非死者血液——${src === 'own' ? `是${sp.name}本人的血（手上有新的割傷）` : src === 'meat' ? '是生肉的血水（傍晚在廚房處理過食材）' : '是紅酒漬'}。`, { stain: [sp.id, 'clear'] });
+      ev(k + '_x', `${L}：樣本被污染`, 'ev_blood', '棉棒碰到衣服上的其他污漬，快篩結果判讀不了。', {}, ALT('poor'));
+      C.stains.push({ id: 'stain_' + sp.id, npc: sp.id, name: L, spot, r: 75,
+        acts: [{ id: 'swab', tool: 'swab', ap: 1, label: `採集${spot}的血漬`, mg: 'swab', sample: { kind: 'blood', label: L, res: k, lab: k + '_dna' }, q: { poor: { sample: { kind: 'blood', label: L + '（被污染）', res: k + '_x' } } } }] });
+      sp.stain = spot;
+    }
+  }
   ev('E_phone', `實驗室：手機最後通聯＝${culprit.name}`, 'ev_lab', `解鎖手機：${hhmm(tod - 8)} ${who(culprit)}傳訊「我到了，開門」，之後死者再也沒有回覆。`, { who: culprit.id });
   ev('E_phone_wiped', '實驗室：手機被重設了', 'ev_lab', '手機在命案後被人恢復原廠設定，什麼都救不回來。', {});
   O.push({ id: 'phone', room: bodyRoom, x: B.x + 95, y: B.y + 55, img: 'prop_phone', w: 40, h: 26, name: '死者的手機', flat: true, r: 90, desc: '掉在屍體旁的手機，螢幕鎖著。', tamper: true,
@@ -393,7 +428,7 @@ function generate(seed, diff) {
   C.rookies = D.rookies; C.reports = REPORTS; C.roles = ROLES;
   C.mgMin = D.hidden ? 1.5 : 4;          // 小遊戲最少要花的秒數（伺服器檢查）
   C.mgEasy = !!D.hidden;                 // 新手教學：表現再差也給完整結果（但會顯示分數）
-  for (const o of O) { const z = SIZES[o.img]; if (z) { o.w = z[0]; o.h = z[1]; } }
+  for (const o of O) { const z = SIZES[o.img]; if (z && !o.ownSize) { o.w = z[0]; o.h = z[1]; } }
   C.H = H_REF;
   return C;
 }

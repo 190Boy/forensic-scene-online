@@ -51,7 +51,9 @@ function findPath(C, sx, sy, tx, ty, goalR) {
   while (i < pts.length) { let j = pts.length - 1; while (j > i && !los(C, cur, pts[j])) j--; out.push(pts[j]); cur = pts[j]; i = j + 1; }
   return out;
 }
-const objById = (C, id) => C.objects.find(o => o.id === id);
+const objById = (C, id) => C.objects.find(o => o.id === id) || (C.stains || []).find(o => o.id === id);
+// 關係人身上的血漬會跟著人走：距離用那個人現在的位置
+const posO = (st, o) => { if (!o.npc) return o; const n = (st.npcs || []).find(q => q.id === o.npc); return n ? Object.assign({}, o, { x: n.x, y: n.y }) : o; };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 function near(C, p, o) { return dist(p, o) <= (o.r || (o.van ? C.van.r : 100)) + REACH; }
 function nearVan(C, p) { return dist(p, C.van) <= C.van.r + REACH || dist(p, objById(C, 'courier')) <= 120 + REACH; }
@@ -69,7 +71,7 @@ function newGame(C, players, opts) {
     const s = C.start[i % C.start.length];
     st.players[p.pid] = { pid: p.pid, name: p.name, ci: p.ci, lum: 0, tools: [], loaded: false, bag: [], samples: [], x: s.x, y: s.y, dir: 1, active: true, benchUntil: 0, mg: null };
   });
-  for (const o of C.objects) st.obj[o.id] = { done: {}, gone: false, revealed: [], courier: false, f: {}, marked: false, q: {}, got: {}, tries: {}, score: {} };
+  for (const o of C.objects.concat(C.stains || [])) st.obj[o.id] = { done: {}, gone: false, revealed: [], courier: false, f: {}, marked: false, q: {}, got: {}, tries: {}, score: {} };
   for (const k of C.switches || []) st.lights[k] = true;
   st.npcs = C.npcStart.map(s => ({ id: s.id, x: s.x, y: s.y, hx: s.x, hy: s.y, mode: 'idle', path: null, wait: 3 + rnd(st) * 6, tgt: null, held: false }));
   st.tamperAt = C.pressure.tamperEvery * (0.8 + rnd(st) * 0.5);
@@ -93,6 +95,7 @@ function canRedo(C, s, x) { return !!(x.mg && s.done[x.id] && s.q && s.q[x.id] &
 function useCheck(C, st, p, o, s, x0) {
   if (s.done[x0.id] && !canRedo(C, s, x0)) return '已經做過了';
   if (x0.need && !s.done[x0.need]) return '要先完成前一步';
+  if (o.npc) { const n = (st.npcs || []).find(q => q.id === o.npc); if (!n || n.mode === 'gone') return '這個人已經離開現場了'; }
   if (x0.tool && !p.tools.includes(x0.tool)) return '你沒有帶這件工具';
   if (x0.dark && isLit(C, st, o)) return '燈太亮了，看不到螢光：先關掉這個房間的燈';
   if ((x0.tool === 'luminol' || (x0.dark && s.done[x0.id])) && p.lum <= 0) return '魯米諾用完了：回鑑識車補充';
@@ -150,6 +153,13 @@ function act(C, st, pid, a) {
   if (st.phase !== 'play') return err('調查已經結束');
   if (!p.active) return err('你已經離隊');
   if (p.benchUntil > st.clock && a.type !== 'light' && a.type !== 'callcops') return err(`你被分局長叫去車上寫報告，約 ${Math.ceil(p.benchUntil - st.clock)} 秒後回來`);
+  if (a.type === 'boss') {   // 站在分局長旁邊按 E／點「交差」
+    const B = st.boss; if (!B || B.mode !== 'in') return err('分局長現在不在現場');
+    if (!bossDone(C, st, B.demand)) return err('還沒做到：' + demandText(C, B.demand));
+    if (Math.hypot(p.x - B.x, p.y - B.y) > BOSS_R + 45) return err('走近分局長一點再交差');
+    if (p.mg) p.mg = null;
+    bossAccept(C, st, out); st.seq++; return { ok: true, ev: out };
+  }
   if (a.type === 'callcops') {
     const n = runner(st); if (!n) return err('現在沒有人想溜走');
     if (!canCallCops(st)) return err('人手夠，自己去攔他（走過去碰他）');
@@ -163,7 +173,7 @@ function act(C, st, pid, a) {
   if (a.type === 'mgCancel') { if (!p.mg) return { ok: true, ev: [] }; p.mg = null; out.push({ k: 'mgEnd', by: pid, cancel: true }); st.seq++; return { ok: true, ev: out }; }
   if (a.type === 'mgStart') {
     const o = objById(C, a.obj), s = st.obj[a.obj]; if (!o || !s || o.deco || o.van) return err('沒有這個物件');
-    if (s.gone) return err('這個證物已經被帶走了'); if (!near(C, p, o)) return err('距離太遠，走近一點');
+    if (s.gone) return err('這個證物已經被帶走了'); if (!near(C, p, posO(st, o))) return err('距離太遠，走近一點');
     const x0 = (o.acts || []).find(q => q.id === a.act); if (!x0 || !x0.mg) return err('這個不用小遊戲');
     const e = useCheck(C, st, p, o, s, x0); if (e) return err(e);
     p.mg = { obj: o.id, act: x0.id, kind: x0.mg, t0: st.clock, redo: !!s.done[x0.id] };
@@ -180,7 +190,7 @@ function act(C, st, pid, a) {
   }
   if (a.type === 'light') {
     const o = objById(C, a.obj); if (!o || !o.sw) return err('這裡沒有電燈開關');
-    if (!near(C, p, o)) return err('距離太遠，走近一點');
+    if (!near(C, p, posO(st, o))) return err('距離太遠，走近一點');
     st.lights[o.sw] = st.lights[o.sw] === false; out.push({ k: 'light', by: pid, room: o.sw, on: st.lights[o.sw] });
     st.seq++; return { ok: true, ev: out };
   }
@@ -188,7 +198,7 @@ function act(C, st, pid, a) {
     const o = objById(C, a.obj), s = st.obj[a.obj];
     if (!o || !s || o.deco || o.van) return err('沒有這個物件');
     if (s.gone) return err('這個證物已經被帶走了');
-    if (!near(C, p, o)) return err('距離太遠，走近一點');
+    if (!near(C, p, posO(st, o))) return err('距離太遠，走近一點');
     if (a.type === 'use') {
       const x0 = (o.acts || []).find(q => q.id === a.act); if (!x0) return err('不能這樣做');
       const e0 = useCheck(C, st, p, o, s, x0); if (e0) return err(e0);
@@ -295,17 +305,27 @@ const runner = st => (st.npcs || []).find(n => n.mode === 'nervous' || n.mode ==
 // 正在玩小遊戲（分析中）的隊員顧不到四周：攔人、趕菜鳥、交差都要靠其他隊員
 const watchers = st => actives(st).filter(p => !p.mg);
 const anyNear = (st, pt, r) => watchers(st).some(p => Math.hypot(p.x - pt.x, p.y - pt.y) <= r);
+// 分局長交差：用跟畫面提示一樣的半徑；任何在場的人都算（做小遊戲／被叫去寫報告也能交差，避免殘留狀態卡住）
+const BOSS_R = 115;
+const nearBoss = (st, B) => actives(st).some(p => Math.hypot(p.x - B.x, p.y - B.y) <= BOSS_R);
+function bossAccept(C, st, out) {
+  const B = st.boss, P = C.pressure, T = st.clock, home = objById(C, 'chief') || { x: 90, y: 700 };
+  st.bossOk++; st.budget += 2; st.budgetMax += 2; st.patience = Math.min(100, st.patience + 8);
+  const text = `✅ 分局長收下了「${demandText(C, B.demand).replace(/^交出/, '')}」：「嗯，繼續。」——實驗室額度 +2，耐心回升`;
+  out.push({ k: 'boss_ok', text, demand: B.demand }); st.news.push({ t: Math.round(T), text }); if (st.news.length > 30) st.news.shift();
+  B.mode = 'leave'; B.path = findPath(C, B.x, B.y, home.x, home.y) || []; B.nextAt = T + P.bossEvery;
+}
 function tick(C, st, dt) {
   const out = []; if (st.phase !== 'play') return out;
   st.clock += dt; const P = C.pressure, T = st.clock;
-  for (const p of Object.values(st.players)) if (p.mg && T - p.mg.t0 > 300) { p.mg = null; out.push({ k: 'mgEnd', by: p.pid, cancel: true }); }
+  for (const p of Object.values(st.players)) if (p.mg && T - p.mg.t0 > 120) { p.mg = null; out.push({ k: 'mgEnd', by: p.pid, cancel: true }); }
   for (const l of st.labs) if (!l.back && st.clock >= l.due) { l.back = true; st.rep.lab++; addEv(C, st, [l.res], l.by, out); out.push({ k: 'lab_back', id: l.res, label: l.label }); }
   const news = (k, text, extra) => { const e = Object.assign({ k, text }, extra || {}); out.push(e); st.news.push({ t: Math.round(T), text }); if (st.news.length > 30) st.news.shift(); };
   /* (a) 證據劣化 */
   if (st.pressure) {
     if (!st.flags.todWide && T >= P.todWideAt) { st.flags.todWide = true; news('decay', '🌡️ 屍溫已接近室溫：現在量肝溫只能得到不精確的死亡時間'); }
     if (!st.flags.oxidize && T >= P.oxidizeAt) { st.flags.oxidize = true; news('decay', '🩸 血跡開始氧化：之後採的皮屑樣本，車上驗不出血型（實驗室 DNA 仍可）'); }
-    if (!st.flags.rain && T >= P.rainAt) { st.flags.rain = true; news('decay', '🌧️ 開始下大雨了：後院的鞋印被沖掉了'); }
+    if (!st.flags.rain && T >= P.rainAt) { st.flags.rain = true; news('decay', C.shoeSpot && !C.shoeSpot.out ? '🌧️ 開始下大雨了（還好鞋印在屋裡，沒被沖掉）' : '🌧️ 開始下大雨了：後院的鞋印被沖掉了'); }
   }
   /* (c) 分局長的耐心：慢慢下降；他的要求擺著不理會降得更快；歸零 → 強制結案 */
   if (st.pressure) {
@@ -324,6 +344,7 @@ function tick(C, st, dt) {
   const heat = culpritHeat(C, st);
   for (const n of st.npcs) {
     if (n.mode === 'gone') continue;
+    if (Object.values(st.players).some(p => p.mg && p.mg.obj === 'stain_' + n.id)) continue;   // 正在被採血漬的人會站著不動
     const isC = n.id === C.culprit;
     if (n.mode === 'held') continue;
     if (n.mode === 'nervous') {   // 預警：緊張、慢慢往出口挪；幾秒後才真的跑
@@ -415,11 +436,7 @@ function bossTick(C, st, dt, T, news, out) {
       news('boss_in', `👔 分局長鄭督察走進封鎖線：「${demandText(C, d)}」做完後去碰他交差！`, { demand: d });
     }
   } else if (B.mode === 'in') {
-    if (bossDone(C, st, B.demand) && anyNear(st, B, 80)) {
-      st.bossOk++; st.budget += 2; st.budgetMax += 2; st.patience = Math.min(100, st.patience + 8);
-      news('boss_ok', `✅ 分局長收下了「${demandText(C, B.demand).replace(/^交出/, '')}」：「嗯，繼續。」——實驗室額度 +2，耐心回升`, { demand: B.demand });
-      B.mode = 'leave'; B.path = findPath(C, B.x, B.y, home.x, home.y) || []; B.nextAt = T + P.bossEvery;
-    } else if (T >= B.until && !st.tut) {
+    if (bossDone(C, st, B.demand) && nearBoss(st, B)) bossAccept(C, st, out); else if (T >= B.until && !st.tut) {
       st.bossFail++; const d = B.demand;
       B.mode = 'leave'; B.path = findPath(C, B.x, B.y, home.x, home.y) || []; B.nextAt = T + P.bossEvery;
       st.patience = Math.max(0, st.patience - 12);
@@ -516,6 +533,6 @@ function flatOrder(C) {
   const rank = o => o.id === 'body' ? 1 : (o.w * o.h >= 15000 ? 0 : 2);
   return C.objects.filter(o => o.flat).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || (rank(a.o) === 0 ? b.o.w * b.o.h - a.o.w * a.o.h : 0) || a.i - b.i).map(x => x.o);
 }
-const FS = { qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
+const FS = { posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
 if (typeof module !== 'undefined' && module.exports) module.exports = FS; else root.FS = FS;
 })(typeof self !== 'undefined' ? self : this);

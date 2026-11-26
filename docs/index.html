@@ -161,6 +161,10 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 .su q{display:block;color:#e8f0ff;margin:4px 0}
 .su q:before{content:"「"}.su q:after{content:"」"}
 .su.pick{cursor:pointer;border-width:3px}
+.su.wide{flex-direction:row;align-items:stretch}.su.wide img{width:160px;height:160px;aspect-ratio:auto;flex:none;object-fit:cover;object-position:top;border-right:1px solid var(--line)}.su.wide div{font-size:14px;padding:10px 14px}
+@media (max-width:560px){.su.wide{flex-direction:column;align-items:center}.su.wide img{width:140px;height:140px;max-height:140px;border-right:0;border-radius:10px;margin-top:10px}.su.wide div{align-self:stretch}}
+.stn{display:block;margin-top:6px;color:#ff9a8a;font-weight:600}.stn.ok{color:#7dff9a}.stn.dim{color:var(--dim);font-weight:400}.stn.mix{color:#f2d045}.stnh{display:block;color:var(--dim);font-size:12px;margin-top:2px}
+#act .ad.stn,body.kb #act .ad.stn{display:block;margin:0 0 4px;font-size:13px}
 .su.pick.on{border-color:var(--amber);box-shadow:0 0 20px rgba(242,165,65,.4)}
 .opts{display:grid;gap:6px}
 .opts button{text-align:left;white-space:normal;line-height:1.45}
@@ -345,10 +349,10 @@ label.rel{display:block;margin:4px 0 8px;font-size:14px}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=9"></script>
-<script src="engine.js?v=9"></script>
-<script src="assets.js?v=9"></script>
-<script src="minigames.js?v=9"></script>
-<script src="app.js?v=9"></script>
+<script src="casegen.js?v=10"></script>
+<script src="engine.js?v=10"></script>
+<script src="assets.js?v=10"></script>
+<script src="minigames.js?v=10"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

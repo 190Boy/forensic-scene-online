@@ -82,6 +82,8 @@ const M = [
     ['prop_counter', 420, 220, 'a kitchen counter with a sink, a bottle of bleach, a fridge with a paper chore chart taped on it', '流理台＋漂白水＋冰箱值日表'],
     ['prop_floor_mark', 300, 120, 'faint damp mop streaks on kitchen floor tiles, lying flat, very subtle', '後門前剛拖過的地板痕跡（平放、淡淡的）'],
     ['prop_back_door', 60, 260, 'a narrow wooden back door seen edge-on in a side wall, slightly ajar', '後門（側牆上，從側面看）'],
+    ['prop_floor_prints', 400, 180, 'a faint trail of dusty grey men\'s shoe prints on an indoor wooden floor, subtle, lying flat, transparent background', '室內地板上淡淡的灰塵鞋印（平放、去背）'],
+    ['prop_blood_prints', 400, 180, 'a short trail of dark red bloody men\'s shoe prints on an indoor floor, dried, not gory, lying flat, transparent background', '室內地板上沾血的鞋印（平放、去背）'],
     ['prop_mud_prints', 400, 180, 'a trail of fresh men\'s loafer shoe prints in a muddy patch on the lawn, lying flat', '泥地上的一串樂福鞋印（平放）'],
     ['prop_garden_gate', 180, 240, 'a small wooden garden side gate, latch open', '後院側門'],
     ['prop_bush', 220, 160, 'a round garden bush', '樹叢']
@@ -325,6 +327,8 @@ const D = {
   prop_counter: (c, w, h) => { shadowE(c, w, h, .48); box(c, w * .02, h * .36, w * .76, h * .58, h * .14, '#dfe3e6'); rr(c, w * .2, h * .38, w * .24, h * .08, 4, '#9aa3ad', K.ink, 3); rr(c, w * .8, h * .02, w * .18, h * .92, 8, '#f4f6f8', K.ink, 4); rr(c, w * .83, h * .2, w * .12, h * .14, 2, '#fff8c8', K.ink, 2); rr(c, w * .52, h * .16, w * .1, h * .22, 4, '#e8f4ff', K.ink, 3); },
   prop_floor_mark: (c, w, h) => { c.strokeStyle = 'rgba(120,150,170,.35)'; c.lineWidth = 10; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(w * .05, h * (.2 + i * .2)); c.bezierCurveTo(w * .3, h * (.05 + i * .2), w * .6, h * (.35 + i * .2), w * .95, h * (.2 + i * .2)); c.stroke(); } },
   prop_back_door: (c, w, h) => { rr(c, w * .1, h * .02, w * .8, h * .96, 4, '#8a5a32', K.ink, 3); el(c, w * .5, h * .55, w * .14, h * .02, K.amber); },
+  prop_floor_prints: (c, w, h) => { for (let i = 0; i < 6; i++) { const x = w * (.1 + i * .15), y = h * (i % 2 ? .38 : .62); el(c, x, y, w * .045, h * .12, 'rgba(205,195,170,.55)'); el(c, x + w * .005, y + h * .17, w * .03, h * .07, 'rgba(205,195,170,.45)'); } },
+  prop_blood_prints: (c, w, h) => { for (let i = 0; i < 6; i++) { const x = w * (.1 + i * .15), y = h * (i % 2 ? .38 : .62), a = .85 - i * .1; el(c, x, y, w * .045, h * .12, `rgba(120,18,20,${a})`); el(c, x + w * .005, y + h * .17, w * .03, h * .07, `rgba(120,18,20,${a})`); } },
   prop_mud_prints: (c, w, h) => { el(c, w / 2, h / 2, w * .48, h * .42, 'rgba(90,64,40,.75)'); for (let i = 0; i < 6; i++) { const x = w * (.1 + i * .15), y = h * (i % 2 ? .38 : .62); el(c, x, y, w * .045, h * .12, '#3a2614'); } },
   prop_garden_gate: (c, w, h) => { shadowE(c, w, h); for (let i = 0; i < 5; i++) rr(c, w * (.08 + i * .18), h * .12, w * .14, h * .82, 4, '#a07a52', K.ink, 3); c.fillStyle = '#7a5a3a'; c.fillRect(w * .06, h * .3, w * .88, h * .06); c.fillRect(w * .06, h * .7, w * .88, h * .06); },
   prop_bush: (c, w, h) => { shadowE(c, w, h, .4); el(c, w * .5, h * .55, w * .45, h * .36, '#2f5e3a', K.ink, 4); el(c, w * .36, h * .45, w * .18, h * .14, '#3f7a4a'); },

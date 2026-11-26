@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v9_';
+const OUT = '/workspace/forensic_v10_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -53,7 +53,7 @@ async function touchDrag(pg, pts, ms = 22) {
 const line = (a, b, step = 3) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step)); return Array.from({ length: n + 1 }, (_, i) => [a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n]); };
 // 拍照（滑鼠）：移到重點 → 停穩對焦 → 點一下
 async function playPhotoMouse(pg, shotName) {
-  for (let k = 0; k < 3; k++) { const d = await mgDbg(pg); if (!d || !d.targets.length) break; const [px, py] = await mgPt(pg, ...d.targets[0]); await pg.mouse.move(px, py, { steps: 10 }); await sleep(1300); if (k === 1 && shotName) await shot(pg, shotName); await pg.mouse.down(); await pg.mouse.up(); await sleep(300); }
+  for (let k = 0; k < 3; k++) { const d = await mgDbg(pg); if (!d || !d.targets.length) break; const tg = d.targets.find(t => t[2] === 'd') || d.targets[0]; const [px, py] = await mgPt(pg, tg[0], tg[1]); await pg.mouse.move(px, py, { steps: 10 }); await sleep(1300); if (tg[2] === 'd' && shotName) await shot(pg, shotName); await pg.mouse.down(); await pg.mouse.up(); await sleep(300); }
 }
 // 拍照（iPhone 觸控）：點一下要拍的地方 → 等對焦 → 按快門按鈕
 async function playPhotoTouch(pg, shotName) {
@@ -120,7 +120,7 @@ async function deduceAndSubmit(pg, name) {
   await shot(tg, 'tut_3_gear');
   await tg.click('#gearOk'); await waitStep(tg, 3); await closeWin(tg);
   await checkBody(tg, '教學・桌機', 'forensic_v3_body_tutorial.png');
-  await toObj(tg, 'body'); await shot(tg, 'tut_4_highlight'); await act(tg, '近拍傷口', { manual: true }); await playPhotoMouse(tg, 'mg_photo_desktop'); await mgWaitDone(tg); await waitStep(tg, 4); await sleep(300);
+  await toObj(tg, 'body'); await shot(tg, 'tut_4_highlight'); await act(tg, '近拍傷口', { manual: true }); await playPhotoMouse(tg, 'mg_photo'); await mgWaitDone(tg); await waitStep(tg, 4); await sleep(300);
   console.log('拍照（滑鼠）分數：', await tg.evaluate(() => __fs.MG.score));
   await shot(tg, 'tut_5_result_card');
   await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾'); await waitStep(tg, 5);
@@ -180,7 +180,10 @@ async function deduceAndSubmit(pg, name) {
   if (!hasThermo) { await van(pg); await pg.click('[data-tool="prints"]'); await pg.click('[data-tool="thermo"]'); await pg.click('#gearOk'); await sleep(300); await closeWin(pg); await toObj(pg, 'body'); }
   await act(pg, '量測肝溫', { manual: true }); await holdKey(pg, ' ', 900); await sleep(600); await holdKey(pg, ' ', 700); await shot(pg, 'mg_thermo_desktop');
   await pg.evaluate(() => { __fs.MG.finish(.9); }); await mgWaitDone(pg); await sleep(300);
-  for (let i = 0; i < 20; i++) { const b = await pg.evaluate(() => __fs.G.st.boss.mode === 'in' && ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); if (!b) break; await tp(pg, b.x + 10, b.y + 10); await sleep(200); }
+  // v10 回歸：量完肝溫後站到分局長身上（腳底差 95，畫面上已經疊在一起）一定要能交差
+  { const okTod = await pg.evaluate(() => __fs.ENG.bossDone(__fs.C, __fs.G.st, __fs.G.st.boss.demand)); if (!okTod) errors.push('量完肝溫，分局長要求卻沒達成');
+    for (let i = 0; i < 12; i++) { const b = await pg.evaluate(() => __fs.G.st.boss.mode === 'in' && ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); if (!b) break; await pg.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; const p = G.st.players[G.me]; p.x = x; p.y = y; }, [b.x, b.y + 95]); await sleep(250); }
+    const r = await pg.evaluate(() => ({ ok: __fs.G.st.bossOk, mode: __fs.G.st.boss.mode })); console.log('量完肝溫→站到分局長身上：', JSON.stringify(r)); if (r.ok < 1) errors.push('量完肝溫站到分局長身上，還是不能交差'); }
   const bok = await pg.evaluate(() => __fs.G.st.bossOk); console.log('分局長交差次數：', bok);
   await sleep(400); await shot(pg, 'supervisor_satisfied');
   // 單人：兇手想溜走 → 預警 → 按 E 叫員警攔
@@ -250,6 +253,29 @@ async function deduceAndSubmit(pg, name) {
     await checkBody(bp, '正式案件・' + room, seed === 2 ? 'forensic_v3_body_case.png' : `forensic_v3_body_case_seed${seed}.png`);
     await bp.context().close();
   }
+  /* ---------- 2c. v10：室內鞋印＋關係人身上的血漬＋關係人視窗 ---------- */
+  { const vp = await page(br, { viewport: { width: 1280, height: 800 } });
+    await vp.goto(BASE + '?seed=24'); await sleep(900); await vp.fill('#name', '百九'); await vp.click('#bSolo'); await sleep(700); await vp.click('#win footer [data-close]').catch(() => { }); await sleep(300);
+    await vp.evaluate(() => { __fs.G.st.quietUntil = 1e9; });
+    await van(vp); for (const t of ['swab', 'shoe', 'camera']) await vp.click(`[data-tool="${t}"]:not(.on)`).catch(() => { }); await vp.click('#gearOk'); await sleep(300); await closeWin(vp);
+    const mud = await vp.evaluate(() => { const o = __fs.ENG.objById(__fs.C, 'mud'); return { room: o.room, name: o.name, ground: o.ground }; }); console.log('鞋印位置：', JSON.stringify(mud)); if (mud.room === 'yard') errors.push('seed 24 的鞋印應該在屋裡');
+    await toObj(vp, 'mud'); await act(vp, '追蹤並採集鞋印', { manual: true }); await sleep(300);
+    { const d = await mgDbg(vp); const [px, py] = await mgPt(vp, d.trail[0][0], d.trail[0][1]); await vp.mouse.move(px, py, { steps: 5 }); await sleep(300); await shot(vp, 'mg_shoe_indoor'); }
+    await mgAuto(vp, .9);
+    const sid = await vp.evaluate(() => __fs.C.culprit);
+    for (let i = 0; i < 20; i++) { const n = await vp.evaluate(id => { const n = __fs.G.st.npcs.find(q => q.id === id); return { x: n.vx != null ? n.vx : n.x, y: n.vy != null ? n.vy : n.y }; }, sid); await tp(vp, n.x + 30, n.y + 12); if (await vp.evaluate(id => __fs.G.nearId === 'npc:' + id, sid)) break; }
+    await sleep(300); await shot(vp, 'suspect_stain_prompt');
+    { const cue = await vp.evaluate(() => document.querySelector('#act') && document.querySelector('#act').innerText); console.log('關係人提示：', (cue || '').replace(/\s+/g, ' ')); if (!/疑似血漬/.test(cue || '')) errors.push('靠近有血漬的關係人沒有提示'); }
+    await act(vp, '的血漬', { manual: true }); await sleep(500); await shot(vp, 'mg_swab_suspect'); await mgAuto(vp, .9);
+    const smp = await vp.evaluate(() => __fs.G.st.players[0].samples.map(x => x.label)); console.log('身上血漬樣本：', smp.join('、')); if (!smp.some(x => /血漬/.test(x))) errors.push('沒有採到關係人身上的血漬');
+    await van(vp); for (let i = 0; i < 4; i++) { const b = vp.locator('[data-an]:not([disabled])').first(); if (!(await b.count())) break; await b.click(); await sleep(400); } await closeWin(vp);
+    const stE = await vp.evaluate(() => __fs.G.st.found.map(f => __fs.C.evidence[f.id].name).filter(n => /血漬/.test(n))); console.log('血漬分析：', stE.join('、')); if (!stE.length) errors.push('血漬沒有分析結果');
+    await vp.evaluate(id => __fs.openNote(), sid); await sleep(300); await vp.click('[data-tab="cmp"]'); await sleep(300); await shot(vp, 'notebook_compare_stain'); await closeWin(vp);
+    await vp.evaluate(() => __fs.openPerson && __fs.openPerson('maid')); await sleep(400);
+    await vp.screenshot({ path: '/workspace/forensic_v10_suspect_modal.png' }); shots.push('/workspace/forensic_v10_suspect_modal.png');
+    { const r = await vp.evaluate(() => { const w = document.querySelector('#win'), b = w.querySelector('.body'), im = w.querySelector('.su img'); return { img: im && [Math.round(im.getBoundingClientRect().width), Math.round(im.getBoundingClientRect().height)], scroll: b ? b.scrollHeight > b.clientHeight + 2 : false, h: Math.round(w.getBoundingClientRect().height) }; });
+      console.log('關係人視窗：', JSON.stringify(r)); if (!r.img || r.img[0] > 200 || r.scroll) errors.push('關係人視窗版面不對：' + JSON.stringify(r)); }
+    await closeWin(vp); await vp.context().close(); }
   /* ---------- 3. 連線：燈的開關同步 ---------- */
   const p1 = await page(br, { viewport: { width: 1280, height: 800 } }), p2 = await page(br, { viewport: { width: 1280, height: 800 } });
   await p1.goto(BASE); await sleep(800); await p1.fill('#name', '百九'); await p1.click('#bCreate');
@@ -313,6 +339,9 @@ async function deduceAndSubmit(pg, name) {
   await ip2.waitForFunction(() => __fs.G.st.boss.mode === 'in', null, { timeout: 25000 }); await sleep(3500);
   { const b = await ip2.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(ip2, b.x + 120, b.y + 40); await sleep(500); }
   await shot(ip2, 'iphone_supervisor_hud');
+  await ip2.evaluate(() => __fs.openPerson(__fs.C.suspects[0].id)); await sleep(400); await shot(ip2, 'iphone_suspect_modal');
+  { const r = await ip2.evaluate(() => { const im = document.querySelector('#win .su img'); return im && Math.round(im.getBoundingClientRect().height); }); console.log('iPhone 關係人照片高度：', r); if (!r || r > 150) errors.push('iPhone 關係人照片太大：' + r); }
+  await closeWin(ip2);
   // iPhone：肝溫小遊戲（按住按鈕＝真的觸控按住）
   await tp(ip2, 300, 690); await ip2.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
   await toObj(ip2, 'body'); await act(ip2, '量測肝溫', { manual: true });

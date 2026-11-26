@@ -1,6 +1,6 @@
 # 美術提示詞（給 MUSE 生圖用）
 
-共 **103 張圖**。每張圖都放在 `docs/assets/<檔名>.png`，**用同樣檔名、同樣比例的 PNG 直接覆蓋**就會換上（不用改程式）。
+共 **105 張圖**。每張圖都放在 `docs/assets/<檔名>.png`，**用同樣檔名、同樣比例的 PNG 直接覆蓋**就會換上（不用改程式）。
 現在資料夾裡的是程式畫的佔位圖；檔案不見時遊戲也會自動畫佔位圖，不會壞掉。
 
 ## 共用風格（每一張提示詞都已經包含，換風格時兩段一起改）
@@ -339,7 +339,7 @@ seamless horizontally tileable interior back wall front face, deep green wallpap
 seamless horizontally tileable interior back wall front face, white subway tile backsplash with pale blue painted wall above, front view. cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
 ```
 
-## 場景物件（30）
+## 場景物件（32）
 
 ### `prop_police_tape.png`
 - 尺寸：120×300px（0.40:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
@@ -555,6 +555,22 @@ single game prop: faint damp mop streaks on kitchen floor tiles, lying flat, ver
 
 ```
 single game prop: a narrow wooden back door seen edge-on in a side wall, slightly ajar, isolated. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `prop_floor_prints.png`
+- 尺寸：400×180px（2.22:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：室內地板上淡淡的灰塵鞋印（平放、去背）
+
+```
+single game prop: a faint trail of dusty grey men's shoe prints on an indoor wooden floor, subtle, lying flat, transparent background, isolated. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
+```
+
+### `prop_blood_prints.png`
+- 尺寸：400×180px（2.22:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：室內地板上沾血的鞋印（平放、去背）
+
+```
+single game prop: a short trail of dark red bloody men's shoe prints on an indoor floor, dried, not gory, lying flat, transparent background, isolated. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```
 
 ### `prop_mud_prints.png`
