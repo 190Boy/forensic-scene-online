@@ -310,6 +310,16 @@ const anyNear = (st, pt, r) => watchers(st).some(p => Math.hypot(p.x - pt.x, p.y
 // 分局長交差：用跟畫面提示一樣的半徑；任何在場的人都算（做小遊戲／被叫去寫報告也能交差，避免殘留狀態卡住）
 const BOSS_R = 115;
 const nearBoss = (st, B) => actives(st).some(p => Math.hypot(p.x - B.x, p.y - B.y) <= BOSS_R);
+// 畫面上的位置：單人／教學時引擎本身就是權威，畫出來的位置必須每一幀等於引擎位置
+// （v2～v12 的 bug：單人時 vx/vy 只在開局設一次，分局長／員警／關係人被畫在開局的位置不動，
+//   玩家走到「畫出來的」分局長身上，但引擎裡的他早就走到別處 → 永遠交不了差）
+function syncView(st) {
+  for (const n of st.npcs || []) { n.vx = n.x; n.vy = n.y; n.tx = n.x; n.ty = n.y; }
+  for (const c of st.cops || []) { c.vx = c.x; c.vy = c.y; c.tx = c.x; c.ty = c.y; }
+  const B = st.boss; if (B) { B.vx = B.x; B.vy = B.y; B.tx = B.x; B.ty = B.y; }
+}
+// 判斷「靠近分局長」要用的位置：連線時用伺服器最新送來的位置（tx），單人用引擎位置；絕不用插值中的畫面位置
+const bossXY = (B, online) => online && B.tx != null ? { x: B.tx, y: B.ty } : { x: B.x, y: B.y };
 function bossAccept(C, st, out) {
   const B = st.boss, P = C.pressure, T = st.clock, home = objById(C, 'chief') || C.start[0];
   st.bossOk++; st.budget += 2; st.budgetMax += 2; st.patience = Math.min(100, st.patience + 8);
@@ -542,6 +552,6 @@ function flatOrder(C) {
   const rank = o => o.id === 'body' ? 1 : (o.w * o.h >= 15000 ? 0 : 2);
   return C.objects.filter(o => o.flat).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || (rank(a.o) === 0 ? b.o.w * b.o.h - a.o.w * a.o.h : 0) || a.i - b.i).map(x => x.o);
 }
-const FS = { posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
+const FS = { syncView, bossXY, posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
 if (typeof module !== 'undefined' && module.exports) module.exports = FS; else root.FS = FS;
 })(typeof self !== 'undefined' ? self : this);

@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '12';
+const VER = '13';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -82,10 +82,11 @@ function whereEv(id) { const f = G.st.found.find(x => x.id === id); return `📒
 function resultCard(o) {
   if (SBon()) logPush(`<em>${esc(o.kicker || '🔎 結果')}</em><b>${esc(o.big)}</b>`, o.lab ? 'ev lab' : 'ev', o.img);
   const box = $('#cards'); const d = document.createElement('div'); d.className = 'evc rc' + (o.lab ? ' lab' : '');
-  d.innerHTML = `<div class="rh"><img src="${url(o.img)}" alt=""><div><em>${esc(o.kicker || '🔎 結果')}</em><div class="big">${esc(o.big)}</div><span>${esc(o.text || '')}</span></div></div>${o.qual || ''}${o.where ? `<div class="where ${o.wait ? 'wait' : ''}">${sbTxt(o.where)}</div>` : ''}`;
-  d.onclick = () => d.remove(); box.appendChild(d);
-  while (box.children.length > 2) box.firstChild.remove();
-  setTimeout(() => d.remove(), o.lab ? 12000 : 9000);
+  d.innerHTML = `<button class="rcx" type="button" aria-label="關閉" title="關閉">✕</button><div class="rh"><img src="${url(o.img)}" alt=""><div><em>${esc(o.kicker || '🔎 結果')}</em><div class="big">${esc(o.big)}</div><span>${esc(o.text || '')}</span></div></div>${o.qual || ''}${o.where ? `<div class="where ${o.wait ? 'wait' : ''}">${sbTxt(o.where)}</div>` : ''}`;
+  const sb = SBon(); d.onclick = e => { if (!sb || e.target.closest('.rcx')) d.remove(); }; box.appendChild(d);
+  while (box.children.length > (sb ? 1 : 2)) box.firstChild.remove();
+  if (sb) box.scrollTop = 0;
+  setTimeout(() => d.remove(), sb ? (o.lab ? 30000 : 22000) : (o.lab ? 12000 : 9000));
   Snd.ding(o.lab);
 }
 const MACHINE_OF = { print: '指紋比對電腦', blood: '離心機', shoe: '鞋印資料庫' };
@@ -112,7 +113,7 @@ function myActionCard(evs) {
     const e = C.evidence[found[0].id];
     const fq = G.st.found.find(x => x.id === found[0].id) || {};
     resultCard({ img: e.icon, kicker: an ? `🔬 車上分析結果（${an.label}）` : `🔎 ${use ? use.label : '新發現'}${o ? '・' + o.name : ''}`, big: e.name, text: e.text + (found.length > 1 ? `（另外還有 ${found.length - 1} 項）` : ''), where: whereEv(found[0].id), qual: use && use.q ? qualHtml(use.q, use.score, use.obj, use.act) : fq.q ? qualHtml(fq.q, fq.sc) : '' });
-    if (o) G.floats.push({ x: o.x, y: o.y - (o.flat ? 10 : o.h), text: e.name.replace(/^.*：/, ''), t: performance.now() });
+    if (o && !SBon()) G.floats.push({ x: o.x, y: o.y - (o.flat ? 10 : o.h), text: e.name.replace(/^.*：/, ''), t: performance.now() });
     return true;
   }
   if (smp) { const t = C.tools.find(x => x.id === (use && use.tool)); resultCard({ img: t ? t.icon : 'ev_print', kicker: `🧫 ${use ? use.label : '採樣'}${o ? '・' + o.name : ''}`, big: '採到樣本：' + smp.label, text: '現在還不知道是誰的、什麼結果。', qual: qualHtml(smp.q, use && use.score, use && use.obj, use && use.act), where: `⏳ 樣本在你身上（下方工具列 🧫）→ ${nextStep(smp, use)}，結果會再跳出來`, wait: true }); return true; }
@@ -175,13 +176,13 @@ function openMg(e) {
 }
 
 /* ---------- 動作：單機直接套用；連線送給伺服器 ---------- */
-function doAct(a) {
-  Snd.init();
+function doAct(a, opt) {
+  Snd.init(); const quiet = opt && opt.quiet;
   if (G.mode === 'solo') {
     const r = ENG.act(C, G.st, G.me, a);
-    if (!r.ok) { toast(r.err, true); Snd.bad(); return; }
+    if (!r.ok) { if (!quiet) { toast(r.err, true); Snd.bad(); } return; }
     onEvents(r.ev); saveSolo(); refresh();
-  } else { Net.flushPos(true); Net.send({ t: 'act', a }); }
+  } else { Net.flushPos(true); Net.send({ t: 'act', a: quiet ? Object.assign({ quiet: true }, a) : a }); }
 }
 function onEvents(evs) {
   evs = evs || []; const big = myActionCard(evs);
@@ -564,7 +565,7 @@ function render(now) {
   }
   { const bo = ENG.objById(C, 'body'); if (bo && near !== 'body') label(bo.label || '屍體', bo.x, bo.y + bo.h / 2 + 18, '#ffd9d9'); }
   for (const [t, x, y] of tentLabels) label(t, x, y, '#1d2333', 'rgba(242,208,69,.95)');
-  if (near && !near.startsWith('npc:') && near !== 'boss') { const o = ENG.objById(C, near); if (o) label(o.name, o.x, o.npc ? o.y - o.h - 12 : o.flat ? o.y + o.h / 2 + 16 : o.y + 18, '#bfefff'); }
+  if (near && !near.startsWith('npc:') && near !== 'boss') { const o = ENG.objById(C, near); if (o) label(o.name, o.x, o.npc ? o.y - o.h - 12 : o.flat ? (/^floor_/.test(o.id) && o.h > 60 ? o.y + o.h / 2 - 24 : o.y + o.h / 2 + 16) : o.y + 18, '#bfefff'); }
   // 教學箭頭
   const tg = Tut.target(); if (tg) drawImg('ui_tut_arrow', tg.x, tg.y - 20 - Math.abs(Math.sin(t * 3)) * 12, 46, 46);
   for (const L of late) {
@@ -664,6 +665,8 @@ function step(dt) {
   for (const n of G.st.npcs || []) if (n.tx != null) { n.vx += (n.tx - n.vx) * k; n.vy += (n.ty - n.vy) * k; }
   for (const c of G.st.cops || []) if (c.tx != null) { c.vx += (c.tx - c.vx) * k; c.vy += (c.ty - c.vy) * k; }
   const B = G.st.boss; if (B && B.tx != null) { if (B.vx == null) { B.vx = B.tx; B.vy = B.ty; } B.vx += (B.tx - B.vx) * k; B.vy += (B.ty - B.vy) * k; }
+  if (G.mode !== 'online' && G.st) ENG.syncView(G.st);   // 單人／教學：畫出來的人＝引擎裡的人
+  bossAuto();
   Net.flushPos(false);
 }
 function turnTo(o, a, dt) { let d = a - (o.ang || 0); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; o.ang = (o.ang || 0) + d * Math.min(1, dt * 9); }
@@ -675,10 +678,19 @@ function nearest() {
     if ((r ? d <= r : ENG.near(C, p, o)) && d < bd) { bd = d; best = o.id; }
   }
   for (const n of G.st.npcs || []) { if (n.mode === 'gone') continue; const x = n.vx != null ? n.vx : n.x, y = n.vy != null ? n.vy : n.y, d = Math.hypot(x - p.x, y - p.y); if (d < 90 && d < bd) { bd = d; best = 'npc:' + n.id; } }
-  const B = G.st.boss; if (B && B.mode === 'in') { const x = B.vx != null ? B.vx : B.x, y = B.vy != null ? B.vy : B.y, d = Math.hypot(x - p.x, y - p.y); if (d < ENG.BOSS_R && d < bd + 40) { bd = d; best = 'boss'; } }
+  const B = G.st.boss; if (B && B.mode === 'in') { const q = ENG.bossXY(B, G.mode === 'online'), d = Math.hypot(q.x - p.x, q.y - p.y); if (d < ENG.BOSS_R && d < bd + 40) { bd = d; best = 'boss'; } }
   return best;
 }
-function interactNearest() { const id = nearest(); if (!id || id === 'boss') return; const ob = ENG.objById(C, id); if (ob && ob.sw) return doAct({ type: 'light', obj: id }); if (id.startsWith('npc:')) return openPerson(id.slice(4)); const o = ENG.objById(C, id); if (o && o.van) openVan(); }
+// 交差保險：要求做到了、人站在分局長旁邊（和引擎同一個半徑、同一個位置來源）→ 自動交差，不必等伺服器剛好在那一幀檢查
+let bossTry = 0;
+function bossAuto() {
+  const st = G.st, B = st && st.boss; if (!B || B.mode !== 'in' || st.phase !== 'play' || !B.demand || !ENG.bossDone(C, st, B.demand)) return;
+  const q = ENG.bossXY(B, G.mode === 'online'); if (Math.hypot(q.x - G.Me.x, q.y - G.Me.y) > ENG.BOSS_R) return;
+  const now = performance.now(); if (now - bossTry < 1200) return; bossTry = now;
+  if (G.mode !== 'online') { const p = meP(); if (p) { p.x = G.Me.x; p.y = G.Me.y; } }
+  doAct({ type: 'boss' }, { quiet: true });
+}
+function interactNearest() { const id = nearest(); if (!id) return; if (id === 'boss') return doAct({ type: 'boss' }); const ob = ENG.objById(C, id); if (ob && ob.sw) return doAct({ type: 'light', obj: id }); if (id.startsWith('npc:')) return openPerson(id.slice(4)); const o = ENG.objById(C, id); if (o && o.van) openVan(); }
 
 /* ================= 主迴圈 ================= */
 let last = performance.now(), slowT = 0;
@@ -1267,4 +1279,4 @@ function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; G.n
 // 測試用：世界座標 → 瀏覽器視窗座標（含側欄位移）
 const w2c = (x, y) => { const [sx, sy] = W2S(x, y); return [sx + OX, sy + OY]; };
 const stage = () => ({ OX, OY, VW, VH, Z, sb: isSB() });
-window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck };
+window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard };

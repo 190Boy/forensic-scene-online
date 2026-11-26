@@ -434,4 +434,31 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   let sh = []; for (let t = 0; t < 1.2; t += 0.2) { p3.x = n3.x + 30; p3.y = n3.y; sh = sh.concat(FS.tick(C, s3, 0.2)); }
   ok(!sh.some(e => e.k === 'shoo'), '好奇的關係人還在街上 → 不會說「跑進封鎖線想偷看」');
 }
+/* 16. 分局長交差：畫出來的位置＝引擎位置；站在畫出來的分局長身上一定交得了差（v13 修正） */
+{
+  const C = GEN.generate(158, 'normal');
+  const st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: true }), p = st.players[0];
+  st.quietUntil = 0; st.tamperAt = 1e9; st.curiousAt = 1e9; st.rookieAt = 1e9; st.fleeAt = 1e9;
+  FS.syncView(st); const v0 = { x: st.boss.vx, y: st.boss.vy };   // 開局時的畫面位置（舊版之後就不再更新）
+  st.forceBoss = { kind: 'report', rep: 'tod' }; p.x = C.start[0].x; p.y = C.start[0].y;
+  let t = 0; while (t < 12 && !(st.boss.mode === 'in' && Math.hypot(st.boss.x - v0.x, st.boss.y - v0.y) > 300)) { FS.tick(C, st, 0.2); t += 0.2; }
+  const B = st.boss;
+  ok(B.mode === 'in' && Math.hypot(B.x - v0.x, B.y - v0.y) > FS.BOSS_R, `分局長進場後會走動：離開局位置 ${Math.round(Math.hypot(B.x - v0.x, B.y - v0.y))}（舊版畫面停在開局位置 → 走到畫出來的他身上也交不了差）`);
+  FS.syncView(st);
+  ok(B.vx === B.x && B.vy === B.y, 'syncView 之後畫出來的分局長位置＝引擎位置');
+  ok(FS.bossXY(B, false).x === B.x && FS.bossXY(Object.assign({}, B, { tx: B.x + 50, ty: B.y }), true).x === B.x + 50, '判斷靠近：單人用引擎位置、連線用伺服器最新位置');
+  // 完成死亡時間 → 走到畫出來的分局長身上 → 下一個 tick 就交差
+  st.found.push({ id: 'E_tod', n: st.found.length + 1, by: 0 }); if (st.ev) st.ev.E_tod = true;
+  ok(FS.bossDone(C, st, B.demand), '量完肝溫 → 「死亡時間」要求算做到（泡泡顯示「✅ 完成了，碰我交差」）');
+  p.x = B.vx; p.y = B.vy + 8; p.mg = { t0: st.clock, obj: 'body' };   // 就算還卡著小遊戲狀態
+  const ev = FS.tick(C, st, 0.1);
+  ok(ev.some(e => e.k === 'boss_ok') && st.bossOk === 1, '站在畫出來的分局長身上（還在小遊戲狀態）→ 下一個 tick 自動交差');
+  // 按 E 交差也一定成功（半徑一致）
+  const s2 = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: true }); s2.quietUntil = 0; s2.forceBoss = { kind: 'report', rep: 'tod' };
+  s2.players[0].x = C.start[0].x + 400; s2.players[0].y = C.start[0].y - 200; for (let k = 0; k < 10; k++) FS.tick(C, s2, 0.2);
+  s2.found.push({ id: 'E_tod', n: 1, by: 0 }); if (s2.ev) s2.ev.E_tod = true;
+  const P2 = s2.players[0]; P2.x = s2.boss.x + FS.BOSS_R - 5; P2.y = s2.boss.y;
+  const far = FS.walkable(C, P2.x, P2.y); const r2 = far ? FS.act(C, s2, 0, { type: 'boss' }) : { ok: true };
+  ok(r2.ok, '在交差半徑內按 E → 交差成功：' + (r2.err || ''));
+}
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

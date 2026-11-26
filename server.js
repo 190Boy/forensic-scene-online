@@ -275,7 +275,7 @@ function handle(ws, m) {
       const a = cleanAct(m.a); if (!a) break;
       if ((a.type === 'close' || a.type === 'submit') && !p.host) return send(ws, { t: 'err', msg: '只有房主可以' + (a.type === 'close' ? '提早結案' : '送出推理報告') });
       const r = FS.act(room.C, room.st, slot, a);
-      if (!r.ok) return send(ws, { t: 'err', code: 'act', msg: r.err });
+      if (!r.ok) { if (a.type === 'boss' && m.a.quiet === true) break; return send(ws, { t: 'err', code: 'act', msg: r.err }); }   // 自動交差試不成就安靜略過
       if (room.st.phase === 'result') room.phase = 'result'; else if (room.st.phase === 'deduce') room.phase = 'deduce';
       broadcastState(room, r.ev);
       break;

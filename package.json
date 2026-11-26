@@ -8,8 +8,13 @@
     "start": "node server.js",
     "test": "node test/engine.test.js && node test/server.test.js",
     "assets": "node tools/gen_assets.js",
-    "prompts": "node tools/gen_assets.js --prompts"
+    "prompts": "node tools/gen_assets.js --prompts",
+    "test:ui": "node test/clear_check.js"
   },
-  "engines": { "node": ">=18" },
-  "dependencies": { "ws": "^8.18.0" }
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
 }
