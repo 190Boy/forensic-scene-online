@@ -268,6 +268,54 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
 table.cmp{width:100%;border-collapse:collapse;font-size:13px}table.cmp td,table.cmp th{border:1px solid #2a3446;padding:6px;text-align:center;vertical-align:top}
 table.cmp td.ok{background:rgba(60,160,90,.2)}table.cmp td.ng{background:rgba(160,60,60,.2);color:#ffb0a0}table.cmp td.mix{background:rgba(200,160,40,.16)}table.cmp tr.sc td{background:rgba(79,210,255,.08)}.cmp small{color:var(--dim);margin-left:3px}.dim{color:var(--dim)}
 label.rel{display:block;margin:4px 0 8px;font-size:14px}
+
+/* ---- v11：電腦版（寬 > 860）左側固定深色側欄＋右邊完全乾淨的舞台 ---- */
+#logW{display:none}
+body.sb{--sbw:clamp(270px,24vw,340px)}
+body.sb #cv{left:var(--sbw);width:calc(100% - var(--sbw))}
+body.sb #hud{right:auto;width:var(--sbw);display:flex;flex-direction:column;gap:8px;padding:10px 12px 10px;background:linear-gradient(180deg,#111a29 0%,#0c121c 60%,#0a0f17 100%);border-right:1px solid #2a3850;box-shadow:6px 0 22px rgba(0,0,0,.5);pointer-events:auto;overflow:hidden}
+body.sb #hud>*{position:static;transform:none;left:auto;right:auto;top:auto;bottom:auto;max-width:none;flex:none}
+body.sb .room{order:1;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#d8e6f8;text-shadow:none;padding:0 2px 6px;border-bottom:1px solid #22304a;letter-spacing:.5px}
+body.sb .room::before{content:"🗂️ 案件檔案";color:var(--amber);margin-right:auto;font-size:12px}
+body.sb #alertBar{order:2;border-radius:8px;font-size:13px;padding:6px 8px}
+body.sb .tl{order:3;gap:6px;max-height:48vh;overflow-y:auto;scrollbar-width:thin}
+body.sb .chip{background:#141d2c;border-color:#26344c;border-radius:8px}
+body.sb .pips{max-width:none}body.sb .pips .patb{flex:1;width:auto}
+body.sb .pbar{width:100%}
+body.sb .obj{border-color:#2b6f7a;background:#11242a}
+body.sb #tut{order:4;width:auto;border-radius:10px;padding:8px 10px;box-shadow:none;max-height:40vh;overflow-y:auto;scrollbar-width:thin}
+body.sb #tut img{width:40px;height:40px}body.sb #tut .tx{font-size:13px;line-height:1.55}
+body.sb .tr{order:5;display:flex;flex-wrap:wrap;gap:6px;justify-content:stretch}
+body.sb .tr button{flex:1 1 auto;background:#1a2436;padding:7px 8px;font-size:14px;border-radius:8px}
+body.sb .tr button.amber{background:var(--amber)}
+body.sb .tr #bMenu{flex:0 0 auto}
+body.sb #logW{order:6;display:flex;flex-direction:column;flex:1 1 auto;min-height:90px;position:relative;background:#0a0f18;border:1px solid #22304a;border-radius:8px;overflow:hidden}
+body.sb .lh{font-size:12px;color:var(--dim);padding:5px 8px;border-bottom:1px solid #1d2a40;background:#0e1522;letter-spacing:1px}
+#log{flex:1;overflow-y:auto;padding:4px 6px 8px;scrollbar-width:thin;font-size:12.5px;line-height:1.5}
+.lg{display:flex;gap:6px;align-items:flex-start;padding:4px 2px;border-bottom:1px dashed #1a2538;animation:fin .25s;color:#d6e0ee}
+.lg time{flex:none;width:36px;color:#6f819c;font-size:11px;font-variant-numeric:tabular-nums;padding-top:1px}
+.lg img{flex:none;width:28px;height:28px;border-radius:5px;background:#0b1220}
+.lg .lt{flex:1;min-width:0;word-break:break-word}
+.lg .lt em{display:block;font-style:normal;font-size:11px;color:var(--blue)}
+.lg .lt b{display:block;color:#fff}
+.lg .lt span{display:block;color:#aebbd0;font-size:12px}
+.lg.bad{color:#ffb8ad}.lg.bad time{color:#b06a60}
+.lg.ev{background:rgba(79,210,255,.05)}.lg.ev.lab .lt em{color:var(--amber)}
+.lg.inter{border-left:3px solid #3a6a6a;padding-left:6px;background:rgba(43,179,163,.05)}
+.lg.inter.warn{border-left-color:#c9a04a;background:rgba(242,165,65,.08);color:#ffe6bf}
+.lg.inter.bad{border-left-color:#c0645a;background:rgba(224,100,90,.08)}
+#logNew{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font-size:12px;padding:3px 10px;border-radius:12px;background:var(--teal);color:#04221e;border:0;font-weight:700}
+body.sb .bar{order:7;display:flex;flex-wrap:wrap;gap:5px;opacity:1;justify-content:flex-start;align-items:center;padding-top:8px;border-top:1px solid #22304a}
+body.sb .bar{--slw:min(44px,calc((var(--sbw) - 64px) / 6.3))}body.sb .slot{width:var(--slw);height:var(--slw);border-radius:8px;background:#141d2c}body.sb .slot img{width:80%;height:80%}
+body.sb .sep{width:4px}
+body.sb .keyhelp{order:8;display:none;text-align:center;font-size:11px;color:#8193ad;background:none;padding:0;white-space:normal}
+body.sb.kb .keyhelp{display:block}
+body.sb #toasts{display:none}
+body.sb #act{position:fixed;left:calc(var(--sbw) + (100vw - var(--sbw)) / 2);bottom:16px;transform:translateX(-50%);width:min(560px,calc(100vw - var(--sbw) - 24px))}
+body.sb.kb #act{transform:none;width:auto;bottom:auto}
+body.sb #cards{position:fixed;left:calc(var(--sbw) + (100vw - var(--sbw)) / 2);top:12px;transform:translateX(-50%);width:min(440px,calc(100vw - var(--sbw) - 24px))}
+body.sb .ov,body.sb #mg{left:var(--sbw)}
+body.sb #chat{right:12px;bottom:12px}
 </style>
 </head>
 <body>
@@ -336,8 +384,9 @@ label.rel{display:block;margin:4px 0 8px;font-size:14px}
   <div id="alertBar" class="hidden"></div>
   <div id="tut" class="hidden"></div>
   <div id="cards"></div>
+  <div id="logW"><div class="lh">📜 現場紀錄</div><div id="log" aria-live="polite"></div><button id="logNew" class="hidden" type="button">↓ 新訊息</button></div>
   <div class="bar" id="bar"></div>
-  <div class="keyhelp">WASD 移動・數字鍵 1–5 用工具・E 互動・N 筆記本</div>
+  <div class="keyhelp">WASD 移動・1–5 用工具・E 互動・N 筆記本</div>
 </div>
 
 <div id="chat" class="hidden">
@@ -349,10 +398,10 @@ label.rel{display:block;margin:4px 0 8px;font-size:14px}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=10"></script>
-<script src="engine.js?v=10"></script>
-<script src="assets.js?v=10"></script>
-<script src="minigames.js?v=10"></script>
-<script src="app.js?v=10"></script>
+<script src="casegen.js?v=11"></script>
+<script src="engine.js?v=11"></script>
+<script src="assets.js?v=11"></script>
+<script src="minigames.js?v=11"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

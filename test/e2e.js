@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v10_';
+const OUT = '/workspace/forensic_v11_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -276,6 +276,53 @@ async function deduceAndSubmit(pg, name) {
     { const r = await vp.evaluate(() => { const w = document.querySelector('#win'), b = w.querySelector('.body'), im = w.querySelector('.su img'); return { img: im && [Math.round(im.getBoundingClientRect().width), Math.round(im.getBoundingClientRect().height)], scroll: b ? b.scrollHeight > b.clientHeight + 2 : false, h: Math.round(w.getBoundingClientRect().height) }; });
       console.log('關係人視窗：', JSON.stringify(r)); if (!r.img || r.img[0] > 200 || r.scroll) errors.push('關係人視窗版面不對：' + JSON.stringify(r)); }
     await closeWin(vp); await vp.context().close(); }
+  /* ---------- 2d. v11：電腦版左側固定側欄＋右邊乾淨的舞台（座標、點擊、分局長泡泡、現場紀錄） ---------- */
+  { const vp = await page(br, { viewport: { width: 1366, height: 800 } });
+    await vp.goto(BASE + '?seed=158'); await sleep(900); await vp.fill('#name', '百九'); await vp.click('#bSolo'); await sleep(700); await vp.click('#win footer [data-close]').catch(() => { }); await sleep(300);
+    await vp.evaluate(() => { __fs.G.st.quietUntil = 1e9; });
+    const L = await vp.evaluate(() => { const r = s => { const e = document.querySelector(s); if (!e || !e.getClientRects().length) return null; const b = e.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right), t: Math.round(b.top), b: Math.round(b.bottom), w: Math.round(b.width), h: Math.round(b.height) }; };
+      const o = { sb: document.body.classList.contains('sb'), hud: r('#hud'), cv: r('#cv'), stage: __fs.stage(), parts: {} }; for (const s of ['.room', '.tl', '.tr', '#bNote', '#bClose', '#bMenu', '#logW', '.bar', '.keyhelp']) o.parts[s] = r(s); return o; });
+    console.log('v11 側欄：', JSON.stringify({ sb: L.sb, hud: L.hud, cv: L.cv }));
+    if (!L.sb || !L.hud || L.hud.w < 268 || L.hud.w > 342) errors.push('側欄寬度不對：' + JSON.stringify(L.hud));
+    if (!L.cv || Math.abs(L.cv.l - L.hud.w) > 2 || Math.abs(L.cv.w - (1366 - L.hud.w)) > 2) errors.push('畫布沒有貼齊右邊舞台：' + JSON.stringify(L.cv));
+    for (const [k, b] of Object.entries(L.parts)) { if (!b) errors.push('側欄少了 ' + k); else if (b.r > L.hud.w + 1 || b.b > 801) errors.push('側欄元件跑出側欄：' + k + JSON.stringify(b)); }
+    if (L.parts['#logW'] && L.parts['#logW'].h < 120) errors.push('現場紀錄太矮：' + L.parts['#logW'].h);
+    // 現場紀錄：自動捲到最新；往上捲時不跳，出現「↓ 新訊息」
+    { const r = await vp.evaluate(async () => { for (let i = 0; i < 40; i++) __fs.log('測試訊息 ' + i); const b = document.querySelector('#log'); const atEnd = b.scrollTop + b.clientHeight >= b.scrollHeight - 2; b.scrollTop = 0; await new Promise(r => setTimeout(r, 60)); __fs.log('往上捲時的新訊息'); const stay = b.scrollTop === 0, pill = !document.querySelector('#logNew').classList.contains('hidden'); document.querySelector('#logNew').click(); const back = b.scrollTop + b.clientHeight >= b.scrollHeight - 2; const time = (b.querySelector('.lg time') || {}).textContent; b.innerHTML = ''; return { atEnd, stay, pill, back, time }; });
+      console.log('現場紀錄捲動：', JSON.stringify(r)); if (!r.atEnd || !r.stay || !r.pill || !r.back || !/\d+:\d\d/.test(r.time || '')) errors.push('現場紀錄捲動不對：' + JSON.stringify(r)); }
+    // 點擊畫布上的物件（畫布往右移了，座標要準）
+    await tp(vp, 1000, 600); await sleep(800);
+    { const st = await vp.evaluate(() => __fs.stage()); await vp.addStyleTag({ content: '#act{visibility:hidden!important}' });
+      const objs = await vp.evaluate(() => { const C = __fs.C, G = __fs.G; return C.objects.filter(o => !o.deco && !o.van && !G.st.obj[o.id].gone && o.id !== 'floor_living').map(o => { const [cx, cy] = __fs.w2c(o.x, o.flat ? o.y : o.y - Math.min(30, (o.h || 40) / 3)); return { id: o.id, cx, cy }; }); });
+      let ok = 0, tot = 0; const miss = [];
+      for (const o of objs) { if (o.cx < st.OX + 8 || o.cx > st.OX + st.VW - 8 || o.cy < 8 || o.cy > st.VH - 8) continue; tot++;
+        await vp.evaluate(() => { const G = __fs.G; G.autoOpen = null; G.path = null; G.nearId = null; }); await vp.mouse.click(o.cx, o.cy); await sleep(60);
+        const a = await vp.evaluate(() => __fs.G.autoOpen || __fs.G.nearId); if (a === o.id) ok++; else miss.push(o.id + '→' + a); await tp(vp, 1000, 600); }
+      console.log('點擊畫布物件：', ok + '/' + tot, miss.join(' ')); if (tot < 8 || ok < tot) errors.push('點擊畫布物件不準：' + ok + '/' + tot + ' ' + miss.join(' '));
+      await vp.evaluate(() => { const s = [...document.querySelectorAll('style')].pop(); if (/visibility:hidden/.test(s.textContent)) s.remove(); }); }
+    // 點地板：走到點的位置（世界座標要對）
+    { const [cx, cy] = await vp.evaluate(() => __fs.w2c(1180, 760)); await vp.mouse.click(cx, cy); await sleep(60); const end = await vp.evaluate(() => { const p = __fs.G.path; return p && p.length ? p[p.length - 1] : null; }); console.log('點地板走到：', JSON.stringify(end)); if (!end || Math.hypot(end.x - 1180, end.y - 760) > 30) errors.push('點地板走錯位置：' + JSON.stringify(end)); }
+    await tp(vp, 300, 690); await vp.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
+    await toObj(vp, 'body'); await act(vp, '量測肝溫', { score: .9 }); await sleep(600);
+    // 分局長走進來：泡泡在舞台裡，不會被任何 HUD 蓋住
+    await vp.evaluate(() => { const st = __fs.G.st; st.quietUntil = 0; st.forceBoss = { kind: 'progress', pct: 60 }; });
+    await vp.waitForFunction(() => __fs.G.st.boss && __fs.G.st.boss.mode === 'in', null, { timeout: 25000 }).catch(() => errors.push('分局長沒有進場'));
+    await sleep(2500);
+    { const b = await vp.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(vp, b.x + 150, b.y + 70); await sleep(900);
+      await vp.evaluate(() => { document.querySelector('#cards').innerHTML = ''; });
+      const r = await vp.evaluate(() => { const B = __fs.G.st.boss, st = __fs.stage(); const pts = []; for (const dx of [-110, -60, 0, 60, 110]) for (const dy of [-215, -185, -150, -110, -60, 0]) pts.push(__fs.w2c(B.x + dx, B.y + dy));
+        const bad = pts.filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight).map(([x, y]) => { const e = document.elementFromPoint(x, y); return e && e.id !== 'cv' && !e.closest('#act') ? (e.id || e.className || e.tagName) + '@' + Math.round(x) + ',' + Math.round(y) : null; }).filter(Boolean);
+        const [bx] = __fs.w2c(B.x, B.y); return { bad, inStage: bx > st.OX + 60 && bx < st.OX + st.VW - 60 }; });
+      console.log('分局長泡泡：', JSON.stringify(r)); if (r.bad.length || !r.inStage) errors.push('分局長泡泡被蓋住或不在舞台內：' + JSON.stringify(r));
+      await shot(vp, 'supervisor_clean'); }
+    { const n = await vp.evaluate(() => document.querySelectorAll('#log .lg').length); console.log('現場紀錄筆數：', n); if (n < 3) errors.push('現場紀錄沒有記下事件：' + n); }
+    await tp(vp, 760, 690); await sleep(1200); await vp.evaluate(() => { document.querySelector('#cards').innerHTML = ''; }); await shot(vp, 'desktop_sidebar');
+    // 側欄模式的小遊戲：在舞台中間，座標照樣準
+    await toObj(vp, 'body'); await act(vp, '採集死者血液', { manual: true }); await sleep(400);
+    { const r = await vp.evaluate(() => { const m = document.querySelector('.mgw').getBoundingClientRect(), st = __fs.stage(); return { l: Math.round(m.left), r: Math.round(m.right), OX: Math.round(st.OX) }; }); console.log('側欄模式小遊戲位置：', JSON.stringify(r)); if (r.l < r.OX) errors.push('小遊戲蓋到側欄：' + JSON.stringify(r)); }
+    await mgAuto(vp, .9);
+    await vp.close(); }
+
   /* ---------- 3. 連線：燈的開關同步 ---------- */
   const p1 = await page(br, { viewport: { width: 1280, height: 800 } }), p2 = await page(br, { viewport: { width: 1280, height: 800 } });
   await p1.goto(BASE); await sleep(800); await p1.fill('#name', '百九'); await p1.click('#bCreate');
@@ -339,6 +386,8 @@ async function deduceAndSubmit(pg, name) {
   await ip2.waitForFunction(() => __fs.G.st.boss.mode === 'in', null, { timeout: 25000 }); await sleep(3500);
   { const b = await ip2.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(ip2, b.x + 120, b.y + 40); await sleep(500); }
   await shot(ip2, 'iphone_supervisor_hud');
+  { const r = await ip2.evaluate(() => { const c = document.querySelector('#cv').getBoundingClientRect(); return { sb: document.body.classList.contains('sb'), l: c.left, w: Math.round(c.width), iw: innerWidth, log: !!document.querySelector('#logW').offsetParent }; }); console.log('iPhone 版面：', JSON.stringify(r)); if (r.sb || r.l !== 0 || r.w !== r.iw || r.log) errors.push('iPhone 不該有側欄：' + JSON.stringify(r)); }
+  await shot(ip2, 'iphone');
   await ip2.evaluate(() => __fs.openPerson(__fs.C.suspects[0].id)); await sleep(400); await shot(ip2, 'iphone_suspect_modal');
   { const r = await ip2.evaluate(() => { const im = document.querySelector('#win .su img'); return im && Math.round(im.getBoundingClientRect().height); }); console.log('iPhone 關係人照片高度：', r); if (!r || r > 150) errors.push('iPhone 關係人照片太大：' + r); }
   await closeWin(ip2);

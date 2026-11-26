@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '10';
+const VER = '11';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -44,7 +44,24 @@ const G = { mode: null, st: null, me: 0, room: null, code: null, token: null, ho
 const isHost = () => G.mode === 'solo' || G.host;
 const meP = () => G.st && G.st.players[G.me];
 
+/* v11：側欄的現場紀錄（電腦版）：系統提示、插曲、證據都依時間排在這裡，不再浮在畫面上 */
+const isSB = () => document.body.classList.contains('sb');
+const sbTxt = h => isSB() ? String(h).replace(/左上角?/g, '左側欄') : h; // 電腦版的 HUD 在左側欄
+const SBon = () => isSB() && !$('#hud').classList.contains('hidden');
+function logTime() { const st = G.st; if (!st || !C) return ''; if (st.phase === 'play' && !G.tut) return gameTime(); const s = Math.max(0, Math.floor(st.clock || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+// 跟著最新訊息，除非玩家自己往上捲（版面變高變矮不算）
+const LOGS = { stick: true, last: 0 };
+function logBottom() { const b = $('#log'); b.scrollTop = b.scrollHeight; LOGS.last = b.scrollTop; LOGS.stick = true; $('#logNew').classList.add('hidden'); }
+function logPush(html, cls, icon) {
+  const box = $('#log'); if (!box) return;
+  const stick = LOGS.stick;
+  const d = document.createElement('div'); d.className = 'lg ' + (cls || '');
+  d.innerHTML = `<time>${logTime()}</time>${icon ? `<img src="${url(icon)}" alt="">` : ''}<div class="lt">${html}</div>`;
+  box.appendChild(d); while (box.children.length > 150) box.firstChild.remove();
+  if (stick) logBottom(); else $('#logNew').classList.remove('hidden');
+}
 function toast(msg, bad) {
+  if (SBon()) return logPush(esc(msg), bad ? 'bad' : '');
   const box = $('#toasts'); const d = document.createElement('div'); d.className = 'toast' + (bad ? ' bad' : ''); d.textContent = msg; box.appendChild(d);
   while (box.children.length > 5) box.firstChild.remove();
   setTimeout(() => d.remove(), bad ? 4000 : 5500);
@@ -52,6 +69,7 @@ function toast(msg, bad) {
 function card(id, lab) {
   const e = C.evidence[id]; if (!e) return;
   if (lab) return resultCard({ img: e.icon, kicker: '📨 實驗室報告回來了', big: e.name, text: e.text, where: whereEv(id), lab: true });
+  if (SBon()) { logPush(`<em>🔎 新證據・已記到筆記本</em><b>${esc(e.name)}</b><span>${esc(e.text)}</span>`, 'ev', e.icon); Snd.ding(false); return; }
   const box = $('#cards'); const d = document.createElement('div'); d.className = 'evc soft';
   d.innerHTML = `<img src="${url(e.icon)}" alt=""><div><em>${lab ? '📨 實驗室報告回來了' : '🔎 新證據'}・已記錄到筆記本</em><b>${esc(e.name)}</b><span>${esc(e.text)}</span></div>`;
   d.onclick = () => d.remove(); box.appendChild(d);
@@ -62,8 +80,9 @@ function card(id, lab) {
 /* 大結果卡：自己用完工具，立刻看到「發現了什麼」和「之後去哪裡找」 */
 function whereEv(id) { const f = G.st.found.find(x => x.id === id); return `📒 已記到筆記本「證據」第 ${f ? f.n : '?'} 項（標著<span class="newb">新</span>）`; }
 function resultCard(o) {
+  if (SBon()) logPush(`<em>${esc(o.kicker || '🔎 結果')}</em><b>${esc(o.big)}</b>`, o.lab ? 'ev lab' : 'ev', o.img);
   const box = $('#cards'); const d = document.createElement('div'); d.className = 'evc rc' + (o.lab ? ' lab' : '');
-  d.innerHTML = `<div class="rh"><img src="${url(o.img)}" alt=""><div><em>${esc(o.kicker || '🔎 結果')}</em><div class="big">${esc(o.big)}</div><span>${esc(o.text || '')}</span></div></div>${o.qual || ''}${o.where ? `<div class="where ${o.wait ? 'wait' : ''}">${o.where}</div>` : ''}`;
+  d.innerHTML = `<div class="rh"><img src="${url(o.img)}" alt=""><div><em>${esc(o.kicker || '🔎 結果')}</em><div class="big">${esc(o.big)}</div><span>${esc(o.text || '')}</span></div></div>${o.qual || ''}${o.where ? `<div class="where ${o.wait ? 'wait' : ''}">${sbTxt(o.where)}</div>` : ''}`;
   d.onclick = () => d.remove(); box.appendChild(d);
   while (box.children.length > 2) box.firstChild.remove();
   setTimeout(() => d.remove(), o.lab ? 12000 : 9000);
@@ -337,8 +356,10 @@ $('#rmChat').onclick = () => Chat.toggle();
 
 /* ================= 畫面 ================= */
 const cv = $('#cv'), ctx = cv.getContext('2d');
-let VW = 0, VH = 0, DPR = 1, Z = 1, CAM = { x: 0, y: 0 };
-function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); VW = innerWidth; VH = innerHeight; cv.width = VW * DPR; cv.height = VH * DPR; Z = Math.max(.5, Math.min(1.2, Math.min(VW / 900, VH / 620))); }
+let VW = 0, VH = 0, OX = 0, OY = 0, DPR = 1, Z = 1, CAM = { x: 0, y: 0 };
+// v11：電腦版（寬 > 860）左邊是固定的深色側欄，畫布只佔右邊的舞台；W2S／S2W 用畫布自己的座標，滑鼠／觸控進來時減掉 OX／OY
+const SB_MIN = 861;
+function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); document.body.classList.toggle('sb', innerWidth >= SB_MIN && !G.noSB); const r = cv.getBoundingClientRect(); OX = r.left; OY = r.top; VW = Math.round(r.width) || innerWidth; VH = Math.round(r.height) || innerHeight; cv.width = VW * DPR; cv.height = VH * DPR; Z = Math.max(.5, Math.min(1.2, Math.min(VW / 900, VH / 620))); }
 addEventListener('resize', resize); resize();
 const W2S = (x, y) => [(x - CAM.x) * Z + VW / 2, (y - CAM.y) * Z + VH / 2];
 const S2W = (x, y) => [(x - VW / 2) / Z + CAM.x, (y - VH / 2) / Z + CAM.y];
@@ -548,7 +569,7 @@ function render(now) {
   const B = G.st.boss; if (B && B.mode === 'in') marks.push([B.vx != null ? B.vx : B.x, B.vy != null ? B.vy : B.y, '👔', '#5a6a8a']);
   for (const n of G.st.npcs || []) if (n.mode === 'flee' || n.mode === 'nervous') marks.push([n.vx != null ? n.vx : n.x, n.vy != null ? n.vy : n.y, '🏃', '#b8574f']);
   if (tg) marks.push([tg.x, tg.y + 40, '⬇️', '#1f8f82']);
-  for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); const [fx, fy] = W2S(x, y), [hx, hy] = W2S(x, y - CH - 30); if (fx > -20 && fx < VW + 20 && fy > -10 && hy < VH + 10) continue; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(90, Math.min(VH - 90, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
+  for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); const [fx, fy] = W2S(x, y), [hx, hy] = W2S(x, y - CH - 30); if (fx > -20 && fx < VW + 20 && fy > -10 && hy < VH + 10) continue; const em = isSB() ? 30 : 90; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(em, Math.min(VH - em, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
 }
 // 分局長頭上的泡泡：要求圖示＋文字，下方一條慢慢變短的「耐心」條（不顯示秒數）
 function bossBubble(B, x, y, t) {
@@ -584,7 +605,7 @@ addEventListener('blur', () => { for (const k in KEYS) KEYS[k] = false; });
 const PT = { id: null, sx: 0, sy: 0, x: 0, y: 0, joy: false, t0: 0 };
 cv.addEventListener('pointerdown', e => { Snd.init(); if (PT.id !== null) return; PT.id = e.pointerId; PT.sx = PT.x = e.clientX; PT.sy = PT.y = e.clientY; PT.joy = false; PT.t0 = performance.now(); try { cv.setPointerCapture(e.pointerId); } catch (x) { } });
 cv.addEventListener('pointermove', e => { if (e.pointerId !== PT.id) return; PT.x = e.clientX; PT.y = e.clientY; if (!PT.joy && Math.hypot(PT.x - PT.sx, PT.y - PT.sy) > 14) { PT.joy = true; G.path = null; G.autoOpen = null; const j = $('#joy'); j.style.left = PT.sx + 'px'; j.style.top = PT.sy + 'px'; j.classList.remove('hidden'); } if (PT.joy) { const dx = PT.x - PT.sx, dy = PT.y - PT.sy, d = Math.min(45, Math.hypot(dx, dy)), a = Math.atan2(dy, dx); $('#joy i').style.transform = `translate(${Math.cos(a) * d}px,${Math.sin(a) * d}px)`; } });
-const ptEnd = e => { if (e.pointerId !== PT.id) return; PT.id = null; $('#joy').classList.add('hidden'); if (!PT.joy) tapAt(e.clientX, e.clientY); PT.joy = false; };
+const ptEnd = e => { if (e.pointerId !== PT.id) return; PT.id = null; $('#joy').classList.add('hidden'); if (!PT.joy) tapAt(e.clientX - OX, e.clientY - OY); PT.joy = false; };
 cv.addEventListener('pointerup', ptEnd); cv.addEventListener('pointercancel', e => { if (e.pointerId === PT.id) { PT.id = null; PT.joy = false; $('#joy').classList.add('hidden'); } });
 function tapAt(cx, cy) {
   if (!G.st) return;
@@ -655,7 +676,7 @@ let lastTouch = 0; const realMouse = e => e.pointerType === 'mouse' && performan
 addEventListener('touchstart', () => { lastTouch = performance.now(); useInput('touch'); }, { passive: true, capture: true });
 addEventListener('pointermove', e => { if (realMouse(e) && (Math.abs(e.movementX) + Math.abs(e.movementY) > 0)) useInput('kb'); }, { passive: true });
 addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || e.pointerType === 'pen') { lastTouch = performance.now(); useInput('touch'); } else if (realMouse(e)) useInput('kb'); }, { passive: true, capture: true });
-const MOUSE = { x: -1, y: -1 }; addEventListener('mousemove', e => { MOUSE.x = e.clientX; MOUSE.y = e.clientY; }, { passive: true });
+const MOUSE = { x: -1, y: -1 }; addEventListener('mousemove', e => { MOUSE.x = e.clientX - OX; MOUSE.y = e.clientY - OY; }, { passive: true });
 function loop(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   if (G.st && C) {
@@ -678,6 +699,7 @@ function enterGame(needGear) {
   $('#bChat').classList.toggle('hidden', G.mode !== 'online');
   for (const c of G.st.cops || []) { c.vx = c.x; c.vy = c.y; } if (G.st.boss) { G.st.boss.vx = G.st.boss.x; G.st.boss.vy = G.st.boss.y; }
   G.Me.ang = -Math.PI / 6; Snd.startAmb();
+  $('#log').innerHTML = ''; logBottom(); logPush(G.tut ? '🎓 新手教學開始：跟著上面沈組長的提示走' : `🚓 抵達命案現場：${esc(C.victim.name)} 的案子。系統提示、插曲和證據都會依時間記在這裡`, 'inter calm');
   closeOv(); refresh();
   if (G.st.phase === 'deduce') openDeduce(); else if (G.st.phase === 'result') openResult(); else if (needGear) openBriefing();
 }
@@ -691,6 +713,11 @@ function layoutCards() {
   if (bottom) cards.style.top = Math.round(bottom + 8) + 'px';
 }
 setInterval(() => { try { layoutCards(); } catch (e) { } }, 250);
+// v11：側欄頂端顯示自己現在在哪個房間
+setInterval(() => { try { const el = $('#roomName'); if (!G.st || !C) return; const rid = ENG.roomAt(C, G.Me.x, G.Me.y); const t = rid ? (C.roomName[rid] || rid) : '封鎖線外'; if (el.textContent !== t) el.textContent = t; } catch (e) { } }, 300);
+$('#log').addEventListener('scroll', () => { const b = $('#log'); if (b.scrollTop + b.clientHeight >= b.scrollHeight - 24) { LOGS.stick = true; LOGS.last = b.scrollTop; $('#logNew').classList.add('hidden'); } else if (b.scrollTop < LOGS.last - 4) LOGS.stick = false; }, { passive: true });
+$('#logNew').addEventListener('click', logBottom);
+setInterval(() => { const b = $('#log'); if (LOGS.stick && b.offsetParent && b.scrollTop + b.clientHeight < b.scrollHeight - 2) logBottom(); }, 300);
 addEventListener('resize', () => layoutCards());
 function refresh() {
   if (!G.st || !C) return;
@@ -714,7 +741,7 @@ function refresh() {
   const bar = [];
   for (let i = 0; i < C.carryTools; i++) { const t = C.tools.find(x => x.id === p.tools[i]); bar.push(`<div class="slot" title="${t ? esc(t.name) + (t.id === 'luminol' ? `（剩 ${p.lum} 次）` : '') : '空工具格'}">${t ? `<img src="${url(t.icon)}" alt="">${t.id === 'luminol' ? `<span class="chg${p.lum ? '' : ' z'}">${p.lum}/${C.lumCharges}</span>` : ''}` : ''}</div>`); }
   bar.push('<div class="sep"></div>');
-  let used = 0; for (const b of p.bag) { bar.push(`<div class="slot bag" title="${esc(b.name)}" style="${b.size > 1 ? 'width:' + (b.size * 54 + 6) + 'px' : ''}"><img src="${url(b.img)}" alt=""></div>`); used += b.size; }
+  let used = 0; for (const b of p.bag) { bar.push(`<div class="slot bag" title="${esc(b.name)}" style="${b.size > 1 ? `width:calc(${b.size} * var(--slw,54px) + ${(b.size - 1) * 6}px)` : ''}"><img src="${url(b.img)}" alt=""></div>`); used += b.size; }
   for (let i = used; i < C.bagSlots; i++) bar.push('<div class="slot bag" title="證物袋空格"></div>');
   if (p.samples.length) bar.push(`<div class="slot" title="樣本：${esc(p.samples.map(s => s.label).join('、'))}">🧫<small>${p.samples.length}</small></div>`);
   $('#bar').innerHTML = bar.join('');
@@ -767,6 +794,7 @@ function hudPress() {
 // 插曲提示：安靜的卡片＋輕柔音效（不閃爍、不用警報聲）
 function banner(text, k) {
   k = k || ''; const bad = /fail|tamper|rookie_hit|fled|threat/.test(k), inter = /^(rookie|boss_in|flee|nervous)$/.test(k);
+  if (SBon()) { logPush(esc(text), 'inter ' + (bad ? 'bad' : inter ? 'warn' : 'calm')); if (inter) Snd.soft(); else if (bad) Snd.low(); else if (k !== 'decay') Snd.ding(false); else Snd.low(); return; }
   const box = $('#cards'); const d = document.createElement('div');
   d.className = 'evc soft'; d.style.borderColor = bad ? '#8a5a5a' : inter ? '#8a7a4a' : '#3a6a6a'; d.innerHTML = `<div><span style="font-size:14px;color:#e8eef6;line-height:1.6">${esc(text)}</span></div>`;
   d.onclick = () => d.remove(); box.appendChild(d); while (box.children.length > 3) box.firstChild.remove(); setTimeout(() => d.remove(), inter ? 9000 : 7000);
@@ -818,8 +846,8 @@ function placeAct() {
   if (o) { wx = o.x; wy = o.flat ? o.y : o.y - (o.h || 80) * .55; }
   const [px, py] = W2S(wx, wy), bw = box.offsetWidth, bh = box.offsetHeight, ow = o ? (o.w || 80) * Z / 2 : 40;
   let x = px + ow + 18; if (x + bw > VW - 10) x = px - ow - 18 - bw; x = Math.max(10, Math.min(VW - bw - 10, x));
-  const y = Math.max(70, Math.min(VH - bh - 70, py - bh / 2));
-  box.style.left = Math.round(x) + 'px'; box.style.top = Math.round(y) + 'px';
+  const m = isSB() ? 12 : 70, y = Math.max(m, Math.min(VH - bh - m, py - bh / 2));
+  box.style.left = Math.round(x + OX) + 'px'; box.style.top = Math.round(y + OY) + 'px';
 }
 document.addEventListener('click', e => { if (e.target.closest('#callCops')) doAct({ type: 'callcops' }); });
 $('#act').addEventListener('click', e => {
@@ -881,7 +909,7 @@ function openBriefing() {
     🚐 到<b>鑑識車</b>選 ${C.carryTools} 件工具 → 🔎 走近發亮的「<b>!</b>」用工具（電腦：<b>數字鍵 1–5</b> 用工具、<b>E</b> 互動；手機：點小按鈕），工具<b>隨便用</b>（魯米諾一瓶 ${C.lumCharges} 次，回車上補充），結果會立刻跳出來、記進筆記本。<br>
     💡 魯米諾要<b>關燈</b>才看得到藍光：一人關燈、一人噴灑並記錄螢光位置。<br>
     🧫 樣本拿回車上分析；手機等證物交給小吳送實驗室：花<b>全隊共用的實驗室額度</b>（${C.labBudget} 點），約 ${C.labSec} 秒後報告回來。<br>
-    📖 筆記本的<b>鑑識手冊</b>會自動打 ✔／✖，左上角「案情進度」跟著上升。<br>
+    📖 筆記本的<b>鑑識手冊</b>會自動打 ✔／✖，${sbTxt('左上角')}「案情進度」跟著上升。<br>
     👔 分局長偶爾會走進來，頭上泡泡是他的要求，做到後走到他旁邊交差；員警裡藏著<b>菜鳥</b>，頭上冒 ⚠️ 時走過去碰他。<br>
     ⚖️ 線索夠了隨時可以結案（分局長耐心歸零也會被要求結案）。分數＝答對多少＋早點結案＋省下的額度。</div>
     <h4>關係人</h4><div class="sus">${C.suspects.map(s => suspectCard(s)).join('')}</div></div>
@@ -1196,7 +1224,7 @@ const Tut = {
   },
   render() {
     const s = this.cur(), b = $('#tut'); if (!s) return;
-    b.innerHTML = `<img src="${url('mentor_portrait')}" alt=""><div class="tx"><div class="st">🎓 新手教學　${G.tut.i + 1} / ${this.steps.length}　・沈組長</div>${s.t}<div>${s.last ? '<button class="pri" id="tutHome">🏠 回首頁開始正式案件</button>' : '<button id="tutSkip" style="font-size:12px;padding:4px 8px">跳過教學</button>'}</div></div>`;
+    b.innerHTML = `<img src="${url('mentor_portrait')}" alt=""><div class="tx"><div class="st">🎓 新手教學　${G.tut.i + 1} / ${this.steps.length}　・沈組長</div>${sbTxt(s.t)}<div>${s.last ? '<button class="pri" id="tutHome">🏠 回首頁開始正式案件</button>' : '<button id="tutSkip" style="font-size:12px;padding:4px 8px">跳過教學</button>'}</div></div>`;
     b.classList.remove('hidden');
   }
 };
@@ -1216,5 +1244,8 @@ async function bodyCheck() {
   let diff = 0; for (let j = 0; j < A.length; j += 4) if (Math.abs(A[j] - B[j]) + Math.abs(A[j + 1] - B[j + 1]) + Math.abs(A[j + 2] - B[j + 2]) > 45) diff++;
   return { drawnOnTop, covers, onScreen: true, ratio: +(diff / (A.length / 4)).toFixed(3) };
 }
-function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; try { render(performance.now()); return cv.toDataURL('image/png'); } finally { G.mapOnly = keep; } }
-window.__fs = { mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck };
+function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; G.noSB = true; resize(); try { render(performance.now()); return cv.toDataURL('image/png'); } finally { G.mapOnly = keep; G.noSB = false; resize(); } }
+// 測試用：世界座標 → 瀏覽器視窗座標（含側欄位移）
+const w2c = (x, y) => { const [sx, sy] = W2S(x, y); return [sx + OX, sy + OY]; };
+const stage = () => ({ OX, OY, VW, VH, Z, sb: isSB() });
+window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck };
