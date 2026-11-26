@@ -70,29 +70,29 @@ const BLOOD = ['A', 'B', 'O', 'AB'];
 /* ---------- 固定地圖 ---------- */
 // 比例尺：成年角色身高 H＝112（世界座標）。所有物件依真實比例換算（寬或高 × H），長寬比照圖檔實際內容
 const H_REF = 112;
-const SIZES = {"prop_body": [100, 73], "prop_carpet": [325, 215], "prop_rug_study": [224, 96], "prop_mud_prints": [168, 109], "prop_sofa": [146, 86], "prop_coffee_table": [106, 62], "prop_bookshelf": [54, 123], "prop_back_door": [21, 129], "prop_garden_gate": [106, 112], "prop_fireplace": [134, 135], "prop_desk": [146, 115], "prop_counter": [150, 127], "prop_shoe_rack": [90, 63], "prop_statue": [35, 67], "prop_poker": [43, 67], "prop_curtain_cord": [14, 67], "prop_knife_block": [39, 36], "prop_mop_bucket": [50, 69], "prop_trash_can": [40, 56], "prop_wine_glasses": [29, 27], "prop_teacup": [23, 19], "prop_necktie": [43, 29], "prop_letter_opener": [29, 6], "prop_phone": [22, 16], "prop_planted_item": [19, 7], "prop_light_switch": [11, 22], "prop_police_tape": [40, 101], "prop_bush": [101, 108], "prop_tree": [186, 258], "van_exterior": [325, 224], "prop_floor_mark": [123, 119]};
+const SIZES = {"prop_body": [100, 73], "prop_carpet": [325, 215], "prop_rug_study": [224, 96], "prop_mud_prints": [168, 109], "prop_sofa": [202, 119], "prop_coffee_table": [123, 72], "prop_bookshelf": [74, 168], "prop_back_door": [24, 146], "prop_garden_gate": [138, 146], "prop_fireplace": [179, 180], "prop_desk": [179, 141], "prop_counter": [179, 152], "prop_shoe_rack": [123, 86], "prop_statue": [49, 95], "prop_poker": [61, 95], "prop_curtain_cord": [19, 90], "prop_knife_block": [58, 54], "prop_mop_bucket": [69, 95], "prop_trash_can": [56, 78], "prop_wine_glasses": [43, 40], "prop_teacup": [35, 29], "prop_necktie": [62, 41], "prop_letter_opener": [45, 9], "prop_phone": [34, 25], "prop_planted_item": [29, 11], "prop_light_switch": [16, 34], "prop_police_tape": [45, 112], "prop_bush": [134, 144], "prop_tree": [186, 258], "van_exterior": [325, 224], "prop_floor_mark": [123, 119]};
 const BASE = {
   carryTools: 3, bagSlots: 3, lumCharges: 3, labCost: { 1: 3, 2: 5 }, sampleLabAP: 3,
   start: [{ x: 300, y: 690 }, { x: 350, y: 720 }, { x: 260, y: 740 }, { x: 390, y: 680 }],
   van: { x: 200, y: 600, r: 190 },
   exit: { x: 30, y: 1050 },
   map: {
-    w: 1680, h: 1100, wall: 84,
+    w: 1760, h: 1130, wall: 112,
     rooms: [
-      { id: 'street', name: '街道・封鎖線外', x: 0, y: 200, w: 440, h: 880, out: true, floor: 'ground_asphalt' },
+      { id: 'street', name: '街道・封鎖線外', x: 0, y: 200, w: 440, h: 910, out: true, floor: 'ground_asphalt' },
       { id: 'foyer', name: '玄關', x: 440, y: 440, w: 280, h: 300, floor: 'floor_marble', wallImg: 'wall_foyer' },
-      { id: 'living', name: '客廳', x: 720, y: 260, w: 560, h: 520, floor: 'floor_wood', wallImg: 'wall_living' },
-      { id: 'study', name: '書房', x: 1280, y: 260, w: 380, h: 400, floor: 'floor_study', wallImg: 'wall_study' },
-      { id: 'kitchen', name: '廚房', x: 720, y: 780, w: 560, h: 300, floor: 'floor_kitchen', wallImg: 'wall_kitchen' },
-      { id: 'yard', name: '後院', x: 1280, y: 660, w: 380, h: 420, out: true, floor: 'ground_grass' }
+      { id: 'living', name: '客廳', x: 720, y: 200, w: 560, h: 580, floor: 'floor_wood', wallImg: 'wall_living' },
+      { id: 'study', name: '書房', x: 1280, y: 200, w: 460, h: 460, floor: 'floor_study', wallImg: 'wall_study' },
+      { id: 'kitchen', name: '廚房', x: 720, y: 780, w: 560, h: 330, floor: 'floor_kitchen', wallImg: 'wall_kitchen' },
+      { id: 'yard', name: '後院', x: 1280, y: 660, w: 460, h: 450, out: true, floor: 'ground_grass' }
     ],
     doors: [
       { x: 424, y: 560, w: 48, h: 90, v: true }, { x: 692, y: 540, w: 56, h: 120, v: true }, { x: 1252, y: 420, w: 56, h: 120, v: true },
-      { x: 900, y: 752, w: 110, h: 120, v: false }, { x: 1252, y: 900, w: 56, h: 110, v: true }
+      { x: 900, y: 752, w: 110, h: 156, v: false }, { x: 1252, y: 900, w: 56, h: 110, v: true }
     ],
     solids: [
-      { x: 50, y: 548, w: 300, h: 70 }, { x: 910, y: 350, w: 140, h: 38 }, { x: 1160, y: 344, w: 52, h: 26 },
-      { x: 1498, y: 352, w: 144, h: 44 }, { x: 1352, y: 336, w: 126, h: 20 }, { x: 1068, y: 876, w: 144, h: 26 }
+      { x: 50, y: 548, w: 300, h: 70 }, { x: 886, y: 338, w: 188, h: 46 }, { x: 1152, y: 344, w: 68, h: 38 },
+      { x: 1514, y: 340, w: 172, h: 56 }, { x: 1326, y: 330, w: 168, h: 30 }, { x: 1056, y: 892, w: 168, h: 30 }
     ]
   },
   tools: [
@@ -116,12 +116,12 @@ const WEAPONS = {
   statue: { name: '銅雕獎座', room: 'living', x: 800, y: 400, img: 'prop_statue', w: 70, h: 110, kind: 'blunt', size: 2, desc: '矮櫃上的銅雕獎座，沉甸甸的，底座是方形的。' },
   glasses: { name: '兩只紅酒杯', room: 'living', x: 1030, y: 478, img: 'prop_wine_glasses', w: 56, h: 52, kind: 'poison', size: 1, desc: '茶几上的兩只紅酒杯，一只還剩一點酒。' },
   necktie: { name: '絲質領帶', room: 'living', x: 870, y: 440, img: 'prop_necktie', w: 70, h: 34, kind: 'strangle', size: 1, flat: true, desc: '沙發旁地上一條深色絲質領帶。' },
-  poker: { name: '壁爐火鉗', room: 'study', x: 1330, y: 372, img: 'prop_poker', w: 40, h: 100, kind: 'blunt', size: 2, desc: '鐵製火鉗，掛在壁爐旁的架子上。' },
-  opener: { name: '黃銅拆信刀', room: 'study', x: 1545, y: 428, img: 'prop_letter_opener', w: 50, h: 24, kind: 'stab', size: 1, flat: true, desc: '書桌前地上的黃銅拆信刀，刀身細長。' },
-  cord: { name: '窗簾繩', room: 'study', x: 1622, y: 372, img: 'prop_curtain_cord', w: 40, h: 120, kind: 'strangle', size: 1, desc: '窗邊垂下的粗編窗簾繩，有一截被扯鬆了。' },
-  knife: { name: '刀架上的菜刀', room: 'kitchen', x: 985, y: 880, img: 'prop_knife_block', w: 60, h: 80, kind: 'stab', size: 1, desc: '木製刀架，少了一個刀位又被插回去了。' },
-  teacup: { name: '流理台上的茶杯', room: 'kitchen', x: 1200, y: 902, img: 'prop_teacup', w: 40, h: 36, kind: 'poison', size: 1, desc: '流理台上一只喝了一半的茶杯。' },
-  hearth: { name: '壁爐石角', room: 'study', x: 1415, y: 352, img: 'prop_fireplace', w: 150, h: 140, kind: 'staged', size: 0, desc: '大理石壁爐，石角上有一抹血跡。' }
+  poker: { name: '壁爐火鉗', room: 'study', x: 1318, y: 376, img: 'prop_poker', w: 40, h: 100, kind: 'blunt', size: 2, desc: '鐵製火鉗，掛在壁爐旁的架子上。' },
+  opener: { name: '黃銅拆信刀', room: 'study', x: 1600, y: 434, img: 'prop_letter_opener', w: 50, h: 24, kind: 'stab', size: 1, flat: true, desc: '書桌前地上的黃銅拆信刀，刀身細長。' },
+  cord: { name: '窗簾繩', room: 'study', x: 1714, y: 372, img: 'prop_curtain_cord', w: 40, h: 120, kind: 'strangle', size: 1, desc: '窗邊垂下的粗編窗簾繩，有一截被扯鬆了。' },
+  knife: { name: '刀架上的菜刀', room: 'kitchen', x: 985, y: 905, img: 'prop_knife_block', w: 60, h: 80, kind: 'stab', size: 1, desc: '木製刀架，少了一個刀位又被插回去了。' },
+  teacup: { name: '流理台上的茶杯', room: 'kitchen', x: 1200, y: 942, img: 'prop_teacup', w: 40, h: 36, kind: 'poison', size: 1, desc: '流理台上一只喝了一半的茶杯。' },
+  hearth: { name: '壁爐石角', room: 'study', x: 1410, y: 360, img: 'prop_fireplace', w: 150, h: 140, kind: 'staged', size: 0, desc: '大理石壁爐，石角上有一抹血跡。' }
 };
 const FLOOR = {
   living: { id: 'floor_living', name: '客廳地毯', x: 990, y: 600, img: 'prop_carpet', w: 380, h: 200, r: 170 },
@@ -134,12 +134,12 @@ const DECO = [
   { id: 'tree', room: 'street', x: 90, y: 470, img: 'prop_tree', w: 150, h: 190, name: '路樹', deco: true },
   { id: 'shoerack', room: 'foyer', x: 640, y: 528, img: 'prop_shoe_rack', w: 100, h: 90, name: '鞋櫃', deco: true, desc: '鞋櫃擺得很整齊。' },
   { id: 'sofa', room: 'living', x: 980, y: 386, img: 'prop_sofa', w: 230, h: 120, name: '沙發', deco: true, desc: '真皮沙發，坐墊有兩個人坐過的凹痕。' },
-  { id: 'bookshelf', room: 'living', x: 1185, y: 370, img: 'prop_bookshelf', w: 130, h: 190, name: '書櫃', deco: true, desc: '擺滿藝術畫冊。' },
+  { id: 'bookshelf', room: 'living', x: 1185, y: 382, img: 'prop_bookshelf', w: 130, h: 190, name: '書櫃', deco: true, desc: '擺滿藝術畫冊。' },
   { id: 'table', room: 'living', x: 990, y: 486, img: 'prop_coffee_table', w: 150, h: 70, name: '茶几', deco: true },
-  { id: 'counter', room: 'kitchen', x: 1140, y: 900, img: 'prop_counter', w: 210, h: 110, name: '流理台', deco: true, desc: '流理台上放著一瓶漂白水，冰箱上貼著值日表。' },
+  { id: 'counter', room: 'kitchen', x: 1140, y: 922, img: 'prop_counter', w: 210, h: 110, name: '流理台', deco: true, desc: '流理台上放著一瓶漂白水，冰箱上貼著值日表。' },
   { id: 'backdoor', room: 'kitchen', x: 1270, y: 955, img: 'prop_back_door', w: 30, h: 130, name: '後門', deco: true, desc: '後門沒有上鎖。' },
-  { id: 'gate', room: 'yard', x: 1600, y: 760, img: 'prop_garden_gate', w: 90, h: 120, name: '側門', deco: true, desc: '通往小巷的側門，門閂是打開的。' },
-  { id: 'bush', room: 'yard', x: 1340, y: 1040, img: 'prop_bush', w: 110, h: 80, name: '樹叢', deco: true }
+  { id: 'gate', room: 'yard', x: 1600, y: 795, img: 'prop_garden_gate', w: 90, h: 120, name: '側門', deco: true, desc: '通往小巷的側門，門閂是打開的。' },
+  { id: 'bush', room: 'yard', x: 1365, y: 1060, img: 'prop_bush', w: 110, h: 80, name: '樹叢', deco: true }
 ];
 
 function generate(seed, diff) {
@@ -274,7 +274,7 @@ function generate(seed, diff) {
     acts: [], bag: { ap: 1, size: 1, label: '裝袋帶走', lab: 'E_phone', labCond: [{ flag: 'tampered', res: 'E_phone_wiped' }] } });
   // 書桌文件（動機）
   ev('E_motive', `帳冊筆記：${culprit.name}`, 'ev_document', `死者的筆記：「${culprit.name}——${culprit.motive}。下週處理。」`, { motive: culprit.id });
-  O.push({ id: 'desk', room: 'study', x: 1570, y: 392, img: 'prop_desk', w: 160, h: 110, name: '書桌', r: 110, desc: '紅木書桌，抽屜沒鎖。', acts: [{ id: 'ledger', tool: 'camera', ap: 1, label: '翻拍抽屜裡的筆記', ev: ['E_motive'] }] });
+  O.push({ id: 'desk', room: 'study', x: 1600, y: 396, img: 'prop_desk', w: 160, h: 110, name: '書桌', r: 110, desc: '紅木書桌，抽屜沒鎖。', acts: [{ id: 'ledger', tool: 'camera', ap: 1, label: '翻拍抽屜裡的筆記', ev: ['E_motive'] }] });
   // 清理痕跡（有血的手法）
   if (method.blood) {
     ev('E_towel', '實驗室：毛巾血跡＋皮屑', 'ev_lab', `毛巾上是死者的血，還夾著${who(culprit)}的皮屑——兇手用它擦過手。`, { who: culprit.id });

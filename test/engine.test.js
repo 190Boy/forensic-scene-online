@@ -200,17 +200,19 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   ok(d.methods.length === 1 && d.methods[0] === C.method && d.suspects.length === 1 && d.suspects[0] === C.culprit && d.weapon === C.weapon && d.location === C.location, '教學步驟的證據 → 推理完整且正確');
   ok(C.labSec <= 10 && st.patience === 100, '教學：實驗室很快、分局長不會沒耐心');
 }
-// 10a. 比例尺：所有物件以成年角色身高 H 換算
+// 10a. 比例尺：角色身高 H；3/4 俯視下家具比真實比例放大約 1.4 倍才不會看起來像玩具
 {
   const C = GEN.generate(158, 'normal'), H = C.H, g = id => C.objects.find(o => o.id === id);
   const r = (v, lo, hi) => v >= lo * H && v <= hi * H;
-  ok(H === 112, '比例尺 H = 112');
-  ok(r(Math.hypot(g('body').w, g('body').h), 1.0, 1.3) && g('body').h < .7 * H, `屍體斜躺，對角長 ${Math.round(Math.hypot(g('body').w, g('body').h))}（約 1.0–1.2 H）、薄`);
-  ok(g('floor_living').w > g('body').w * 1.8 && g('floor_study').w > g('body').w * 1.4, '地毯比屍體大');
-  ok(r(g('sofa').w, 1.1, 1.35), `沙發長 ${g('sofa').w}（1.1–1.3 H）`);
-  ok(r(g('backdoor').h, 1.1, 1.2), `門高 ${g('backdoor').h}（≈1.15 H）`);
-  ok(r(g('bookshelf').h, 1.05, 1.15), `書櫃高 ${g('bookshelf').h}（≈1.1 H）`);
-  ok(['phone', 'w_teacup', 'w_opener', 'sw_living', 'frame', 'w_glasses'].every(id => Math.max(g(id).w, g(id).h) <= .3 * H) && ['w_knife', 'w_necktie'].every(id => Math.max(g(id).w, g(id).h) <= .45 * H), '小物件（手機、茶杯、拆信刀、開關、刀架、領帶）是真實的小尺寸');
+  ok(H === 112 && C.map.wall >= H, `比例尺 H = 112、牆高 ${C.map.wall}（≥ H）`);
+  ok(r(Math.hypot(g('body').w, g('body').h), 1.0, 1.3) && g('body').h < .7 * H, `屍體斜躺，對角長 ${Math.round(Math.hypot(g('body').w, g('body').h))}（約 1.05 H）`);
+  ok(g('floor_living').w > g('sofa').w * 1.4 && g('floor_study').w > g('body').w * 1.4, '地毯比屍體、沙發大');
+  ok(r(g('sofa').w, 1.7, 1.9) && g('sofa').h > H, `沙發長 ${g('sofa').w}（1.7–1.9 H）`);
+  ok(r(g('bookshelf').h, 1.45, 1.55), `書櫃高 ${g('bookshelf').h}（≈1.5 H）`);
+  ok(r(g('table').w, 1.05, 1.15) && r(g('desk').w, 1.5, 1.7) && r(g('w_hearth').w, 1.5, 1.7), '茶几 1.1 H、書桌 1.6 H、壁爐 1.6 H');
+  ok(r(g('backdoor').h, 1.25, 1.35), `門高 ${g('backdoor').h}（≈1.3 H）`);
+  const small = ['phone', 'w_teacup', 'w_opener', 'sw_living', 'w_glasses', 'w_knife', 'w_necktie'];
+  ok(small.every(id => r(Math.max(g(id).w, g(id).h), .25, .6)), '小物件放大到看得清楚（0.25–0.6 H），但仍比角色小很多');
   ok(r(g('van').w, 2.5, 3.2) && r(g('tree').h, 1.8, 2.6) && g('courier').h === H && g('chief').h === H, '廂型車、路樹、快遞員、分局長比例一致');
 }
 // 10. 屍體一定畫在地毯上面（所有房間、所有手法，包括偽裝意外移屍到書房）

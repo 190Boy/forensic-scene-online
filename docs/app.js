@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '7';
+const VER = '8';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -345,7 +345,7 @@ function drawMap() {
     else { fillTiled(rr.floor, d.x, d.y - 6, d.w, d.h + 6, .5); ctx.fillStyle = '#6b4426'; ctx.fillRect(d.x - 8, d.y - 6, 10, d.h + 6); ctx.fillRect(d.x + d.w - 2, d.y - 6, 10, d.h + 6); }
   }
   // 封鎖線（街道和玄關之間）
-  ctx.strokeStyle = '#f2d045'; ctx.lineWidth = 6; ctx.setLineDash([16, 10]); ctx.beginPath(); ctx.moveTo(440, 300); ctx.lineTo(440, 552); ctx.moveTo(440, 660); ctx.lineTo(440, 1070); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = '#f2d045'; ctx.lineWidth = 6; ctx.setLineDash([16, 10]); ctx.beginPath(); ctx.moveTo(440, 300); ctx.lineTo(440, 552); ctx.moveTo(440, 660); ctx.lineTo(440, 1100); ctx.stroke(); ctx.setLineDash([]);
 }
 function available(o) {
   const p = meP(); if (!p || !G.st || G.st.phase !== 'play') return 0;
