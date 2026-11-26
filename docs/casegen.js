@@ -43,16 +43,21 @@ const SIGS = {
   toxin: { t: '死者血液驗出毒物', how: '💉 採死者血液→離心機' },
   residue: { t: '容器殘留毒物', how: '🛍️ 杯子送實驗室' },
   moved: { t: '屍斑位置不符（屍體被移動）', how: '📷 相機拍屍斑' },
-  smear: { t: '撞擊處的血是抹上去的', how: '🧪 魯米諾噴壁爐石角' }
+  smear: { t: '撞擊處的血是抹上去的', how: '🧪 魯米諾噴壁爐石角' },
+  contact: { t: '手掌皮膚有接觸性毒物灼斑', how: '📷 檢查死者雙手／🛍️ 可疑物品送實驗室' }
 };
 /* ---------- 行兇方式 → 3 個特徵 ---------- */
 const METHODS = [
   { id: 'blunt', t: '鈍器重擊', sigs: ['blunt', 'spatter', 'weaponblood'], weapons: ['statue', 'poker'], hand: true, nails: true, blood: true },
-  { id: 'stab', t: '刺殺', sigs: ['sharp', 'spatter', 'weaponblood'], weapons: ['opener', 'knife'], hand: true, nails: true, blood: true },
+  { id: 'stab', t: '刺殺', sigs: ['sharp', 'spatter', 'weaponblood'], weapons: ['opener', 'knife', 'poker'], hand: true, nails: true, blood: true },
   { id: 'strangle', t: '勒斃', sigs: ['ligature', 'skin', 'moved'], weapons: ['cord', 'necktie'], hand: true, nails: true, blood: false },
   { id: 'poison', t: '下毒', sigs: ['nowound', 'toxin', 'residue'], weapons: ['glasses', 'teacup'], hand: false, nails: false, blood: false },
-  { id: 'staged', t: '推倒撞擊後佈置成意外', sigs: ['blunt', 'moved', 'smear'], weapons: ['hearth'], hand: false, nails: true, blood: true }
+  { id: 'staged', t: '推倒撞擊後佈置成意外', sigs: ['blunt', 'moved', 'smear'], weapons: ['hearth'], hand: false, nails: true, blood: true },
+  // v9：同一件物品在不同案件裡意義不同（領帶不一定是勒斃：也可能塗了箭毒蛙毒，死者摸到就中毒）
+  { id: 'contact', t: '接觸性毒物（塗在隨身物品上）', sigs: ['nowound', 'toxin', 'contact'], weapons: ['necktie', 'opener', 'statue'], hand: false, nails: false, blood: false }
 ];
+// 物品可能扮演的角色（筆記本／手冊用：同一件東西每局意義可能不同）
+const ROLES = { statue: ['blunt', 'contact'], poker: ['blunt', 'stab'], opener: ['stab', 'contact'], knife: ['stab'], necktie: ['strangle', 'contact'], cord: ['strangle'], glasses: ['poison'], teacup: ['poison'], hearth: ['staged'] };
 // 勒斃：兇手勒完把屍體從椅子上拖到地上 → 屍斑不符；偽裝意外：在客廳／廚房推倒，搬到書房壁爐前
 
 /* ---------- 嫌疑人池（現場的 NPC：家屬、目擊者、記者…） ---------- */
@@ -147,7 +152,10 @@ function generate(seed, diff) {
   const C = Object.assign({}, BASE, { id: 'gen', seed, diff: diff in DIFF ? diff : 'normal', diffName: D.name, labBudget: D.labBudget, labSec: D.labSec, sigs: SIGS });
   C._walk = null;
   /* --- 真相 --- */
-  const method = pick(r, METHODS); const wid = pick(r, method.weapons); const W = WEAPONS[wid];
+  let method = pick(r, METHODS), wid = pick(r, method.weapons);
+  if (D.hidden) { method = METHODS[0]; wid = 'statue'; }   // 新手教學：固定案件
+  const W = WEAPONS[wid];
+  const rv = rng((seed ^ 0x2545F491) >>> 0);   // 品質變化用的獨立亂數（不影響主要案件）
   const crime = method.id === 'staged' ? pick(r, ['living', 'kitchen']) : W.room;
   const bodyRoom = method.id === 'staged' ? 'study' : crime;
   const sus = shuffle(r, PEOPLE).slice(0, 4).map(p => Object.assign({}, p));
@@ -177,42 +185,59 @@ function generate(seed, diff) {
   ];
   /* --- 證據與物件 --- */
   const E = {}; const O = DECO.map(o => Object.assign({}, o));
-  const ev = (id, name, icon, text, f) => { E[id] = { name, icon, text, f: f || {} }; return id; };
+  const ev = (id, name, icon, text, f, x) => { E[id] = Object.assign({ name, icon, text, f: f || {} }, x || {}); return id; };
+  const ALT = q => ({ alt: q });   // 小遊戲表現不好時的版本（部分／不完整／失真）
+  C.room = { heater: rv() < .5, window: rv() < .5 };
   const who = s => `${s.name}（${s.role}）`;
   O.push({ id: 'van', room: 'street', x: 200, y: 600, img: 'van_exterior', w: 320, h: 200, name: '行動鑑識車', van: true, desc: '換裝備、用車上設備分析樣本、把證物交給快遞員送實驗室。' });
   O.push({ id: 'courier', room: 'street', x: 380, y: 610, img: 'npc_courier', w: 80, h: 112, name: '實驗室快遞員・小吳', van: true, npc: true, desc: '「證物交給我，我騎車送回局裡實驗室。」' });
   O.push({ id: 'chief', room: 'street', x: 90, y: 700, img: 'npc_supervisor', w: 75, h: 112, name: '分局長・鄭督察', van: true, npc: true, desc: '「時間就是證據。我要的東西，準時交上來。」' });
   // 屍體
   const B = BODY_AT[bodyRoom];
-  const wound = { blunt: 'blunt', stab: 'sharp', strangle: 'ligature', poison: 'nowound', staged: 'blunt' }[method.id];
+  const wound = { blunt: 'blunt', stab: 'sharp', strangle: 'ligature', poison: 'nowound', staged: 'blunt', contact: 'nowound' }[method.id];
   const WT = {
-    blunt: '後腦有一個方形凹陷傷，邊緣銳利——鈍器重擊造成。', sharp: '左胸有一處寬約 2 公分的單刃刺創——銳器造成。',
+    blunt: '後腦有一個方形凹陷傷，邊緣銳利——鈍器重擊造成。', sharp: '左胸有一處深而窄的刺創——銳器（刀刃或尖端）造成。',
     ligature: '頸部有一圈水平勒痕，眼結膜有點狀出血——被勒斃。', nowound: '全身沒有明顯外傷，嘴唇和指甲發紺——疑似中毒。'
   };
   const handTxt = method.hand ? `傷口角度顯示兇手慣用${culprit.hand === 'R' ? '右' : '左'}手。` : '';
-  ev('E_wound', '屍體傷口：' + SIGS[wound].t, 'ev_photo', WT[wound] + handTxt, { sig: [wound], neg: ['blunt', 'sharp', 'ligature', 'nowound'].filter(x => x !== wound), trait: method.hand ? [['hand', culprit.hand]] : [] });
+  const wneg = ['blunt', 'sharp', 'ligature', 'nowound'].filter(x => x !== wound);
+  ev('E_wound', '屍體傷口：' + SIGS[wound].t, 'ev_photo', WT[wound] + handTxt, { sig: [wound], neg: wneg, trait: method.hand ? [['hand', culprit.hand]] : [] });
+  ev('E_wound_p', '屍體傷口：' + SIGS[wound].t + '（照片不完整）', 'ev_photo', WT[wound] + '只拍到一部分，看不出傷口角度和兇手的慣用手。', { sig: [wound], neg: wneg }, ALT('fair'));
+  ev('E_wound_x', '屍體傷口：照片模糊', 'ev_photo', '對焦沒對好，只看得出死者身上可能有異狀，判斷不了是什麼造成的。', {}, ALT('poor'));
+  const contactM = method.id === 'contact';
+  ev('E_hands', contactM ? '死者雙手：掌心有灼紅斑' : '死者雙手：沒有異常', 'ev_photo', contactM ? '右手掌心和指尖紅腫、起了小水泡——碰過接觸性毒物，毒素是從皮膚吸收的。' : '雙手皮膚正常，沒有灼傷或紅斑。', contactM ? { sig: ['contact'] } : { neg: ['contact'] });
+  ev('E_hands_x', '死者雙手：照片看不清楚', 'ev_photo', '手部照片晃到了，看不出皮膚有沒有異狀。', {}, ALT('poor'));
   const moved = method.sigs.includes('moved');
   ev('E_livid', moved ? '屍斑位置不符（被移動過）' : '屍斑位置正常', 'ev_photo', moved ? '屍斑集中在背部，但屍體是趴著的 → 死後被搬動過。' : '屍斑和屍體姿勢一致，死後沒有被搬動。', moved ? { sig: ['moved'] } : { neg: ['moved'] });
+  ev('E_livid_x', '屍斑照片曝光不足', 'ev_photo', '光線太暗、手又晃，照片看不出屍斑分布。', {}, ALT('poor'));
+  { const b1 = (rv() < .5 ? -1 : 1) * 10, b2 = (rv() < .5 ? -1 : 1) * (45 + Math.floor(rv() * 2) * 15);
+    ev('E_tod_f', `死亡時間 ${hhmm(tod + b1 - 35)}–${hhmm(tod + b1 + 35)}`, 'ev_thermo', `肝溫推算死亡時間約 ${hhmm(tod + b1 - 35)}–${hhmm(tod + b1 + 35)}（量測時溫度計不太穩，範圍比較寬）。`, { tod: 70 }, ALT('fair'));
+    ev('E_tod_p', `死亡時間 ${hhmm(tod + b2 - 25)}–${hhmm(tod + b2 + 25)}`, 'ev_thermo', `肝溫推算死亡時間約 ${hhmm(tod + b2 - 25)}–${hhmm(tod + b2 + 25)}。`, { tod: 50 }, ALT('poor')); }
   ev('E_tod', `死亡時間 ${hhmm(tod - 15)}–${hhmm(tod + 15)}`, 'ev_thermo', `肝溫推算死亡時間約 ${hhmm(tod - 15)}–${hhmm(tod + 15)}。`, { tod: 30 });
   ev('E_tod_wide', `死亡時間 ${hhmm(tod - 75)}–${hhmm(tod + 45)}（不精確）`, 'ev_thermo', `量得太晚，屍溫已接近室溫，只能推算約 ${hhmm(tod - 75)}–${hhmm(tod + 45)}。`, { tod: 120 });
   const toxin = method.id === 'poison';
-  ev('E_vblood', toxin ? '死者血液：驗出毒物' : `死者血液：${C.victim.blood} 型，無毒物`, 'ev_blood', toxin ? `離心快篩：死者 ${C.victim.blood} 型，血中驗出高濃度安眠藥與氰化物。` : `離心快篩：死者血型 ${C.victim.blood} 型，沒有驗出毒物。`, toxin ? { sig: ['toxin'] } : { neg: ['toxin'] });
+  ev('E_vblood', toxin ? '死者血液：驗出毒物' : `死者血液：${C.victim.blood} 型，無毒物`, 'ev_blood', toxin ? `離心快篩：死者 ${C.victim.blood} 型，血中驗出高濃度安眠藥與氰化物。` : `離心快篩：死者血型 ${C.victim.blood} 型，沒有驗出毒物。`, toxin || contactM ? { sig: ['toxin'] } : { neg: ['toxin'] });
+  if (contactM) Object.assign(E.E_vblood, { name: '死者血液：驗出毒物', text: `離心快篩：死者 ${C.victim.blood} 型，血中驗出極微量的強效神經毒（類似箭毒蛙的蛙毒鹼）。` });
+  ev('E_vblood_x', '死者血液：樣本被污染', 'ev_blood', '採樣時棉棒碰到地上的清潔劑，快篩結果判讀不了。', {}, ALT('poor'));
+  // mg：這個動作要先玩小遊戲；q：表現普通／差時改用的結果
   const bodyActs = [
-    { id: 'wound', tool: 'camera', ap: 1, label: '近拍傷口', ev: ['E_wound'] },
-    { id: 'livid', tool: 'camera', ap: 1, label: '檢查屍斑', ev: ['E_livid'] },
-    { id: 'temp', tool: 'thermo', ap: 1, label: '量測肝溫', ev: ['E_tod'], cond: [{ after: 'todWide', ev: ['E_tod_wide'] }] },
-    { id: 'swab', tool: 'swab', ap: 1, label: '採集死者血液', sample: { kind: 'blood', label: '死者血液', res: 'E_vblood' } }
+    { id: 'wound', tool: 'camera', ap: 1, label: '近拍傷口', ev: ['E_wound'], mg: 'photo', q: { fair: { ev: ['E_wound_p'] }, poor: { ev: ['E_wound_x'] } } },
+    { id: 'livid', tool: 'camera', ap: 1, label: '檢查屍斑', ev: ['E_livid'], mg: 'photo', q: { poor: { ev: ['E_livid_x'] } } },
+    { id: 'hands', tool: 'camera', ap: 1, label: '檢查雙手', ev: ['E_hands'], mg: 'photo', q: { poor: { ev: ['E_hands_x'] } } },
+    { id: 'temp', tool: 'thermo', ap: 1, label: '量測肝溫', ev: ['E_tod'], mg: 'thermo', q: { fair: { ev: ['E_tod_f'] }, poor: { ev: ['E_tod_p'] } }, cond: [{ after: 'todWide', ev: ['E_tod_wide'] }] },
+    { id: 'swab', tool: 'swab', ap: 1, label: '採集死者血液', mg: 'swab', sample: { kind: 'blood', label: '死者血液', res: 'E_vblood' }, q: { poor: { sample: { kind: 'blood', label: '死者血液（樣本可能不乾淨）', res: 'E_vblood_x' } } } }
   ];
   if (method.nails) {
     ev('E_nails', `指甲縫皮屑：${culprit.blood} 型`, 'ev_blood', `死者指甲縫裡有掙扎時抓下的皮屑，血型 ${culprit.blood} 型（不是死者的）。`, { trait: [['blood', culprit.blood]] });
     ev('E_nails_ox', '指甲縫皮屑：已氧化', 'ev_blood', '樣本放太久已經氧化，快篩驗不出血型（送實驗室驗 DNA 還可以）。', {});
     ev('E_nails_dna', `實驗室：指甲縫 DNA＝${culprit.name}`, 'ev_lab', `指甲縫皮屑的 DNA 與${who(culprit)}吻合。`, { who: culprit.id });
-    bodyActs.push({ id: 'nails', tool: 'swab', ap: 1, label: '採集指甲縫皮屑', sample: { kind: 'blood', label: '指甲縫皮屑', res: 'E_nails', lab: 'E_nails_dna' }, cond: [{ after: 'oxidize', sample: { kind: 'blood', label: '指甲縫皮屑（已氧化）', res: 'E_nails_ox', lab: 'E_nails_dna' } }] });
+    ev('E_nails_x', '指甲縫皮屑：樣本被污染', 'ev_blood', '棉棒碰到死者自己的皮膚，兩種皮屑混在一起，判讀不出血型（實驗室 DNA 還可以試試）。', {}, ALT('poor'));
+    bodyActs.push({ id: 'nails', tool: 'swab', ap: 1, label: '採集指甲縫皮屑', mg: 'swab', sample: { kind: 'blood', label: '指甲縫皮屑', res: 'E_nails', lab: 'E_nails_dna' }, q: { poor: { sample: { kind: 'blood', label: '指甲縫皮屑（樣本可能不乾淨）', res: 'E_nails_x', lab: 'E_nails_dna' } } }, cond: [{ after: 'oxidize', sample: { kind: 'blood', label: '指甲縫皮屑（已氧化）', res: 'E_nails_ox', lab: 'E_nails_dna' } }] });
   } else {
     ev('E_nails_none', '指甲縫乾淨', 'ev_photo', '指甲縫裡沒有皮屑，死者沒有掙扎過。', {});
     bodyActs.push({ id: 'nails', tool: 'camera', ap: 1, label: '檢查指甲縫', ev: ['E_nails_none'] });
   }
-  O.push({ id: 'body', room: bodyRoom, x: B.x, y: B.y, img: 'prop_body', w: 100, h: 73, name: '屍體（死者・林志遠）', flat: true, label: '屍體（死者）', r: 105, desc: '死者倒在地上，已經沒有生命跡象。', acts: bodyActs });
+  O.push({ id: 'body', room: bodyRoom, x: B.x, y: B.y, img: 'prop_body', w: 100, h: 73, name: '屍體（死者・林志遠）', flat: true, label: '屍體（死者）', r: 105, desc: `死者倒在地上，已經沒有生命跡象。房間裡${C.room.heater ? '暖氣開著' : '暖氣沒開'}，${C.room.window ? '窗戶開著、有冷風吹進來' : '窗戶關著'}。`, acts: bodyActs });
   // 地板（每個房間一塊）
   for (const k of BASE.rooms3) {
     const F = FLOOR[k]; const isCrime = k === crime && method.blood;
@@ -222,51 +247,57 @@ function generate(seed, diff) {
     O.push({ id: F.id, room: k, x: F.x, y: F.y, img: F.img, w: F.w, h: F.h, name: F.name, flat: true, r: F.r, desc: `${F.name}看起來很乾淨。`,
       acts: [{ id: 'lum', tool: 'luminol', ap: 2, label: '噴灑魯米諾', ev: [id], reveal: isCrime ? 'fx_luminol_pool' : null }] });
   }
-  // 兇器候選
+  // 兇器候選（v9：同一件物品每局扮演的角色不同，看 ROLES）
   const partial = D.partialPrint && r() < .7;
   for (const k of Object.keys(WEAPONS)) {
-    const w = WEAPONS[k]; const real = k === wid; const o = { id: 'w_' + k, room: w.room, x: w.x, y: w.y, img: w.img, w: w.w, h: w.h, name: w.name, flat: !!w.flat, r: 95, desc: w.desc, acts: [], weapon: k };
+    const w = WEAPONS[k]; const real = k === wid; const role = real ? method.id : null;
+    const o = { id: 'w_' + k, room: w.room, x: w.x, y: w.y, img: w.img, w: w.w, h: w.h, name: w.name, flat: !!w.flat, r: 95, desc: w.desc, acts: [], weapon: k };
     if (k === 'hearth') {
       const sm = real; ev('E_hearth', sm ? '石角的血是抹上去的' : '壁爐石角沒有血跡', 'ev_luminol', sm ? '只有石角表面一抹血，周圍沒有噴濺或滴落 → 是有人抹上去的，佈置成撞到壁爐。' : '壁爐石角乾乾淨淨。', sm ? { sig: ['smear'], weapon: 'hearth' } : { neg: ['smear'] });
       o.acts.push({ id: 'lum', tool: 'luminol', ap: 2, label: '噴灑魯米諾', ev: ['E_hearth'], reveal: sm ? 'fx_luminol_spot' : null });
       if (real) o.desc = '大理石壁爐，石角上有一抹血跡——看起來像撞到這裡。'; else o.desc = '大理石壁爐。';
       O.push(o); continue;
     }
-    if (w.kind === 'blunt' || w.kind === 'stab') {
-      const bl = real; ev('E_wb_' + k, bl ? `${w.name}：血跡反應` : `${w.name}：沒有血跡`, 'ev_luminol', bl ? `${w.name}上出現強烈藍光——血被擦掉過。這就是兇器。` : `${w.name}沒有血跡反應。`, bl ? { sig: ['weaponblood'], weapon: k } : { negw: k });
+    if (['statue', 'poker', 'opener', 'knife'].includes(k)) {
+      const bl = role === 'blunt' || role === 'stab';
+      ev('E_wb_' + k, bl ? `${w.name}：血跡反應` : `${w.name}：沒有血跡`, 'ev_luminol', bl ? `${w.name}上出現強烈藍光——血被擦掉過。這就是兇器。` : `${w.name}沒有血跡反應（沒有被拿來打或刺）。`, bl ? { sig: ['weaponblood'], weapon: k } : {});
       o.acts.push({ id: 'lum', tool: 'luminol', ap: 2, label: '噴灑魯米諾', ev: ['E_wb_' + k], reveal: bl ? 'fx_luminol_spot' : null });
     }
-    if (w.kind === 'poison') {
-      ev('E_res_' + k, real ? `實驗室：${w.name}殘留毒物` : `實驗室：${w.name}沒有毒物`, 'ev_lab', real ? `${w.name}的殘液驗出安眠藥與氰化物。` : `${w.name}裡只有酒或茶，沒有毒物。`, real ? { sig: ['residue'], weapon: k } : { negw: k });
-    }
-    if (w.kind === 'strangle') {
-      ev('E_skin_' + k, real ? `實驗室：${w.name}上有死者皮屑` : `實驗室：${w.name}沒有異常`, 'ev_lab', real ? `${w.name}的纖維上有死者頸部皮屑，還驗出${who(culprit)}的 DNA。` : `${w.name}上沒有皮屑。`, real ? { sig: ['skin'], weapon: k, who: culprit.id } : { negw: k });
-    }
-    // 指紋
+    // 實驗室結果（依這局的角色決定）
+    const lab = 'E_lab_' + k;
+    if (role === 'blunt' || role === 'stab') ev(lab, `實驗室：${w.name}指紋＝${culprit.name}`, 'ev_lab', `強化後的指紋與${who(culprit)}吻合；血跡 DNA 屬於死者。`, { who: culprit.id, sig: ['weaponblood'], weapon: k });
+    else if (role === 'strangle') ev(lab, `實驗室：${w.name}上有死者皮屑`, 'ev_lab', `${w.name}的纖維上有死者頸部皮屑，還驗出${who(culprit)}的 DNA。`, { sig: ['skin'], weapon: k, who: culprit.id });
+    else if (role === 'poison') ev(lab, `實驗室：${w.name}殘留毒物`, 'ev_lab', `${w.name}的殘液驗出安眠藥與氰化物。杯身上的指紋 DNA 屬於${who(culprit)}。`, { sig: ['residue'], weapon: k, who: culprit.id });
+    else if (role === 'contact') ev(lab, `實驗室：${w.name}表面驗出蛙毒鹼`, 'ev_lab', `${w.name}${k === 'necktie' ? '的絲面' : '的握柄'}被塗了一層箭毒蛙毒素（蛙毒鹼），碰到就會經皮膚中毒。塗抹處驗出${who(culprit)}的 DNA。`, { sig: ['contact'], weapon: k, who: culprit.id });
+    else ev(lab, `實驗室：${w.name}沒有異常`, 'ev_lab', w.kind === 'poison' ? `${w.name}裡只有酒或茶，沒有毒物。` : `${w.name}上沒有血跡、毒物或死者皮屑。`, { negw: k });
+    // 指紋（小遊戲：刷粉）
+    ev('E_fp_' + k + '_smear', `${w.name}：指紋糊成一片`, 'ev_print', '粉刷太多、太用力，紋路糊掉了，比對不出來。', {}, ALT('poor'));
+    const smear = { sample: { kind: 'print', label: w.name + '指紋（品質差）', res: 'E_fp_' + k + '_smear' } };
     if (real) {
       ev('E_fp_' + k, partial ? `${w.name}：半枚指紋` : `${w.name}：指紋＝${culprit.name}`, 'ev_print', partial ? `${w.name}上只剩半枚模糊指紋，車上比對不出來，要送實驗室強化。` : `${w.name}上的新鮮指紋與${who(culprit)}（${culprit.print}）吻合。`, partial ? {} : { who: culprit.id });
+      ev('E_fp_' + k + '_part', `${w.name}：半枚指紋（比對不出來）`, 'ev_print', '只轉印到半枚，車上電腦比對不出來；可以把樣本送實驗室強化。', {}, ALT('fair'));
       ev('E_fpwipe_' + k, `${w.name}：指紋被擦掉了`, 'ev_print', `${w.name}被人擦拭過，現在什麼指紋都採不到。`, {});
       ev('E_fpcon_' + k, `${w.name}：指紋受污染`, 'ev_print', `菜鳥員警摸過了，現在只採到他的指紋。`, {});
-      o.acts.push({ id: 'prints', tool: 'prints', ap: 2, label: '採集指紋', sample: { kind: 'print', label: w.name + '指紋', res: 'E_fp_' + k }, cond: [{ flag: 'tampered', ev: ['E_fpwipe_' + k], sample: null }, { flag: 'contam', ev: ['E_fpcon_' + k], sample: null }] });
-      const lab = w.kind === 'poison' ? 'E_res_' + k : w.kind === 'strangle' ? 'E_skin_' + k : 'E_wlab_' + k;
-      if (w.kind === 'blunt' || w.kind === 'stab') ev('E_wlab_' + k, `實驗室：${w.name}指紋＝${culprit.name}`, 'ev_lab', `強化後的指紋與${who(culprit)}吻合；血跡 DNA 屬於死者。`, { who: culprit.id, sig: ['weaponblood'], weapon: k });
-      if (w.kind === 'poison') E[lab].f.who = culprit.id, E[lab].text += `杯緣唇紋 DNA 屬於${who(culprit)}。`;
-      o.bag = { ap: w.size === 2 ? 2 : 1, size: w.size, label: w.size === 2 ? '裝袋帶走（大型證物）' : '裝袋帶走', lab };
-      o.courier = { ap: w.size === 2 ? 6 : 4, label: '請小吳到現場取件送驗', res: lab };
+      o.acts.push({ id: 'prints', tool: 'prints', ap: 2, label: '採集指紋', mg: 'prints', sample: { kind: 'print', label: w.name + '指紋', res: 'E_fp_' + k, lab: partial ? lab : null },
+        q: { fair: { sample: { kind: 'print', label: w.name + '指紋（半枚）', res: 'E_fp_' + k + '_part', lab } }, poor: smear },
+        cond: [{ flag: 'tampered', ev: ['E_fpwipe_' + k], sample: null }, { flag: 'contam', ev: ['E_fpcon_' + k], sample: null }] });
       o.tamper = true;
     } else {
-      o.bag = { ap: w.size === 2 ? 2 : 1, size: w.size, label: w.size === 2 ? '裝袋帶走（大型證物）' : '裝袋帶走', lab: w.kind === 'poison' ? 'E_res_' + k : w.kind === 'strangle' ? 'E_skin_' + k : null };
-      if (!o.bag.lab) { ev('E_wlab_' + k, `實驗室：${w.name}沒有血跡`, 'ev_lab', `${w.name}上沒有血跡或死者 DNA。`, { negw: k }); o.bag.lab = 'E_wlab_' + k; }
       ev('E_fp_' + k, `${w.name}：指紋＝死者本人`, 'ev_print', `${w.name}上只有死者自己的指紋。`, {});
-      o.acts.push({ id: 'prints', tool: 'prints', ap: 2, label: '採集指紋', sample: { kind: 'print', label: w.name + '指紋', res: 'E_fp_' + k } });
+      o.acts.push({ id: 'prints', tool: 'prints', ap: 2, label: '採集指紋', mg: 'prints', sample: { kind: 'print', label: w.name + '指紋', res: 'E_fp_' + k }, q: { poor: smear } });
     }
+    o.bag = { ap: w.size === 2 ? 2 : 1, size: w.size, label: w.size === 2 ? '裝袋帶走（大型證物）' : '裝袋帶走', lab };
+    o.courier = { ap: w.size === 2 ? 6 : 4, label: '請小吳到現場取件送驗', res: lab };
     O.push(o);
   }
   // 後院鞋印（兇手從後門離開）
   ev('E_shoe', `後院鞋印：${culprit.shoe} 號`, 'ev_shoe', `新鮮鞋印 ${culprit.shoe} 號，從後門走向側門，步伐很急。`, { trait: [['shoe', culprit.shoe]] });
   ev('E_shoe_rain', '後院鞋印：被雨沖掉了', 'ev_shoe', '雨太大，鞋印已經糊成一片，採不到了。', {});
+  { const cs = culprit.shoe, lo = cs - (rv() < .5 ? 1 : 0), off = rv() < .5 ? [cs + 1, cs + 2] : [cs - 2, cs - 1];
+    ev('E_shoe_f', `後院鞋印：${lo}–${lo + 1} 號`, 'ev_shoe', `鞋印有一段被踩亂，只能估出鞋號範圍 ${lo}–${lo + 1} 號。`, { range: [['shoe', lo, lo + 1]] }, ALT('fair'));
+    ev('E_shoe_p', `後院鞋印：${off[0]}–${off[1]} 號`, 'ev_shoe', `鞋印斷斷續續，估出鞋號範圍 ${off[0]}–${off[1]} 號。`, { range: [['shoe', off[0], off[1]]] }, ALT('poor')); }
   O.push({ id: 'mud', room: 'yard', x: 1440, y: 900, img: 'prop_mud_prints', w: 200, h: 90, name: '後院泥地上的鞋印', flat: true, r: 120, desc: '後院泥地上有一串鞋印，從後門走到側門。',
-    acts: [{ id: 'cast', tool: 'shoe', ap: 2, label: '採集鞋印', sample: { kind: 'shoe', label: '後院鞋印', res: 'E_shoe' }, cond: [{ flag: 'rain', ev: ['E_shoe_rain'], sample: null }] }] });
+    acts: [{ id: 'cast', tool: 'shoe', ap: 2, label: '追蹤並採集鞋印', mg: 'shoe', sample: { kind: 'shoe', label: '後院鞋印', res: 'E_shoe' }, q: { fair: { sample: { kind: 'shoe', label: '後院鞋印（不完整）', res: 'E_shoe_f' } }, poor: { sample: { kind: 'shoe', label: '後院鞋印（斷斷續續）', res: 'E_shoe_p' } } }, cond: [{ flag: 'rain', ev: ['E_shoe_rain'], sample: null }] }] });
   // 手機（通聯）
   ev('E_phone', `實驗室：手機最後通聯＝${culprit.name}`, 'ev_lab', `解鎖手機：${hhmm(tod - 8)} ${who(culprit)}傳訊「我到了，開門」，之後死者再也沒有回覆。`, { who: culprit.id });
   ev('E_phone_wiped', '實驗室：手機被重設了', 'ev_lab', '手機在命案後被人恢復原廠設定，什麼都救不回來。', {});
@@ -345,7 +376,13 @@ function generate(seed, diff) {
   for (const o of O) {
     const acts = o.acts || []; const lum = acts.filter(a => a.tool === 'luminol');
     for (const a of lum) {
-      const mk = { id: a.id + '_mk', tool: null, ap: 1, label: '記錄螢光位置', need: a.id, dark: true, ev: a.ev, glow: !!a.reveal };
+      const mk = { id: a.id + '_mk', tool: null, ap: 1, label: '記錄螢光位置', need: a.id, dark: true, ev: a.ev, glow: !!a.reveal, mg: 'lum', specks: a.reveal === 'fx_luminol_pool' ? 7 : a.reveal ? 3 : 0 };
+      if (a.reveal) {   // 掃太快／漏掉：看起來像「沒有螢光」（失真）
+        const b0 = E[a.ev[0]], F = b0.f || {}, mf = {};
+        if (F.room || F.noroom) mf.noroom = F.room || F.noroom; if (F.weapon && F.weapon !== 'hearth') mf.negw = F.weapon; if ((F.sig || []).includes('smear')) mf.neg = ['smear'];
+        ev(a.ev[0] + '_miss', `${o.name}：沒看到螢光`, 'ev_luminol', `暗處掃過一遍，沒看到明顯的藍光反應。`, mf, ALT('poor'));
+        mk.q = { poor: { ev: [a.ev[0] + '_miss'] } };
+      }
       a.ap = 1; a.ev = []; acts.splice(acts.indexOf(a) + 1, 0, mk);
     }
   }
@@ -353,11 +390,13 @@ function generate(seed, diff) {
   const r2 = rng((seed ^ 0x5bd1e995) >>> 0);
   const posts = shuffle(r2, COP_POSTS).slice(0, D.cops), names = shuffle(r2, COP_NAMES);
   C.cops = posts.map((pp, i) => ({ id: 'cop' + i, name: names[i], img: 'npc_officer_' + (1 + Math.floor(r2() * 5)), posts: pp }));
-  C.rookies = D.rookies; C.reports = REPORTS;
+  C.rookies = D.rookies; C.reports = REPORTS; C.roles = ROLES;
+  C.mgMin = D.hidden ? 1.5 : 4;          // 小遊戲最少要花的秒數（伺服器檢查）
+  C.mgEasy = !!D.hidden;                 // 新手教學：表現再差也給完整結果（但會顯示分數）
   for (const o of O) { const z = SIZES[o.img]; if (z) { o.w = z[0]; o.h = z[1]; } }
   C.H = H_REF;
   return C;
 }
-const API = { generate, SIZES, H_REF, DIFF, REPORTS, COP_POSTS, METHODS, SIGS, PEOPLE, WEAPONS, BASE, rng, hhmm };
+const API = { generate, ROLES, SIZES, H_REF, DIFF, REPORTS, COP_POSTS, METHODS, SIGS, PEOPLE, WEAPONS, BASE, rng, hhmm };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.FS_GEN = API;
 })(typeof self !== 'undefined' ? self : this);

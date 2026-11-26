@@ -67,10 +67,21 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   const sg = await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
   ok(sg && sg.s.players[0].tools.length === 3 && sg.s.players[0].lum === 3, 'A 換裝備（魯米諾 3 次）→ B 看到');
   B2.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } }); ok(!!(await B2.wait(m => m.t === 'err' && /太遠/.test(m.msg))), '離開關太遠不能關燈');
+  B2.send({ t: 'act', a: { type: 'gear', tools: ['prints', 'luminol', 'camera'] } }); await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
   for (const [x, y] of [[400, 690], [440, 640], [480, 610], [540, 600], [600, 590], [660, 590], [700, 580], [740, 540], [760, 500], [760, 480]]) { B2.send({ t: 'mv', x, y, d: 1 }); await sleep(130); }
   A.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } });
   const lt = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'light'));
   ok(lt && lt.s.lights.living === false, 'B 關掉客廳的燈 → A 同步看到燈關了');
+  /* v9 小遊戲：開始 → 隊友看到「分析中」→ 分數由伺服器檢查並決定品質 */
+  A.msgs = []; B2.send({ t: 'act', a: { type: 'use', obj: 'w_statue', act: 'prints' } }); ok(!!(await B2.wait(m => m.t === 'err' && /小遊戲/.test(m.msg))), '沒玩小遊戲不能直接拿結果');
+  B2.send({ t: 'act', a: { type: 'mgStart', obj: 'w_statue', act: 'prints' } });
+  const mgs = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'mg'));
+  ok(mgs && mgs.s.players[1].mg && mgs.s.players[1].mg.kind === 'prints', 'B 開始刷指紋小遊戲 → A 看到 B 正在分析');
+  await sleep(400); B2.msgs = []; B2.send({ t: 'act', a: { type: 'use', obj: 'w_statue', act: 'prints', score: 7 } }); ok(!!(await B2.wait(m => m.t === 'err' && /分數/.test(m.msg))), '分數超出範圍被拒絕');
+  A.msgs = []; B2.send({ t: 'act', a: { type: 'use', obj: 'w_statue', act: 'prints', score: 0.9 } });
+  const mgu = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'use'));
+  const ue = mgu && mgu.ev.find(e => e.k === 'use');
+  ok(ue && ue.q === 'good' && ue.score === 0.9 && !mgu.s.players[1].mg && mgu.s.players[1].samples.length === 1 && mgu.s.players[1].samples[0].q === 'good', '分數 0.9 → 伺服器判定品質「好」、樣本帶著品質');
   A.msgs = []; A.send({ t: 'act', a: { type: 'use', obj: 'body', act: 'wound' } });
   ok(((await A.wait(m => m.t === 'err')) || {}).msg === '距離太遠，走近一點', '伺服器檢查距離');
   A.send({ t: 'act', a: { type: 'gear', tools: ['camera', 'camera', 'x', 'luminol', 'prints', 'swab'] } });

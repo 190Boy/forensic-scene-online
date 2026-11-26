@@ -1,6 +1,6 @@
 # 美術提示詞（給 MUSE 生圖用）
 
-共 **98 張圖**。每張圖都放在 `docs/assets/<檔名>.png`，**用同樣檔名、同樣比例的 PNG 直接覆蓋**就會換上（不用改程式）。
+共 **103 張圖**。每張圖都放在 `docs/assets/<檔名>.png`，**用同樣檔名、同樣比例的 PNG 直接覆蓋**就會換上（不用改程式）。
 現在資料夾裡的是程式畫的佔位圖；檔案不見時遊戲也會自動畫佔位圖，不會壞掉。
 
 ## 共用風格（每一張提示詞都已經包含，換風格時兩段一起改）
@@ -817,4 +817,46 @@ game title logo artwork for a crime scene investigation co-op game: a magnifying
 
 ```
 atmospheric night scene of a quiet Taiwanese suburban villa wrapped in police tape, a white forensic van with amber lights parked outside, light rain, wide composition with a dark calm area in the middle for menus. cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
+```
+
+## 小遊戲（5）
+
+### `mg_body_closeup.png`
+- 尺寸：640×440px（1.45:1）・透明背景：否・視角：3/4 斜俯視（Among Us 式）
+- 說明：拍照小遊戲：屍體近景（頭在左、右手往上、左手往下；傷口與屍斑由遊戲疊上）
+
+```
+close top-down view of a fully clothed adult victim lying on his back on a dark patterned living-room carpet, head on the LEFT (around x=22%, y=49%), torso in the middle, legs to the right, right arm bent up toward the top edge with the open hand near (54%, 20%), left arm down toward the bottom with the open hand near (52%, 80%), dim cold flashlight lighting, muted colours, NO blood pool, NO visible wounds (the game draws them), not gory. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
+```
+
+### `mg_floor_dark.png`
+- 尺寸：640×440px（1.45:1）・透明背景：否・視角：3/4 斜俯視（Among Us 式）
+- 說明：魯米諾小遊戲：關燈後的地板近景（幾乎全黑，螢光由遊戲疊上）
+
+```
+top-down close view of a wooden floor with a worn rug edge in near-total darkness, only faint shapes visible, very low-key cold blue lighting, no stains, no glow (the game adds luminol glow). seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
+```
+
+### `mg_print_surface.png`
+- 尺寸：640×440px（1.45:1）・透明背景：否・視角：3/4 斜俯視（Among Us 式）
+- 說明：刷指紋／棉棒小遊戲：物品表面特寫（指紋、血跡由遊戲畫）
+
+```
+extreme close-up of a smooth dark object surface (polished bronze / dark lacquer) filling the whole frame, subtle scratches and soft specular highlight, flat even lighting, no fingerprints (the game draws them). seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
+```
+
+### `mg_mud_ground.png`
+- 尺寸：640×440px（1.45:1）・透明背景：否・視角：3/4 斜俯視（Among Us 式）
+- 說明：鞋印小遊戲：夜晚泥巴地（鞋印由遊戲畫）
+
+```
+top-down view of a muddy backyard path with trampled grass at night, wet soil texture, a few pebbles and leaves, low cold lighting, NO footprints (the game draws them). seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo.
+```
+
+### `mg_thermo.png`
+- 尺寸：80×300px（0.27:1）・透明背景：是・視角：3/4 斜俯視（Among Us 式）
+- 說明：肝溫計（直立，上面機身、下面探針；去背）
+
+```
+a digital forensic probe thermometer standing vertically: small grey body with a blank LCD at the top and a long thin steel probe pointing down, isolated on transparent background. seen from a fixed 3/4 oblique camera like Among Us (camera in front and above, looking down about 35 degrees, front faces and top faces both visible, no perspective vanishing). cozy-noir 2D game art in the style of a modern indie co-op game, clean bold dark outlines, soft cel shading, slightly chunky cute proportions, muted night palette (slate blue, warm wood, cream) with teal and amber accents, flat even lighting from the top-left, no text, no watermark, no logo, transparent background, PNG.
 ```

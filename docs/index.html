@@ -242,6 +242,28 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
   #tut .tx{font-size:13px}
   body.tutOn #cards{top:calc(250px + env(safe-area-inset-top))}
 }
+
+/* v9 鑑識小遊戲 */
+#mg{position:fixed;inset:0;z-index:12;background:rgba(3,5,9,.58);display:flex;align-items:center;justify-content:center;padding:max(6px,env(safe-area-inset-top)) 6px max(6px,env(safe-area-inset-bottom))}
+#mg.hidden{display:none}
+.mgw{background:#0f141d;border:1px solid #2a3446;border-radius:14px;padding:10px;width:min(740px,100%);max-height:100%;display:flex;flex-direction:column;gap:6px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+.mgh{display:flex;align-items:center;gap:8px;color:#e8ecf2}.mgh b{flex:1;font-size:16px}
+#mgTime{color:#9fb0c8;font-variant-numeric:tabular-nums;font-size:14px}#mgTime.low{color:#ffb35a}
+#mgX{min-height:36px;padding:4px 10px;border-radius:8px;border:1px solid #3a4a62;background:#1b2433;color:#cfd6e0;font-size:13px}
+#mgHelp{color:#b8c4d6;font-size:13px;line-height:1.5}
+#mgMsg{min-height:18px;color:#8ff0df;font-size:14px}#mgMsg.bad{color:#ffb0a0}
+#mgC{width:min(100%,calc(60vh * 640 / 440));aspect-ratio:640/440;margin:0 auto;border-radius:10px;background:#000;touch-action:none;display:block;cursor:crosshair}
+#mgF{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.mgb{min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid #3a4a62;background:#1b2433;color:#e8ecf2;font-size:15px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer}
+.mgb.main{background:#1f4a52;border-color:#3fb8a8}.mgb.hold.on{background:#2f6b5a}
+.mgwait{color:#9fb0c8;padding:10px}
+.qline{margin-top:6px;font-size:13px;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.06);line-height:1.5}
+.qv{font-weight:700}.q-good .qv{color:#7dff9a}.q-fair .qv{color:#f2d045}.q-poor .qv{color:#ff9a7a}
+.qb{display:inline-block;font-size:11px;padding:1px 6px;border-radius:6px;margin-left:4px;background:#2a3446;color:#cfd6e0}.qb.q-good{color:#7dff9a}.qb.q-fair{color:#f2d045}.qb.q-poor{color:#ff9a7a}
+.mgt{font-size:10px;margin-left:6px;padding:1px 5px;border-radius:5px;background:#1f4a52;color:#8ff0df}
+table.cmp{width:100%;border-collapse:collapse;font-size:13px}table.cmp td,table.cmp th{border:1px solid #2a3446;padding:6px;text-align:center;vertical-align:top}
+table.cmp td.ok{background:rgba(60,160,90,.2)}table.cmp td.ng{background:rgba(160,60,60,.2);color:#ffb0a0}table.cmp td.mix{background:rgba(200,160,40,.16)}table.cmp tr.sc td{background:rgba(79,210,255,.08)}.cmp small{color:var(--dim);margin-left:3px}.dim{color:var(--dim)}
+label.rel{display:block;margin:4px 0 8px;font-size:14px}
 </style>
 </head>
 <body>
@@ -321,10 +343,12 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
 </div>
 
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
+<div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=8"></script>
-<script src="engine.js?v=8"></script>
-<script src="assets.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="casegen.js?v=9"></script>
+<script src="engine.js?v=9"></script>
+<script src="assets.js?v=9"></script>
+<script src="minigames.js?v=9"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

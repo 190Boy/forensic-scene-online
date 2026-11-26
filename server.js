@@ -158,12 +158,13 @@ function cleanText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g,
 // 只留下動作需要的欄位、型別正確（規則引擎還會再驗證一次）
 function cleanAct(a) {
   if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
-  const T = ['gear', 'light', 'refill', 'callcops', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
+  const T = ['gear', 'light', 'refill', 'callcops', 'mgStart', 'mgCancel', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
   if (!T.includes(a.type)) return null;
   const o = { type: a.type }, s = v => typeof v === 'string' ? v.slice(0, 40) : undefined;
   if (s(a.obj)) o.obj = s(a.obj);
   if (s(a.act)) o.act = s(a.act);
   if (Number.isInteger(a.sid)) o.sid = a.sid;
+  if (typeof a.score === 'number' && Number.isFinite(a.score)) o.score = a.score;   // 小遊戲分數（引擎再檢查範圍與時間）
   if (Array.isArray(a.tools)) o.tools = a.tools.slice(0, 8).map(s).filter(Boolean);
   if (s(a.field)) o.field = s(a.field);
   if (a.v === null || typeof a.v === 'string') o.v = a.v === null ? null : a.v.slice(0, 40);
