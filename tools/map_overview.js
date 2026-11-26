@@ -3,7 +3,7 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const BASE = process.argv[2] || 'http://localhost:3811/';
 (async () => {
-  const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1760, height: 1130 }, deviceScaleFactor: 1 }); const pg = await ctx.newPage();
+  const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 2202, height: 1229 }, deviceScaleFactor: 1 }); const pg = await ctx.newPage();
   await pg.goto(BASE + '?seed=158'); await pg.waitForTimeout(900); await pg.fill('#name', '百九'); await pg.click('#bSolo'); await pg.waitForTimeout(700);
   await pg.click('#win footer [data-close]').catch(() => { }); await pg.waitForTimeout(300);
   await pg.evaluate(() => { const G = __fs.G, st = G.st; st.quietUntil = 1e9; for (const k in st.lights) st.lights[k] = true; G.Me.x = 900; G.Me.y = 690; const p = st.players[G.me]; p.x = 900; p.y = 690; });

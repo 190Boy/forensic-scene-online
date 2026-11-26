@@ -212,10 +212,11 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   ok(H === 112 && C.map.wall >= H, `比例尺 H = 112、牆高 ${C.map.wall}（≥ H）`);
   ok(r(Math.hypot(g('body').w, g('body').h), 1.0, 1.3) && g('body').h < .7 * H, `屍體斜躺，對角長 ${Math.round(Math.hypot(g('body').w, g('body').h))}（約 1.05 H）`);
   ok(g('floor_living').w > g('sofa').w * 1.4 && g('floor_study').w > g('body').w * 1.4, '地毯比屍體、沙發大');
-  ok(r(g('sofa').w, 1.7, 1.9) && g('sofa').h > H, `沙發長 ${g('sofa').w}（1.7–1.9 H）`);
-  ok(r(g('bookshelf').h, 1.45, 1.55), `書櫃高 ${g('bookshelf').h}（≈1.5 H）`);
-  ok(r(g('table').w, 1.05, 1.15) && r(g('desk').w, 1.5, 1.7) && r(g('w_hearth').w, 1.5, 1.7), '茶几 1.1 H、書桌 1.6 H、壁爐 1.6 H');
-  ok(r(g('backdoor').h, 1.25, 1.35), `門高 ${g('backdoor').h}（≈1.3 H）`);
+  // v12：家具已經畫在手繪地圖上（baked），尺寸＝圖上量到的大小；仍要符合角色比例
+  ok(g('sofa').baked && r(g('sofa').w, 1.6, 1.95), `沙發長 ${g('sofa').w}（1.6–1.95 H，畫在地圖上）`);
+  ok(g('bookshelf').baked && r(g('bookshelf').h, 1.45, 1.75), `書櫃高 ${g('bookshelf').h}（1.45–1.75 H）`);
+  ok(r(g('table').w, 1.3, 1.7) && r(g('desk').w, 1.4, 1.7) && r(g('w_hearth').w, 1.5, 1.8), '茶几、書桌、壁爐的寬度符合角色比例');
+  ok(g('backdoor').baked && r(g('backdoor').h, 1.25, 1.5), `門高 ${g('backdoor').h}（1.25–1.5 H）`);
   const small = ['phone', 'w_teacup', 'w_opener', 'sw_living', 'w_glasses', 'w_knife', 'w_necktie'];
   ok(small.every(id => r(Math.max(g(id).w, g(id).h), .25, .6)), '小物件放大到看得清楚（0.25–0.6 H），但仍比角色小很多');
   ok(r(g('van').w, 2.5, 3.2) && r(g('tree').h, 1.8, 2.6) && g('courier').h === H && g('chief').h === H, '廂型車、路樹、快遞員、分局長比例一致');
@@ -405,5 +406,32 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   for (let sd = 1; sd <= 900; sd++) { const c = GEN.generate(sd, ['easy', 'normal', 'hard'][sd % 3]); if (c.stains.length) stained++; if (!['blunt', 'stab', 'staged'].includes(c.method) && c.stains.some(x => x.npc === c.culprit)) nonBloodyDecoyOnly = false; }
   ok(stained === 900 && nonBloodyDecoyOnly, `每局都有 1–2 位關係人身上有污漬（${stained}/900）；不流血的手法只有誘餌污漬`);
   ok(!GEN.generate(7, 'tut').stains.length, '新手教學沒有血漬');
+}
+/* ---------- 15. v12：兇手還站在封鎖線外的街道上時，不會被誤判「摸到證物旁邊被撞見」 ---------- */
+{ const C = GEN.generate(5, 'normal'), st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: true });
+  const n = st.npcs.find(q => q.id === C.culprit), p = st.players[0]; p.tools = ['camera', 'thermo', 'swab']; p.loaded = true;
+  const stick = () => { p.x = n.x + 40; p.y = n.y; };
+  st.quietUntil = 0; st.tamperAt = st.clock; st.curiousAt = 1e9; st.boss.mode = 'away'; st.bossAt = 1e9; st.rookieAt = 1e9; st.fleeAt = 1e9; stick();
+  let evs = []; for (let t = 0; t < 4; t += 0.2) { evs = evs.concat(FS.tick(C, st, 0.2)); stick(); }
+  ok(!evs.some(e => e.k === 'caught') && FS.roomAt(C, n.x, n.y) === 'street', '隊員站在街上的兇手旁邊 → 不會一出發就「被撞見」');
+  ok(n.mode !== 'sneak' && st.tamperAt > st.clock, '隊員就在旁邊 → 溜進去的計時器往後延');
+  // 就算已經開始溜（還在街上）、隊員一路貼著走：在街上都不算撞見
+  const ph = FS.objById(C, 'phone'); n.mode = 'sneak'; n.tgt = 'phone'; n.path = FS.findPath(C, n.x, n.y, ph.x, ph.y + 10, 30);
+  evs = []; let onStreet = 0, firstIn = null;
+  for (let t = 0; t < 40 && n.mode === 'sneak'; t += 0.2) { const r = FS.roomAt(C, n.x, n.y); if (r === 'street') onStreet++; stick(); const e = FS.tick(C, st, 0.2); if (e.some(x => x.k === 'caught')) { firstIn = FS.roomAt(C, n.x, n.y); evs = e; break; } }
+  const ce = evs.find(e => e.k === 'caught');
+  ok(onStreet > 3 && ce && firstIn && firstIn !== 'street', `貼著兇手走：在街上 ${onStreet} 步都沒被撞見，進了封鎖線（${firstIn}）才被撞見`);
+  ok(ce && /偷偷溜進/.test(ce.text) && !/手機」旁邊/.test(ce.text), '還沒走到手機旁就被撞見 → 說「偷偷溜進…」而不是「摸到手機旁邊」：' + (ce && ce.text));
+  // 真的走到證物旁邊才被撞見 → 說「摸到「死者的手機」旁邊」
+  const s2 = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: true }), n2 = s2.npcs.find(q => q.id === C.culprit), p2 = s2.players[0];
+  s2.quietUntil = 0; s2.tamperAt = 1e9; s2.curiousAt = 1e9; s2.boss.mode = 'away'; s2.bossAt = 1e9; s2.rookieAt = 1e9; s2.fleeAt = 1e9; p2.x = C.start[0].x; p2.y = C.start[0].y;
+  n2.x = ph.x + 60; n2.y = ph.y; n2.mode = 'sneak'; n2.tgt = 'phone'; n2.path = FS.findPath(C, n2.x, n2.y, ph.x, ph.y + 10, 30);
+  p2.x = n2.x + 100; p2.y = n2.y; const e2 = FS.tick(C, s2, 0.2).find(e => e.k === 'caught');
+  ok(e2 && /摸到「死者的手機」旁邊/.test(e2.text), '在手機旁邊被撞見 → 「摸到「死者的手機」旁邊」');
+  // 好奇的關係人：在街上被隊員擋著不算「跑進封鎖線」
+  const s3 = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: true }), n3 = s3.npcs.find(q => q.id !== C.culprit), p3 = s3.players[0];
+  s3.quietUntil = 0; s3.tamperAt = 1e9; s3.boss.mode = 'away'; s3.bossAt = 1e9; s3.rookieAt = 1e9; s3.fleeAt = 1e9; n3.mode = 'curious'; n3.path = FS.findPath(C, n3.x, n3.y, 785, 700);
+  let sh = []; for (let t = 0; t < 1.2; t += 0.2) { p3.x = n3.x + 30; p3.y = n3.y; sh = sh.concat(FS.tick(C, s3, 0.2)); }
+  ok(!sh.some(e => e.k === 'shoo'), '好奇的關係人還在街上 → 不會說「跑進封鎖線想偷看」');
 }
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

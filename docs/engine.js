@@ -11,10 +11,12 @@ const REACH = 40;
 function walkRects(C) {
   if (C._walk) return C._walk;
   const M = C.map, W = M.wall, rs = [];
-  for (const r of M.rooms) rs.push(r.out ? { x: r.x + 10, y: r.y + 30, w: r.w - 20, h: r.h - 46 } : { x: r.x + 16, y: r.y + W, w: r.w - 32, h: r.h - W - 16 });
+  for (const r of M.rooms) { const w = r.wall || W; rs.push(r.out ? { x: r.x + 10, y: r.y + 30, w: r.w - 20, h: r.h - 46 } : { x: r.x + 16, y: r.y + w, w: r.w - 32, h: r.h - w - 16 }); }
   for (const d of M.doors) rs.push(d);
   C._walk = rs; return rs;
 }
+// 關係人真的走進封鎖線了嗎（街道＝封鎖線外）
+const insideCordon = (C, n) => { const r = roomAt(C, n.x, n.y); return !!r && r !== 'street'; };
 const inR = (x, y, r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 function walkable(C, x, y) { if (!Number.isFinite(x) || !Number.isFinite(y)) return false; if (!walkRects(C).some(r => inR(x, y, r))) return false; return !C.map.solids.some(s => inR(x, y, s)); }
 function roomAt(C, x, y) { const r = C.map.rooms.find(r => inR(x, y, r)); return r ? r.id : null; }
@@ -80,7 +82,7 @@ function newGame(C, players, opts) {
   st.cops = (C.cops || []).map(c => ({ id: c.id, x: c.posts[0].x, y: c.posts[0].y, leg: 0, mode: 'post', wait: 2 + rnd(st) * 8, path: null, rk: false, known: false, nextAt: NEVER, tgt: null }));
   const order = st.cops.map((c, i) => [rnd(st), i]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
   order.slice(0, C.rookies || 0).forEach((i, k) => { const c = st.cops[i]; c.rk = true; c.nextAt = C.pressure.rookieEvery * (0.7 + rnd(st) * 0.6 + k * 0.5); });
-  const home = objById(C, 'chief') || { x: 90, y: 700 };
+  const home = objById(C, 'chief') || C.start[0];
   st.boss = { mode: 'away', x: home.x, y: home.y, path: null, wait: 0, demand: null, until: 0, t0: 0, nextAt: C.pressure.bossFirst || NEVER };
   return st;
 }
@@ -309,7 +311,7 @@ const anyNear = (st, pt, r) => watchers(st).some(p => Math.hypot(p.x - pt.x, p.y
 const BOSS_R = 115;
 const nearBoss = (st, B) => actives(st).some(p => Math.hypot(p.x - B.x, p.y - B.y) <= BOSS_R);
 function bossAccept(C, st, out) {
-  const B = st.boss, P = C.pressure, T = st.clock, home = objById(C, 'chief') || { x: 90, y: 700 };
+  const B = st.boss, P = C.pressure, T = st.clock, home = objById(C, 'chief') || C.start[0];
   st.bossOk++; st.budget += 2; st.budgetMax += 2; st.patience = Math.min(100, st.patience + 8);
   const text = `✅ 分局長收下了「${demandText(C, B.demand).replace(/^交出/, '')}」：「嗯，繼續。」——實驗室額度 +2，耐心回升`;
   out.push({ k: 'boss_ok', text, demand: B.demand }); st.news.push({ t: Math.round(T), text }); if (st.news.length > 30) st.news.shift();
@@ -365,6 +367,9 @@ function tick(C, st, dt) {
         const full = findPath(C, n.x, n.y, C.exit.x, C.exit.y) || []; n.path = full.slice(0, Math.max(1, Math.floor(full.length * .4)));
         news('nervous', `😰 ${sname(C, n.id)} 看起來很緊張，一直往出口瞄…${canCallCops(st) ? '（按 E 請員警盯住他，或走過去碰他）' : '（走過去碰他就能攔下）'}`, { npc: n.id }); continue;
       }
+      // 隊員就站在旁邊（封鎖線外）時不會開始溜進去：計時器稍微延後，免得一出發就被「撞見」
+      if (isC && T >= st.tamperAt && anyNear(st, n, 160)) st.tamperAt = T + 8 + rnd(st) * 8;
+      if (!isC && T >= st.curiousAt && anyNear(st, n, 160)) st.curiousAt = T + 8 + rnd(st) * 8;
       if (isC && T >= st.tamperAt) {
         st.tamperAt = T + P.tamperEvery * (0.7 + rnd(st) * 0.6);
         const cand = C.objects.filter(o => o.tamper && !st.obj[o.id].gone && !st.obj[o.id].f.tampered && !Object.keys(st.obj[o.id].done).includes('prints'));
@@ -372,10 +377,10 @@ function tick(C, st, dt) {
       }
       if (!isC && T >= st.curiousAt) {   // 好奇的關係人也會溜進來看（讓兇手不那麼好認）
         st.curiousAt = T + 120 + rnd(st) * 120;
-        const spots = [{ x: 600, y: 620 }, { x: 860, y: 520 }, { x: 1100, y: 640 }];
+        const spots = [{ x: 785, y: 700 }, { x: 1000, y: 500 }, { x: 1360, y: 740 }];   // v12 地圖：玄關、客廳、客廳書櫃前
         const s = spots[Math.floor(rnd(st) * spots.length)]; n.mode = 'curious'; n.path = findPath(C, n.x, n.y, s.x, s.y); continue;
       }
-      if (n.wait <= 0) { n.wait = 4 + rnd(st) * 8; n.path = findPath(C, n.x, n.y, 40 + rnd(st) * 360, 780 + rnd(st) * 270); n.mode = 'wander'; }
+      if (n.wait <= 0) { n.wait = 4 + rnd(st) * 8; n.path = findPath(C, n.x, n.y, 48 + rnd(st) * 460, 860 + rnd(st) * 300); n.mode = 'wander'; }
       // (b-2) 恐嚇落單的隊員
       if (isC && heat >= 1 && st.threats < (actives(st).length > 1 ? 2 : 1) && T >= (st.threatAt || 0)) {
         const v = actives(st).find(p => Math.hypot(p.x - n.x, p.y - n.y) < 70 && !actives(st).some(q => q !== p && Math.hypot(q.x - p.x, q.y - p.y) < 350));
@@ -385,13 +390,17 @@ function tick(C, st, dt) {
     }
     if (n.mode === 'wander') { if (walkNpc(C, n, dt, NPC_SPEED * .7)) n.mode = 'idle'; continue; }
     if (n.mode === 'curious') {
-      if (anyNear(st, n, 110)) { n.mode = 'back'; n.path = findPath(C, n.x, n.y, n.hx, n.hy); news('shoo', `🙅 ${sname(C, n.id)} 跑進封鎖線想偷看，被請了出去`, { npc: n.id }); continue; }
+      if (insideCordon(C, n) && anyNear(st, n, 110)) { n.mode = 'back'; n.path = findPath(C, n.x, n.y, n.hx, n.hy); news('shoo', `🙅 ${sname(C, n.id)} 跑進封鎖線想偷看，被請了出去`, { npc: n.id }); continue; }
       if (walkNpc(C, n, dt, NPC_SPEED)) { n.mode = 'back'; n.path = findPath(C, n.x, n.y, n.hx, n.hy); }
       continue;
     }
     if (n.mode === 'sneak') {
       const o = objById(C, n.tgt);
-      if (anyNear(st, n, 150)) { n.mode = 'back'; n.path = findPath(C, n.x, n.y, n.hx, n.hy); addEv(C, st, ['E_sneak'], null, out); news('caught', `👀 ${sname(C, n.id)} 鬼鬼祟祟摸到「${o.name}」旁邊，被你們撞見，假裝走錯路離開了`, { npc: n.id }); continue; }
+      if (insideCordon(C, n) && anyNear(st, n, 150)) {
+        const at = Math.hypot(n.x - o.x, n.y - o.y) < 180, rn = C.roomName[roomAt(C, n.x, n.y)] || '屋內';
+        n.mode = 'back'; n.path = findPath(C, n.x, n.y, n.hx, n.hy); addEv(C, st, ['E_sneak'], null, out);
+        news('caught', at ? `👀 ${sname(C, n.id)} 鬼鬼祟祟摸到「${o.name}」旁邊，被你們撞見，假裝走錯路離開了` : `👀 ${sname(C, n.id)} 偷偷溜進${rn}，被你們撞見後假裝走錯路離開了`, { npc: n.id, at: at ? o.id : null }); continue;
+      }
       if (walkNpc(C, n, dt, NPC_SPEED)) {
         const s = st.obj[o.id]; if (!s.gone) { s.f.tampered = true; news('tampered', `⚠️ 有人動過${C.roomName[o.room] || ''}的「${o.name}」！上面的痕跡可能被破壞了`, { obj: o.id }); }
         n.mode = 'back'; n.path = findPath(C, n.x, n.y, n.hx, n.hy);
@@ -407,7 +416,7 @@ function tick(C, st, dt) {
 // 插曲（分局長巡視、菜鳥闖禍）一次只發生一件，結束後至少安靜 QUIET 秒
 const QUIET = 75;
 function busy(st) { return (st.boss && st.boss.mode !== 'away') || (st.cops || []).some(c => c.mode === 'in') || st.clock < (st.quietUntil || 0); }
-const ROAM = [{ x: 600, y: 700 }, { x: 800, y: 700 }, { x: 1180, y: 720 }, { x: 1340, y: 620 }, { x: 1580, y: 620 }, { x: 820, y: 1040 }, { x: 1540, y: 880 }, { x: 1440, y: 1000 }];
+const ROAM = [{ x: 690, y: 720 }, { x: 860, y: 720 }, { x: 1440, y: 790 }, { x: 1590, y: 690 }, { x: 1870, y: 700 }, { x: 1010, y: 1110 }, { x: 1880, y: 930 }, { x: 1760, y: 1040 }];   // v12 地圖（世界座標）
 const repName = (C, k) => ((C.reports || {})[k] || {}).t || k;
 function demandText(C, d) { return !d ? '' : d.kind === 'progress' ? `案情進度要到 ${d.pct}%` : `交出「${repName(C, d.rep)}」報告`; }
 function bossDone(C, st, d) {
@@ -428,7 +437,7 @@ function pickDemand(C, st) {
 function bossRoam(C, B, st) { const t = ROAM[Math.floor(rnd(st) * ROAM.length)]; B.path = findPath(C, B.x, B.y, t.x, t.y) || []; B.wait = 3 + rnd(st) * 4; }
 function bossTick(C, st, dt, T, news, out) {
   const B = st.boss, P = C.pressure; if (!B) return false;
-  const home = objById(C, 'chief') || { x: 90, y: 700 };
+  const home = objById(C, 'chief') || C.start[0];
   if (B.mode === 'away') {
     if (st.forceBoss || (st.pressure && T >= B.nextAt && !busy(st))) {
       const d = st.forceBoss && typeof st.forceBoss === 'object' ? Object.assign({}, st.forceBoss) : pickDemand(C, st); st.forceBoss = null;

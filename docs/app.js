@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '11';
+const VER = '12';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -153,7 +153,7 @@ const Snd = {
   ambTick() {
     const a = this.amb, c = this.ctx; if (!a || !c || !G.st || !C) return; const t = c.currentTime;
     a.rg.gain.setTargetAtTime(G.st.flags && G.st.flags.rain ? .045 : .02, t, 2);
-    const fr = Math.hypot(G.Me.x - 1225, G.Me.y - 860); a.hg.gain.setTargetAtTime(.014 * Math.max(0, 1 - fr / 520), t, .5);
+    const fr = Math.hypot(G.Me.x - 1380, G.Me.y - 952); a.hg.gain.setTargetAtTime(.014 * Math.max(0, 1 - fr / 520), t, .5);
     if (t > a.creak) { a.creak = t + 18 + Math.random() * 30; this.creak(); }
     if (t > a.dog) { a.dog = t + 45 + Math.random() * 60; this.dog(); }
   },
@@ -377,12 +377,21 @@ function fillTiled(n, x, y, w, h, scale) {
   ctx.restore();
 }
 function roomOf(id) { return C.map.rooms.find(r => r.id === id); }
+// v12：手繪的整張別墅地圖（房間、牆、門、固定家具都畫好了）；讀不到時退回程式畫的地板與牆
+const MAPBG = new Image(); MAPBG.decoding = 'async'; MAPBG.src = 'assets/map_mansion.jpg?v=' + VER;
+const bgReady = () => MAPBG.complete && MAPBG.naturalWidth > 0;
 function drawMap() {
   const M = C.map, WL = M.wall;
+  if (M.bg && bgReady()) {
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(MAPBG, 0, 0, M.w, M.h);
+    // 封鎖線（門廊台階前，留出走道）
+    ctx.strokeStyle = '#f2d045'; ctx.lineWidth = 5; ctx.setLineDash([14, 9]); ctx.beginPath(); ctx.moveTo(492, 612); ctx.lineTo(492, 652); ctx.moveTo(492, 786); ctx.lineTo(492, 812); ctx.stroke(); ctx.setLineDash([]);
+    return;
+  }
   for (const r of M.rooms) fillTiled(r.floor, r.x, r.y, r.w, r.h, .5);
   // 牆
   for (const r of M.rooms) {
-    if (r.out) continue;
+    if (r.out) continue; const WL = r.wall || M.wall;
     fillTiled(r.wallImg, r.x, r.y, r.w, WL, WL / 168);
     ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(r.x, r.y + WL - 6, r.w, 6);
     ctx.fillStyle = '#2a2230';
@@ -428,13 +437,21 @@ function lightCone(c, x, y, a, L, alpha) {
   c.fillStyle = g; c.beginPath(); c.moveTo(x, y); c.arc(x, y, L, a - .55, a + .55); c.closePath(); c.fill();
   const h = c.createRadialGradient(x, y, 0, x, y, 95); h.addColorStop(0, `rgba(0,0,0,${alpha * .8})`); h.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = h; c.beginPath(); c.arc(x, y, 95, 0, Math.PI * 2); c.fill();
 }
+// 已經畫在地圖上的家具（baked）：不重畫圖片，只在靠近時描一圈淡淡的光
+function bakedGlow(o, t) {
+  const x = o.x - o.w / 2, y = o.flat ? o.y - o.h / 2 : o.y - o.h, a = .55 + .25 * Math.sin(t * 5);
+  ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 18; ctx.strokeStyle = `rgba(120,225,255,${a})`; ctx.lineWidth = 3;
+  ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - 4, y - 4, o.w + 8, o.h + 8, 12); else ctx.rect(x - 4, y - 4, o.w + 8, o.h + 8); ctx.stroke();
+  ctx.globalAlpha = .1; ctx.fillStyle = '#4fd2ff'; ctx.fill(); ctx.restore();
+}
+const isBaked = o => o.baked && C.map.bg && bgReady();
 function render(now) {
   const t = now / 1000; const late = [];
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = '#0b0f18'; ctx.fillRect(0, 0, VW, VH);
   if (!G.st || !C) return;
   const M = C.map; const hw = VW / 2 / Z, hh = VH / 2 / Z, MO = G.mapOnly, ZZ = MO ? Math.min(VW / M.w, VH / M.h) : Z;
   CAM.x = M.w < hw * 2 ? M.w / 2 : Math.max(hw - 40, Math.min(M.w - hw + 40, G.camAt ? G.camAt.x : G.Me.x));
-  CAM.y = M.h < hh * 2 ? M.h / 2 + 60 : Math.max(hh + 100, Math.min(M.h - hh + 40, (G.camAt ? G.camAt.y : G.Me.y) - 30));
+  CAM.y = M.h < hh * 2 ? M.h / 2 : Math.max(hh - 40, Math.min(M.h - hh + 40, (G.camAt ? G.camAt.y : G.Me.y) - 30));
   if (MO) { CAM.x = M.w / 2; CAM.y = M.h / 2; }   // 全地圖總覽（給美術用）：整張地圖 1:1
   const WT = [DPR * ZZ, 0, 0, DPR * ZZ, DPR * (VW / 2 - CAM.x * ZZ), DPR * (VH / 2 - CAM.y * ZZ)];
   ctx.setTransform(...WT);
@@ -450,6 +467,7 @@ function render(now) {
       ctx.save(); ctx.fillStyle = 'rgba(10,12,20,.28)'; ctx.beginPath(); ctx.ellipse(o.x, o.y + 4, o.w * .56, o.h * .62, 0, 0, Math.PI * 2); ctx.fill();
       ctx.setLineDash([9, 7]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(o.x, o.y, o.w * .58, o.h * .66, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
+    if (isBaked(o)) { if (near === o.id) bakedGlow(o, t); G.flatDrawn.push(o.id); continue; }
     drawImg(o.img, o.x, o.y, o.w, o.h, { flat: true }); G.flatDrawn.push(o.id);
   }
   const items = [];
@@ -459,6 +477,7 @@ function render(now) {
   for (const it of items) {
     if (it.kind === 'o') {
       const o = it.o; const hl = near === o.id;
+      if (isBaked(o)) { if (hl) bakedGlow(o, t); continue; }
       if (hl) { ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 22 + 8 * Math.sin(t * 5); }
       drawImg(o.img, o.x, o.y, o.w, o.h);
       if (hl) ctx.restore();
@@ -613,7 +632,7 @@ function tapAt(cx, cy) {
   // 點到人？
   for (const q of people()) { if (q.kind !== 'n') continue; if (Math.abs(wx - q.x) < 36 && wy < q.y + 8 && wy > q.y - CH) { goTo(q.x, q.y + 30, 'npc:' + q.n.id); return; } }
   // 點到物件？（後面畫的優先）
-  const hits = C.objects.filter(o => !G.st.obj[o.id].gone && (o.flat ? Math.abs(wx - o.x) < Math.max(o.w, 44) / 2 && Math.abs(wy - o.y) < Math.max(o.h, 36) / 2 : Math.abs(wx - o.x) < Math.max(o.w, 44) / 2 && wy < o.y + 10 && wy > o.y - Math.max(o.h, 44))).sort((a, b) => b.y - a.y);
+  const hits = C.objects.filter(o => !G.st.obj[o.id].gone && (o.flat ? Math.abs(wx - o.x) < Math.max(o.w, 44) / 2 && Math.abs(wy - o.y) < Math.max(o.h, 36) / 2 : Math.abs(wx - o.x) < Math.max(o.w, 44) / 2 && wy < o.y + 10 && wy > o.y - Math.max(o.h, 44))).sort((a, b) => (+/^floor_/.test(a.id) - +/^floor_/.test(b.id)) || b.y - a.y);
   const o = hits.find(o => !o.deco) || hits[0];
   if (o && !(o.flat && o.deco)) { goTo(o.x, o.y + (o.flat ? 0 : 20), o.id, o.r || (o.van ? 150 : 90)); return; }
   goTo(wx, wy, null);
@@ -1188,7 +1207,7 @@ addEventListener('pagehide', () => { if (Voice.on) Voice.leave(true); saveSolo()
 const TUT_SEED = 7;
 const Tut = {
   steps: [
-    { t: '這裡是命案別墅。慢慢來，這一關<b>不會失敗</b>。<br>用 <b>WASD／方向鍵</b>（手機：在畫面上<b>拖曳</b>）走到箭頭指的<b>封鎖線入口</b>。', at: () => ({ x: 470, y: 600 }), done: () => Math.hypot(G.Me.x - 470, G.Me.y - 600) < 90 },
+    { t: '這裡是命案別墅。慢慢來，這一關<b>不會失敗</b>。<br>用 <b>WASD／方向鍵</b>（手機：在畫面上<b>拖曳</b>）走到箭頭指的<b>封鎖線入口</b>。', at: () => ({ x: 640, y: 718 }), done: () => Math.hypot(G.Me.x - 640, G.Me.y - 718) < 90 },
     { t: '很好。工具都在<b>鑑識車</b>裡：走回車子旁邊，點車子<span class="kbonly">（或按 <kbd class="k">E</kbd>）</span>打開它。', at: () => ENG.objById(C, 'van'), done: () => G.ovKind === 'van', hl: ['#act [data-van]'] },
     { t: '選 <b>📷 鑑識相機</b>、<b>🧪 魯米諾</b>、<b>🔍 指紋採集組</b>，再按 <b>✅ 確認裝備</b>（隨時可以免費更換）。', done: () => { const p = meP(); return p.loaded && ['camera', 'luminol', 'prints'].every(t => p.tools.includes(t)); }, hl: ['[data-tool="camera"]', '[data-tool="luminol"]', '[data-tool="prints"]', '#gearOk'] },
     { t: '關掉車上視窗，走到客廳的<b>屍體</b>旁，用 <b>📷 近拍傷口</b>。<br><span class="kbonly">靠近物件時旁邊會出現小清單：<b>數字鍵 1–5</b> 用工具、<b>E</b> 互動（裝袋、開關燈、記錄螢光、開車門、問話），滑鼠點也可以。這裡按清單上近拍傷口前面的數字。<br></span><span class="touchonly">靠近物件時下方會出現一排小按鈕，點它就好。<br></span>用工具會打開<b>鑑識小遊戲</b>：拍照時<b>移動取景框</b>找傷口，<b>停穩等框變綠</b>再拍<span class="kbonly">（點一下或空白鍵）</span><span class="touchonly">（按「📸 拍照」）</span>。玩得越仔細，<b>樣本品質</b>越好；正式案件裡品質差的結果可能不完整、甚至不可靠。教學不會失敗。<br>做完會跳出<b>結果卡</b>，告訴你發現什麼、記在哪裡。', at: () => ENG.objById(C, 'body'), done: () => ENG.hasEv(G.st, 'E_wound'), hl: ['#act [data-a="wound"]', '#win [data-close]'] },

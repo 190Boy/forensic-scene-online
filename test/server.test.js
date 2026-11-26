@@ -3,6 +3,9 @@ const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const WebSocket = require('ws');
+const GEN = require('../docs/casegen.js'), ENG = require('../docs/engine.js');
+// v12：照著真的地圖路徑一小步一小步走（伺服器會檢查速度）
+function steps(C, from, to, r) { const pts = [], path = ENG.findPath(C, from.x, from.y, to.x, to.y, r || 12) || []; let cur = from; for (const q of path) { const n = Math.max(1, Math.ceil(Math.hypot(q.x - cur.x, q.y - cur.y) / 30)); for (let i = 1; i <= n; i++) pts.push([Math.round(cur.x + (q.x - cur.x) * i / n), Math.round(cur.y + (q.y - cur.y) * i / n)]); cur = q; } return pts; }
 let fail = 0, okN = 0; const ok = (c, m) => { if (!c) { fail++; console.log('FAIL', m); } else { okN++; console.log('ok  ', m); } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const PORT = 3900 + Math.floor(Math.random() * 300);
@@ -54,21 +57,22 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   ok(Object.keys(sa.s.players).length === 2 && sa.s.budget === 14 && sa.s.players[0].ap === undefined, '全隊共用實驗室額度（簡單 14），沒有個人點數');
   ok(!JSON.stringify(sa.s).includes(ja.token), '同步狀態裡沒有 token');
   /* 移動同步 */
-  B2.msgs = []; A.send({ t: 'mv', x: 320, y: 700, d: -1 });
-  const pos = await B2.wait(m => m.t === 'pos' && m.p.some(q => q[0] === 0 && q[1] === 320));
+  const CC = GEN.generate(sa.s.seed, sa.s.diff), mvx = Math.round(CC.start[0].x + 20);
+  B2.msgs = []; A.send({ t: 'mv', x: mvx, y: Math.round(CC.start[0].y), d: -1 });
+  const pos = await B2.wait(m => m.t === 'pos' && m.p.some(q => q[0] === 0 && q[1] === mvx));
   ok(!!pos, 'A 移動 → B 收到位置');
   ok(pos && Array.isArray(pos.n) && pos.n.length === 4, '位置封包也帶 4 位關係人 NPC');
   ok(pos && Array.isArray(pos.c) && pos.c.length === sa.s.cops.length && pos.c.length >= 3, `位置封包帶封鎖線內 ${pos && pos.c ? pos.c.length : 0} 位員警`);
   ok(pos && Array.isArray(pos.b) && pos.b.length === 3, '位置封包帶分局長位置與狀態');
   ok(sa.s.cops.filter(c => c.rk).length >= 1, '員警裡至少有一位是菜鳥（由伺服器決定）');
-  A.msgs = []; A.send({ t: 'mv', x: 1500, y: 900, d: 1 }); ok(!!(await A.wait(m => m.t === 'fix')), '瞬移太遠 → 伺服器拉回');
+  A.msgs = []; A.send({ t: 'mv', x: 1800, y: 900, d: 1 }); ok(!!(await A.wait(m => m.t === 'fix')), '瞬移太遠 → 伺服器拉回');
   /* 動作同步 */
   B2.msgs = []; A.send({ t: 'act', a: { type: 'gear', tools: ['camera', 'luminol', 'thermo'] } });
   const sg = await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
   ok(sg && sg.s.players[0].tools.length === 3 && sg.s.players[0].lum === 3, 'A 換裝備（魯米諾 3 次）→ B 看到');
   B2.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } }); ok(!!(await B2.wait(m => m.t === 'err' && /太遠/.test(m.msg))), '離開關太遠不能關燈');
   B2.send({ t: 'act', a: { type: 'gear', tools: ['prints', 'luminol', 'camera'] } }); await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
-  for (const [x, y] of [[400, 690], [440, 640], [480, 610], [540, 600], [600, 590], [660, 590], [700, 580], [740, 540], [760, 500], [760, 480]]) { B2.send({ t: 'mv', x, y, d: 1 }); await sleep(130); }
+  for (const [x, y] of steps(CC, CC.start[1], ENG.objById(CC, 'sw_living'), 30)) { B2.send({ t: 'mv', x, y, d: 1 }); await sleep(130); }
   A.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } });
   const lt = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'light'));
   ok(lt && lt.s.lights.living === false, 'B 關掉客廳的燈 → A 同步看到燈關了');

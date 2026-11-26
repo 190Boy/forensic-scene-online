@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v11_';
+const OUT = '/workspace/forensic_v12_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -76,7 +76,7 @@ async function playPrintsKeys(pg, shotName) {
   await pg.keyboard.up(' '); keyLog.push('空白＋方向鍵=刷粉'); const st = await mgDbg(pg); console.log('刷指紋（鍵盤）：', JSON.stringify({ rev: +st.rev.toFixed(2), sm: +st.sm.toFixed(2) }));
   await pg.keyboard.press('Enter');
 }
-async function van(pg) { await tp(pg, 300, 690); await pg.evaluate(() => __fs.openVan()); await sleep(300); }
+async function van(pg) { await tp(pg, 336, 880); await pg.evaluate(() => __fs.openVan()); await sleep(300); }
 async function closeWin(pg) { await pg.evaluate(() => { const b = document.querySelector('#win header [data-close]'); if (b && b.offsetParent) b.click(); }); await sleep(250); }
 const tutStep = pg => pg.evaluate(() => __fs.G.tut ? __fs.G.tut.i : -1);
 async function waitStep(pg, n, ms = 8000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if ((await tutStep(pg)) >= n) return; await sleep(150); } throw new Error(`教學卡在第 ${await tutStep(pg)} 步（要到 ${n}）`); }
@@ -113,8 +113,8 @@ async function deduceAndSubmit(pg, name) {
   await shot(tg, 'lobby');
   await tg.click('#bTut'); await sleep(900);
   await shot(tg, 'tut_1_walk');
-  await tp(tg, 470, 600); await waitStep(tg, 1);
-  await tp(tg, 300, 690); await sleep(300); await shot(tg, 'tut_2_van');
+  await tp(tg, 640, 718); await waitStep(tg, 1);
+  await tp(tg, 336, 880); await sleep(300); await shot(tg, 'tut_2_van');
   await tg.keyboard.press('e'); await waitStep(tg, 2);
   for (const t of ['camera', 'luminol', 'prints']) await tg.click(`[data-tool="${t}"]`);
   await shot(tg, 'tut_3_gear');
@@ -198,7 +198,7 @@ async function deduceAndSubmit(pg, name) {
   await pg.evaluate(() => { const p = __fs.G.st.players[0]; }); await pg.click('#gearOk').catch(() => { }); await sleep(300); await closeWin(pg);
   await toObj(pg, 'floor_living'); await act(pg, '噴灑魯米諾');
   await toObj(pg, 'sw_living'); await act(pg, '燈'); await sleep(500);
-  await toObj(pg, 'floor_living'); await sleep(300); await shot(pg, 'dark_3_case_glow');
+  await toObj(pg, 'floor_living'); await sleep(300); await shot(pg, 'dark_3_case_glow'); await shot(pg, 'dark_luminol');
   await act(pg, '記錄螢光位置'); await sleep(500);
   await toObj(pg, 'sw_living'); await act(pg, '燈'); await sleep(500); await toObj(pg, 'floor_living'); await sleep(200);
   await shot(pg, 'dark_4_lights_back_marker');
@@ -236,7 +236,7 @@ async function deduceAndSubmit(pg, name) {
     await tp2.keyboard.press('d'); await sleep(300);
     const kb = await tp2.evaluate(() => document.body.classList.contains('kb') && localStorage.getItem('fs_input'));
     console.log('觸控筆電按鍵後：', kb); if (kb !== 'kb') errors.push('觸控筆電按鍵後沒有切到鍵盤清單');
-    await tp(tp2, 470, 600); await waitStep(tp2, 1); await tp(tp2, 300, 690); await tp2.keyboard.press('e'); await waitStep(tp2, 2);
+    await tp(tp2, 640, 718); await waitStep(tp2, 1); await tp(tp2, 336, 880); await tp2.keyboard.press('e'); await waitStep(tp2, 2);
     for (const t of ['camera', 'luminol', 'prints']) await tp2.evaluate(t => document.querySelector(`[data-tool="${t}"]`).click(), t);
     await tp2.evaluate(() => document.getElementById('gearOk').click()); await waitStep(tp2, 3); await closeWin(tp2);
     await toObj(tp2, 'body'); await sleep(400);
@@ -251,6 +251,9 @@ async function deduceAndSubmit(pg, name) {
     const bp = await page(br, { viewport: { width: 1280, height: 800 } });
     await bp.goto(BASE + '?seed=' + seed); await sleep(900); await bp.fill('#name', '百九'); await bp.click('#bSolo'); await sleep(700); await bp.click('#win footer [data-close]').catch(() => { }); await sleep(300);
     await checkBody(bp, '正式案件・' + room, seed === 2 ? 'forensic_v3_body_case.png' : `forensic_v3_body_case_seed${seed}.png`);
+    if (seed === 1) { const bc = await bp.evaluate(() => { const b = __fs.ENG.objById(__fs.C, 'body'), t = __fs.ENG.objById(__fs.C, 'table'); __fs.G.camAt = { x: b.x, y: b.y - 40 }; return { room: __fs.ENG.roomAt(__fs.C, b.x, b.y), body: [b.x, b.y, b.w, b.h], table: [t.x, t.y, t.w, t.h], gap: Math.round((b.y - b.h / 2) - t.y) }; });
+      console.log('客廳屍體位置（新地圖）：', JSON.stringify(bc)); if (bc.room !== 'living' || bc.gap < 0) errors.push('屍體不在客廳地板或疊到茶几：' + JSON.stringify(bc));
+      await sleep(600); await shot(bp, 'living_body'); await bp.evaluate(() => { __fs.G.camAt = null; }); }
     await bp.context().close();
   }
   /* ---------- 2c. v10：室內鞋印＋關係人身上的血漬＋關係人視窗 ---------- */
@@ -291,18 +294,18 @@ async function deduceAndSubmit(pg, name) {
     { const r = await vp.evaluate(async () => { for (let i = 0; i < 40; i++) __fs.log('測試訊息 ' + i); const b = document.querySelector('#log'); const atEnd = b.scrollTop + b.clientHeight >= b.scrollHeight - 2; b.scrollTop = 0; await new Promise(r => setTimeout(r, 60)); __fs.log('往上捲時的新訊息'); const stay = b.scrollTop === 0, pill = !document.querySelector('#logNew').classList.contains('hidden'); document.querySelector('#logNew').click(); const back = b.scrollTop + b.clientHeight >= b.scrollHeight - 2; const time = (b.querySelector('.lg time') || {}).textContent; b.innerHTML = ''; return { atEnd, stay, pill, back, time }; });
       console.log('現場紀錄捲動：', JSON.stringify(r)); if (!r.atEnd || !r.stay || !r.pill || !r.back || !/\d+:\d\d/.test(r.time || '')) errors.push('現場紀錄捲動不對：' + JSON.stringify(r)); }
     // 點擊畫布上的物件（畫布往右移了，座標要準）
-    await tp(vp, 1000, 600); await sleep(800);
+    await tp(vp, 1300, 640); await sleep(800);
     { const st = await vp.evaluate(() => __fs.stage()); await vp.addStyleTag({ content: '#act{visibility:hidden!important}' });
       const objs = await vp.evaluate(() => { const C = __fs.C, G = __fs.G; return C.objects.filter(o => !o.deco && !o.van && !G.st.obj[o.id].gone && o.id !== 'floor_living').map(o => { const [cx, cy] = __fs.w2c(o.x, o.flat ? o.y : o.y - Math.min(30, (o.h || 40) / 3)); return { id: o.id, cx, cy }; }); });
       let ok = 0, tot = 0; const miss = [];
       for (const o of objs) { if (o.cx < st.OX + 8 || o.cx > st.OX + st.VW - 8 || o.cy < 8 || o.cy > st.VH - 8) continue; tot++;
         await vp.evaluate(() => { const G = __fs.G; G.autoOpen = null; G.path = null; G.nearId = null; }); await vp.mouse.click(o.cx, o.cy); await sleep(60);
-        const a = await vp.evaluate(() => __fs.G.autoOpen || __fs.G.nearId); if (a === o.id) ok++; else miss.push(o.id + '→' + a); await tp(vp, 1000, 600); }
+        const a = await vp.evaluate(() => __fs.G.autoOpen || __fs.G.nearId); if (a === o.id) ok++; else miss.push(o.id + '→' + a); await tp(vp, 1300, 640); }
       console.log('點擊畫布物件：', ok + '/' + tot, miss.join(' ')); if (tot < 8 || ok < tot) errors.push('點擊畫布物件不準：' + ok + '/' + tot + ' ' + miss.join(' '));
       await vp.evaluate(() => { const s = [...document.querySelectorAll('style')].pop(); if (/visibility:hidden/.test(s.textContent)) s.remove(); }); }
     // 點地板：走到點的位置（世界座標要對）
-    { const [cx, cy] = await vp.evaluate(() => __fs.w2c(1180, 760)); await vp.mouse.click(cx, cy); await sleep(60); const end = await vp.evaluate(() => { const p = __fs.G.path; return p && p.length ? p[p.length - 1] : null; }); console.log('點地板走到：', JSON.stringify(end)); if (!end || Math.hypot(end.x - 1180, end.y - 760) > 30) errors.push('點地板走錯位置：' + JSON.stringify(end)); }
-    await tp(vp, 300, 690); await vp.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
+    { const [cx, cy] = await vp.evaluate(() => __fs.w2c(1440, 608)); await vp.mouse.click(cx, cy); await sleep(60); const end = await vp.evaluate(() => { const p = __fs.G.path; return p && p.length ? p[p.length - 1] : null; }); console.log('點地板走到：', JSON.stringify(end)); if (!end || Math.hypot(end.x - 1440, end.y - 608) > 30) errors.push('點地板走錯位置：' + JSON.stringify(end)); }
+    await tp(vp, 336, 880); await vp.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
     await toObj(vp, 'body'); await act(vp, '量測肝溫', { score: .9 }); await sleep(600);
     // 分局長走進來：泡泡在舞台裡，不會被任何 HUD 蓋住
     await vp.evaluate(() => { const st = __fs.G.st; st.quietUntil = 0; st.forceBoss = { kind: 'progress', pct: 60 }; });
@@ -316,7 +319,7 @@ async function deduceAndSubmit(pg, name) {
       console.log('分局長泡泡：', JSON.stringify(r)); if (r.bad.length || !r.inStage) errors.push('分局長泡泡被蓋住或不在舞台內：' + JSON.stringify(r));
       await shot(vp, 'supervisor_clean'); }
     { const n = await vp.evaluate(() => document.querySelectorAll('#log .lg').length); console.log('現場紀錄筆數：', n); if (n < 3) errors.push('現場紀錄沒有記下事件：' + n); }
-    await tp(vp, 760, 690); await sleep(1200); await vp.evaluate(() => { document.querySelector('#cards').innerHTML = ''; }); await shot(vp, 'desktop_sidebar');
+    await tp(vp, 1000, 720); await sleep(1200); await vp.evaluate(() => { document.querySelector('#cards').innerHTML = ''; }); await shot(vp, 'desktop_sidebar'); await shot(vp, 'desktop_newmap');
     // 側欄模式的小遊戲：在舞台中間，座標照樣準
     await toObj(vp, 'body'); await act(vp, '採集死者血液', { manual: true }); await sleep(400);
     { const r = await vp.evaluate(() => { const m = document.querySelector('.mgw').getBoundingClientRect(), st = __fs.stage(); return { l: Math.round(m.left), r: Math.round(m.right), OX: Math.round(st.OX) }; }); console.log('側欄模式小遊戲位置：', JSON.stringify(r)); if (r.l < r.OX) errors.push('小遊戲蓋到側欄：' + JSON.stringify(r)); }
@@ -339,14 +342,14 @@ async function deduceAndSubmit(pg, name) {
     console.log('屍體檢查［連線］：', JSON.stringify(r)); if (!(r.drawnOnTop && r.onScreen && r.ratio > 0.3)) errors.push('連線時屍體沒有畫出來：' + JSON.stringify(r));
     await sleep(800);
   }
-  for (const [x, y] of [[400, 690], [440, 640], [480, 610], [540, 600], [600, 590], [660, 590], [700, 580], [740, 540], [760, 500], [760, 480]]) { await p2.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }
-  for (const [x, y] of [[400, 700], [440, 650], [480, 620], [540, 610], [600, 610], [640, 640]]) { await p1.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }
+  for (const [x, y] of [[420, 860], [453, 827], [487, 793], [520, 760], [547, 747], [573, 733], [600, 720], [627, 713], [653, 707], [680, 700], [707, 693], [733, 687], [760, 680], [787, 673], [813, 667], [840, 660], [860, 657], [880, 653], [900, 650], [913, 640], [927, 630], [940, 620], [943, 600], [947, 580], [950, 560]]) { await p2.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }
+  for (const [x, y] of [[420, 880], [453, 847], [487, 813], [520, 780], [547, 763], [573, 747], [600, 730], [627, 727], [653, 723], [680, 720], [707, 713], [733, 707], [760, 700]]) { await p1.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }
   await sleep(400); await p2.evaluate(() => __fs.doAct({ type: 'light', obj: 'sw_living' })); await sleep(900);
   const lit = await p1.evaluate(() => __fs.G.st.lights.living); console.log('Cynthia 關燈後，百九看到客廳的燈：', lit ? '亮' : '暗');
   if (lit !== false) errors.push('燈的狀態沒有同步');
   await shot(p1, 'dark_5_online_teammate_switch');
   // 連線：隊友在做小遊戲 → 其他人看到「🔬 分析中」
-  await walkTo(p2, 300, 690); await p2.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'luminol', 'prints'] })); await sleep(500);
+  await walkTo(p2, 336, 880); await p2.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'luminol', 'prints'] })); await sleep(500);
   console.log('Cynthia 裝備：', await p2.evaluate(() => __fs.G.st.players[__fs.G.me].tools.join(',')));
   await walkToObj(p2, 'body'); await act(p2, '近拍傷口', { manual: true });
   { const o = await p1.evaluate(() => { const o = __fs.ENG.objById(__fs.C, 'body'); return { x: o.x, y: o.y }; }); await walkTo(p1, o.x + 150, o.y + 80, 60); }
@@ -361,7 +364,7 @@ async function deduceAndSubmit(pg, name) {
   await ip.goto(BASE); await sleep(1200); await ip.fill('#name', '百九');
   await shot(ip, 'iphone_lobby');
   await ip.tap('#bTut'); await sleep(900); await shot(ip, 'iphone_tutorial');
-  await tp(ip, 470, 600); await waitStep(ip, 1); await ip.evaluate(() => __fs.openVan()); await waitStep(ip, 2);
+  await tp(ip, 640, 718); await waitStep(ip, 1); await tp(ip, 336, 880); await sleep(300); await ip.evaluate(() => __fs.openVan()); await waitStep(ip, 2);
   for (const t of ['camera', 'luminol', 'prints']) await ip.tap(`[data-tool="${t}"]`); await ip.tap('#gearOk'); await waitStep(ip, 3); await closeWin(ip);
   await checkBody(ip, '教學・iPhone', 'forensic_v3_iphone_body.png');
   await toObj(ip, 'body'); await sleep(400);
@@ -392,7 +395,7 @@ async function deduceAndSubmit(pg, name) {
   { const r = await ip2.evaluate(() => { const im = document.querySelector('#win .su img'); return im && Math.round(im.getBoundingClientRect().height); }); console.log('iPhone 關係人照片高度：', r); if (!r || r > 150) errors.push('iPhone 關係人照片太大：' + r); }
   await closeWin(ip2);
   // iPhone：肝溫小遊戲（按住按鈕＝真的觸控按住）
-  await tp(ip2, 300, 690); await ip2.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
+  await tp(ip2, 336, 880); await ip2.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
   await toObj(ip2, 'body'); await act(ip2, '量測肝溫', { manual: true });
   { const b = await ip2.locator('#mgF [data-id="hold"]').boundingBox(); await ip2.evaluate(() => { const b = document.querySelector('#mgF [data-id="hold"]'); b.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, pointerType: 'touch', bubbles: true })); }); await sleep(1200);
     await shot(ip2, 'iphone_mg_thermo'); await ip2.evaluate(() => { const b = document.querySelector('#mgF [data-id="hold"]'); b.dispatchEvent(new PointerEvent('pointerup', { pointerId: 9, pointerType: 'touch', bubbles: true })); }); }
