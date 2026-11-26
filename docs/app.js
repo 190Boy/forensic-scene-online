@@ -1,9 +1,10 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '6';
+const VER = '7';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
 const AGENT_COL = ['#2bb3a3', '#f2a541', '#8a6fd1', '#f2d045'];
 const qs = new URLSearchParams(location.search);
 const LS = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }, del(k) { try { localStorage.removeItem(k); } catch (e) { } } };
@@ -409,35 +410,35 @@ function render(now) {
       if (hl) ctx.restore();
     } else if (it.kind === 'p') {
       const p = it.p, bob = it.mv ? Math.abs(Math.sin(t * 10)) * 5 : 0;
-      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 22, 7, 0, 0, Math.PI * 2); ctx.fill();
-      drawImg('agent_' + (p.ci + 1), it.x, it.y - bob, 66, 88, { flip: it.dir < 0 });
-      late.push(['label', p.pid === G.me ? p.name + '（你）' : p.name, it.x, it.y - 100, AGENT_COL[p.ci]]);
-      const b = G.bubbles[p.pid]; if (b && b.until > now) late.push(['bubble', b.text, it.x, it.y - 128]);
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 26, 8, 0, 0, Math.PI * 2); ctx.fill();
+      drawImg('agent_' + (p.ci + 1), it.x, it.y - bob, 84, CH, { flip: it.dir < 0 });
+      late.push(['label', p.pid === G.me ? p.name + '（你）' : p.name, it.x, it.y - CH - 12, AGENT_COL[p.ci]]);
+      const b = G.bubbles[p.pid]; if (b && b.until > now) late.push(['bubble', b.text, it.x, it.y - CH - 40]);
       if (Voice.speak[p.pid]) { ctx.strokeStyle = '#8ff0a8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(it.x, it.y, 28, 10, 0, 0, Math.PI * 2); ctx.stroke(); }
     } else if (it.kind === 'n') {
       const n = it.n, bob = it.mv ? Math.abs(Math.sin(t * 8)) * 4 : 0, s = C.suspects.find(x => x.id === n.id);
-      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 20, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
       if (near === 'npc:' + n.id) { ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 20; }
-      drawImg('npc_' + n.id, it.x, it.y - bob, 62, 92);
+      const nh = n.id === 'daughter' ? CH * .94 : CH; drawImg('npc_' + n.id, it.x, it.y - bob, nh * 2 / 3, nh);
       if (near === 'npc:' + n.id) ctx.restore();
       const tag = n.mode === 'flee' ? '🏃 ' : n.mode === 'nervous' ? '😰 ' : n.mode === 'held' ? '🔒 ' : '';
-      label(tag + (s ? s.name : ''), it.x, it.y - 102, n.mode === 'flee' || n.mode === 'nervous' ? '#ffb3a8' : '#e6dcc8');
-      if (n.mode === 'nervous') { ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('😰', it.x + 30, it.y - 118 - Math.abs(Math.sin(t * 3)) * 4); }
+      label(tag + (s ? s.name : ''), it.x, it.y - nh - 12, n.mode === 'flee' || n.mode === 'nervous' ? '#ffb3a8' : '#e6dcc8');
+      if (n.mode === 'nervous') { ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('😰', it.x + 34, it.y - nh - 28 - Math.abs(Math.sin(t * 3)) * 4); }
     } else if (it.kind === 'c') {
       const c = it.c, d = copDef(c.id), bob = it.mv ? Math.abs(Math.sin(t * 7)) * 3 : 0;
-      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 20, 7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 24, 8, 0, 0, Math.PI * 2); ctx.fill();
       if (c.mode === 'in') { const a = .35 + .15 * Math.sin(t * 2.2); ctx.strokeStyle = `rgba(242,165,65,${a})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(it.x, it.y, 34, 12, 0, 0, Math.PI * 2); ctx.stroke(); }
-      drawImg(d.img, it.x, it.y - bob, 60, 90, { flip: (c.vx != null && c.tx != null ? c.tx < c.vx : false) });
-      late.push(['label', (c.mode === 'in' ? '⚠️ 菜鳥 ' : c.known ? '😅 ' : '') + d.name, it.x, it.y - 100, c.mode === 'in' ? '#ffd58a' : '#cfe0ff', c.mode === 'in' ? 'rgba(80,55,15,.88)' : 'rgba(10,14,22,.6)']);
-      if (c.mode === 'in') late.push(['img', 'ui_alert', it.x, it.y - 120 - Math.abs(Math.sin(t * 2)) * 5, 34]);
+      drawImg(d.img, it.x, it.y - bob, CH * 2 / 3, CH, { flip: (c.vx != null && c.tx != null ? c.tx < c.vx : false) });
+      late.push(['label', (c.mode === 'in' ? '⚠️ 菜鳥 ' : c.known ? '😅 ' : '') + d.name, it.x, it.y - CH - 12, c.mode === 'in' ? '#ffd58a' : '#cfe0ff', c.mode === 'in' ? 'rgba(80,55,15,.88)' : 'rgba(10,14,22,.6)']);
+      if (c.mode === 'in') late.push(['img', 'ui_alert', it.x, it.y - CH - 32 - Math.abs(Math.sin(t * 2)) * 5, 34]);
     } else if (it.kind === 'b') {
       const B = it.b, bob = it.mv ? Math.abs(Math.sin(t * 6)) * 3 : 0;
       ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
       if (near === 'boss') { ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 20; }
-      drawImg('npc_supervisor', it.x, it.y - bob, 66, 98);
+      drawImg('npc_supervisor', it.x, it.y - bob, CH * 2 / 3, CH);
       if (near === 'boss') ctx.restore();
-      late.push(['label', '分局長・鄭督察', it.x, it.y - 106, '#e8dcc0']);
-      if (B.mode === 'in' && B.demand) late.push(['boss', B, it.x, it.y - 150]);
+      late.push(['label', '分局長・鄭督察', it.x, it.y - CH - 12, '#e8dcc0']);
+      if (B.mode === 'in' && B.demand) late.push(['boss', B, it.x, it.y - CH - 50]);
     }
   }
   // 關燈的房間：暗下來，只有手電筒照得到（燈亮的房間維持正常亮度）
@@ -462,7 +463,7 @@ function render(now) {
     if (isDark) for (const fx of S.revealed) {
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .6 + .15 * Math.sin(t * 1.6);
       const big = fx === 'fx_luminol_pool';
-      if (o.flat) drawImg(fx, o.x, o.y, big ? o.w : Math.max(110, o.w * .8), big ? o.h : Math.max(80, o.h), { flat: true }); else drawImg(fx, o.x, o.y - o.h * .1, 120, 120);
+      if (o.flat) drawImg(fx, o.x, o.y, big ? o.w : Math.max(70, o.w * .8), big ? o.h : Math.max(50, o.h), { flat: true }); else { const gz = Math.max(56, Math.min(110, Math.max(o.w, o.h) * 1.4)); drawImg(fx, o.x, o.y - o.h * .35, gz, gz); }
       ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 30; ctx.globalAlpha = .25; ctx.fillStyle = '#4fd2ff'; ctx.beginPath(); ctx.ellipse(o.x, o.flat ? o.y : o.y - o.h * .4, big ? o.w * .4 : 40, big ? o.h * .35 : 30, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       if (!S.marked && !G.glinted.has('g' + o.id) && Math.hypot(G.Me.x - o.x, G.Me.y - o.y) < 320) { G.glinted.add('g' + o.id); Snd.glint(); }
     }
@@ -512,7 +513,7 @@ function render(now) {
   const B = G.st.boss; if (B && B.mode === 'in') marks.push([B.vx != null ? B.vx : B.x, B.vy != null ? B.vy : B.y, '👔', '#5a6a8a']);
   for (const n of G.st.npcs || []) if (n.mode === 'flee' || n.mode === 'nervous') marks.push([n.vx != null ? n.vx : n.x, n.vy != null ? n.vy : n.y, '🏃', '#b8574f']);
   if (tg) marks.push([tg.x, tg.y + 40, '⬇️', '#1f8f82']);
-  for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); const [fx, fy] = W2S(x, y), [hx, hy] = W2S(x, y - 130); if (fx > -20 && fx < VW + 20 && fy > -10 && hy < VH + 10) continue; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(90, Math.min(VH - 90, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
+  for (const [x, y, ic, col] of marks) { let [px, py] = W2S(x, y - 40); const [fx, fy] = W2S(x, y), [hx, hy] = W2S(x, y - CH - 30); if (fx > -20 && fx < VW + 20 && fy > -10 && hy < VH + 10) continue; px = Math.max(30, Math.min(VW - 30, px)); py = Math.max(90, Math.min(VH - 90, py)); ctx.globalAlpha = .85; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, 19, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ic, px, py + 1); }
 }
 // 分局長頭上的泡泡：要求圖示＋文字，下方一條慢慢變短的「耐心」條（不顯示秒數）
 function bossBubble(B, x, y, t) {
@@ -553,9 +554,9 @@ function tapAt(cx, cy) {
   if (!G.st) return;
   const [wx, wy] = S2W(cx, cy);
   // 點到人？
-  for (const q of people()) { if (q.kind !== 'n') continue; if (Math.abs(wx - q.x) < 30 && wy < q.y + 8 && wy > q.y - 92) { goTo(q.x, q.y + 30, 'npc:' + q.n.id); return; } }
+  for (const q of people()) { if (q.kind !== 'n') continue; if (Math.abs(wx - q.x) < 36 && wy < q.y + 8 && wy > q.y - CH) { goTo(q.x, q.y + 30, 'npc:' + q.n.id); return; } }
   // 點到物件？（後面畫的優先）
-  const hits = C.objects.filter(o => !G.st.obj[o.id].gone && (o.flat ? Math.abs(wx - o.x) < o.w / 2 && Math.abs(wy - o.y) < o.h / 2 : Math.abs(wx - o.x) < o.w / 2 && wy < o.y + 10 && wy > o.y - o.h)).sort((a, b) => b.y - a.y);
+  const hits = C.objects.filter(o => !G.st.obj[o.id].gone && (o.flat ? Math.abs(wx - o.x) < Math.max(o.w, 44) / 2 && Math.abs(wy - o.y) < Math.max(o.h, 36) / 2 : Math.abs(wx - o.x) < Math.max(o.w, 44) / 2 && wy < o.y + 10 && wy > o.y - Math.max(o.h, 44))).sort((a, b) => b.y - a.y);
   const o = hits.find(o => !o.deco) || hits[0];
   if (o && !(o.flat && o.deco)) { goTo(o.x, o.y + (o.flat ? 0 : 20), o.id, o.r || (o.van ? 150 : 90)); return; }
   goTo(wx, wy, null);

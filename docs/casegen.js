@@ -68,6 +68,9 @@ const PEOPLE = [
 const BLOOD = ['A', 'B', 'O', 'AB'];
 
 /* ---------- 固定地圖 ---------- */
+// 比例尺：成年角色身高 H＝112（世界座標）。所有物件依真實比例換算（寬或高 × H），長寬比照圖檔實際內容
+const H_REF = 112;
+const SIZES = {"prop_body": [100, 73], "prop_carpet": [325, 215], "prop_rug_study": [224, 96], "prop_mud_prints": [168, 109], "prop_sofa": [146, 86], "prop_coffee_table": [106, 62], "prop_bookshelf": [54, 123], "prop_back_door": [21, 129], "prop_garden_gate": [106, 112], "prop_fireplace": [134, 135], "prop_desk": [146, 115], "prop_counter": [150, 127], "prop_shoe_rack": [90, 63], "prop_statue": [35, 67], "prop_poker": [43, 67], "prop_curtain_cord": [14, 67], "prop_knife_block": [39, 36], "prop_mop_bucket": [50, 69], "prop_trash_can": [40, 56], "prop_wine_glasses": [29, 27], "prop_teacup": [23, 19], "prop_necktie": [43, 29], "prop_letter_opener": [29, 6], "prop_phone": [22, 16], "prop_planted_item": [19, 7], "prop_light_switch": [11, 22], "prop_police_tape": [40, 101], "prop_bush": [101, 108], "prop_tree": [186, 258], "van_exterior": [325, 224], "prop_floor_mark": [123, 119]};
 const BASE = {
   carryTools: 3, bagSlots: 3, lumCharges: 3, labCost: { 1: 3, 2: 5 }, sampleLabAP: 3,
   start: [{ x: 300, y: 690 }, { x: 350, y: 720 }, { x: 260, y: 740 }, { x: 390, y: 680 }],
@@ -88,8 +91,8 @@ const BASE = {
       { x: 900, y: 752, w: 110, h: 120, v: false }, { x: 1252, y: 900, w: 56, h: 110, v: true }
     ],
     solids: [
-      { x: 70, y: 548, w: 280, h: 70 }, { x: 880, y: 340, w: 200, h: 46 }, { x: 1120, y: 340, w: 130, h: 30 },
-      { x: 1500, y: 350, w: 140, h: 50 }, { x: 1360, y: 340, w: 110, h: 20 }, { x: 1040, y: 860, w: 200, h: 30 }
+      { x: 50, y: 548, w: 300, h: 70 }, { x: 910, y: 350, w: 140, h: 38 }, { x: 1160, y: 344, w: 52, h: 26 },
+      { x: 1498, y: 352, w: 144, h: 44 }, { x: 1352, y: 336, w: 126, h: 20 }, { x: 1068, y: 876, w: 144, h: 26 }
     ]
   },
   tools: [
@@ -128,12 +131,12 @@ const FLOOR = {
 const BODY_AT = { living: { x: 985, y: 610 }, study: { x: 1455, y: 545 }, kitchen: { x: 880, y: 975 } };
 const DECO = [
   { id: 'tape', room: 'street', x: 432, y: 520, img: 'prop_police_tape', w: 60, h: 150, name: '封鎖線', deco: true },
-  { id: 'tree', room: 'street', x: 90, y: 330, img: 'prop_tree', w: 150, h: 190, name: '路樹', deco: true },
+  { id: 'tree', room: 'street', x: 90, y: 470, img: 'prop_tree', w: 150, h: 190, name: '路樹', deco: true },
   { id: 'shoerack', room: 'foyer', x: 640, y: 528, img: 'prop_shoe_rack', w: 100, h: 90, name: '鞋櫃', deco: true, desc: '鞋櫃擺得很整齊。' },
   { id: 'sofa', room: 'living', x: 980, y: 386, img: 'prop_sofa', w: 230, h: 120, name: '沙發', deco: true, desc: '真皮沙發，坐墊有兩個人坐過的凹痕。' },
   { id: 'bookshelf', room: 'living', x: 1185, y: 370, img: 'prop_bookshelf', w: 130, h: 190, name: '書櫃', deco: true, desc: '擺滿藝術畫冊。' },
   { id: 'table', room: 'living', x: 990, y: 486, img: 'prop_coffee_table', w: 150, h: 70, name: '茶几', deco: true },
-  { id: 'counter', room: 'kitchen', x: 1140, y: 884, img: 'prop_counter', w: 210, h: 110, name: '流理台', deco: true, desc: '流理台上放著一瓶漂白水，冰箱上貼著值日表。' },
+  { id: 'counter', room: 'kitchen', x: 1140, y: 900, img: 'prop_counter', w: 210, h: 110, name: '流理台', deco: true, desc: '流理台上放著一瓶漂白水，冰箱上貼著值日表。' },
   { id: 'backdoor', room: 'kitchen', x: 1270, y: 955, img: 'prop_back_door', w: 30, h: 130, name: '後門', deco: true, desc: '後門沒有上鎖。' },
   { id: 'gate', room: 'yard', x: 1600, y: 760, img: 'prop_garden_gate', w: 90, h: 120, name: '側門', deco: true, desc: '通往小巷的側門，門閂是打開的。' },
   { id: 'bush', room: 'yard', x: 1340, y: 1040, img: 'prop_bush', w: 110, h: 80, name: '樹叢', deco: true }
@@ -177,8 +180,8 @@ function generate(seed, diff) {
   const ev = (id, name, icon, text, f) => { E[id] = { name, icon, text, f: f || {} }; return id; };
   const who = s => `${s.name}（${s.role}）`;
   O.push({ id: 'van', room: 'street', x: 200, y: 600, img: 'van_exterior', w: 320, h: 200, name: '行動鑑識車', van: true, desc: '換裝備、用車上設備分析樣本、把證物交給快遞員送實驗室。' });
-  O.push({ id: 'courier', room: 'street', x: 380, y: 610, img: 'npc_courier', w: 78, h: 112, name: '實驗室快遞員・小吳', van: true, npc: true, desc: '「證物交給我，我騎車送回局裡實驗室。」' });
-  O.push({ id: 'chief', room: 'street', x: 90, y: 700, img: 'npc_supervisor', w: 80, h: 116, name: '分局長・鄭督察', van: true, npc: true, desc: '「時間就是證據。我要的東西，準時交上來。」' });
+  O.push({ id: 'courier', room: 'street', x: 380, y: 610, img: 'npc_courier', w: 80, h: 112, name: '實驗室快遞員・小吳', van: true, npc: true, desc: '「證物交給我，我騎車送回局裡實驗室。」' });
+  O.push({ id: 'chief', room: 'street', x: 90, y: 700, img: 'npc_supervisor', w: 75, h: 112, name: '分局長・鄭督察', van: true, npc: true, desc: '「時間就是證據。我要的東西，準時交上來。」' });
   // 屍體
   const B = BODY_AT[bodyRoom];
   const wound = { blunt: 'blunt', stab: 'sharp', strangle: 'ligature', poison: 'nowound', staged: 'blunt' }[method.id];
@@ -209,7 +212,7 @@ function generate(seed, diff) {
     ev('E_nails_none', '指甲縫乾淨', 'ev_photo', '指甲縫裡沒有皮屑，死者沒有掙扎過。', {});
     bodyActs.push({ id: 'nails', tool: 'camera', ap: 1, label: '檢查指甲縫', ev: ['E_nails_none'] });
   }
-  O.push({ id: 'body', room: bodyRoom, x: B.x, y: B.y, img: 'prop_body', w: 210, h: 104, name: '屍體（死者・林志遠）', flat: true, label: '屍體（死者）', r: 120, desc: '死者倒在地上，已經沒有生命跡象。', acts: bodyActs });
+  O.push({ id: 'body', room: bodyRoom, x: B.x, y: B.y, img: 'prop_body', w: 100, h: 73, name: '屍體（死者・林志遠）', flat: true, label: '屍體（死者）', r: 105, desc: '死者倒在地上，已經沒有生命跡象。', acts: bodyActs });
   // 地板（每個房間一塊）
   for (const k of BASE.rooms3) {
     const F = FLOOR[k]; const isCrime = k === crime && method.blood;
@@ -351,8 +354,10 @@ function generate(seed, diff) {
   const posts = shuffle(r2, COP_POSTS).slice(0, D.cops), names = shuffle(r2, COP_NAMES);
   C.cops = posts.map((pp, i) => ({ id: 'cop' + i, name: names[i], img: 'npc_officer_' + (1 + Math.floor(r2() * 5)), posts: pp }));
   C.rookies = D.rookies; C.reports = REPORTS;
+  for (const o of O) { const z = SIZES[o.img]; if (z) { o.w = z[0]; o.h = z[1]; } }
+  C.H = H_REF;
   return C;
 }
-const API = { generate, DIFF, REPORTS, COP_POSTS, METHODS, SIGS, PEOPLE, WEAPONS, BASE, rng, hhmm };
+const API = { generate, SIZES, H_REF, DIFF, REPORTS, COP_POSTS, METHODS, SIGS, PEOPLE, WEAPONS, BASE, rng, hhmm };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.FS_GEN = API;
 })(typeof self !== 'undefined' ? self : this);
