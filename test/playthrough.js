@@ -151,6 +151,16 @@ const stale = pg => pg.evaluate(() => ({ cards: document.querySelectorAll('#card
     const L = await Promise.all([p1, p2].map(p => p.evaluate(() => __fs.G.st.lights.living)));
     console.log('D 兩人同時按電燈：', JSON.stringify(L)); if (L[0] !== L[1]) errors.push('D：兩人看到的燈不一樣 ' + JSON.stringify(L));
     await p1.click('#bClose'); await sleep(1000);
+    // v17：推理視窗關掉之後（房主、隊友都一樣）按「⚖️ 回到結案推理」回得去，草稿還在
+    { const cul = await p1.evaluate(() => __fs.C.suspects[1].id); await p1.click('[data-cul="' + cul + '"]'); await sleep(400);
+      for (const [p, t] of [[p2, '隊友'], [p1, '房主']]) {
+        await p.waitForFunction(() => __fs.G.ovKind === 'deduce', null, { timeout: 5000 }).catch(() => errors.push('D：' + t + '沒打開推理'));
+        await closeWin(p); await p.click('#bNote'); await sleep(300); await closeWin(p);
+        const lb = await p.evaluate(() => { const b = document.querySelector('#bClose'); return { vis: !!b.offsetParent && !b.disabled, t: b.textContent, ov: __fs.G.ovKind }; });
+        if (!lb.vis || !/回到結案推理/.test(lb.t) || lb.ov) errors.push('D：' + t + '關掉推理後沒有「回到結案推理」按鈕 ' + JSON.stringify(lb));
+        await p.click('#bClose'); await sleep(400);
+        const r = await p.evaluate(c => ({ ov: __fs.G.ovKind, draft: __fs.G.st.draft.culprit === c, on: !!document.querySelector('#win .su.on[data-cul="' + c + '"]') }), cul);
+        console.log('D ' + t + ' 回到推理：', JSON.stringify(r)); if (r.ov !== 'deduce' || !r.draft || !r.on) errors.push('D：' + t + '按結案推理回不到推理／草稿不見 ' + JSON.stringify(r)); } }
     await deduceAndSubmit(p1, null);
     await p2.waitForFunction(() => __fs.G.st.phase === 'result' && __fs.G.ovKind, null, { timeout: 6000 }).catch(() => errors.push('D：隊友沒看到結案畫面'));
     await clickable(p1, '#again', 'D 房主再玩一局'); await p1.click('#again'); await sleep(1500);

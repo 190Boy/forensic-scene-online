@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '16';
+const VER = '17';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -95,7 +95,8 @@ function qualHtml(q, sc, obj, act) {
   if (!q) return ''; const pct = sc != null ? `（${Math.round(sc * 100)}%）` : '';
   const s = obj && G.st.obj[obj], a = obj && (ENG.objById(C, obj).acts || []).find(x => x.id === act), redo = s && a && ENG.canRedo(C, s, a);
   const hint = q === 'good' ? '・結果清楚可靠' : q === 'fair' ? (redo ? '・結果不完整：可以 🔁 重做一次，或用其他證據交叉確認' : '・結果不完整：用其他證據交叉確認') : (redo ? '・這份結果不太可靠：建議 🔁 重做，或送實驗室確認' : '・這份結果不太可靠：別只靠它下結論');
-  return `<div class="qline q-${q}">樣本品質：<span class="qv">${ENG.QN[q]}</span>${pct}${hint}</div>`;
+  const easy = C.mgEasy && sc != null && sc < ENG.MG_GOOD ? '<div class="qline tutEasy" style="opacity:.75;font-size:11.5px">（教學保底通過；正式案件誤差太高會讓結果失準）</div>' : '';
+  return `<div class="qline q-${q}">樣本品質：<span class="qv">${ENG.QN[q]}</span>${pct}${hint}</div>${easy}`;
 }
 function nextStep(smp, use) {
   if (smp.kind === 'blood' && use && /^stain_/.test(use.obj)) return '帶回車上用<b>離心機</b>看血型（和死者比對），或直接<b>送實驗室驗 DNA</b>，確定是不是死者的血';
@@ -824,7 +825,10 @@ function refresh() {
   for (let i = used; i < C.bagSlots; i++) bar.push('<div class="slot bag" title="證物袋空格"></div>');
   if (p.samples.length) bar.push(`<div class="slot" title="樣本：${esc(p.samples.map(s => s.label).join('、'))}">🧫<small>${p.samples.length}</small></div>`);
   $('#bar').innerHTML = bar.join('');
-  $('#bClose').style.display = G.st.phase === 'play' && isHost() ? '' : 'none';
+  { // v17：關掉推理視窗後還能回來（所有人都看得到「回到結案推理」／「結案報告」）
+    const ph = G.st.phase, bc = $('#bClose'); bc.style.display = ph === 'play' ? (isHost() ? '' : 'none') : ''; bc.disabled = false;
+    const want = ph === 'deduce' ? '⚖️<span class="lbl">回到結案推理</span>' : ph === 'result' ? '📁<span class="lbl">結案報告</span>' : '⚖️<span class="lbl">結案推理</span>';
+    if (bc.dataset.lb !== want) { bc.innerHTML = want; bc.dataset.lb = want; } }
   refreshAct(); hudPress(); Voice.render();
   if (G.ovKind && G.ovKind !== 'result' && G.ovKind !== 'brief' && G.ovKind !== 'person') G.ovRender && G.ovRender();
 }
@@ -1106,7 +1110,7 @@ function openDeduce() {
   const draw = () => {
     const st = G.st, D = st.draft; if (!st || st.phase !== 'deduce') return;
     const opt = (field, list) => `<div class="opts">${list.map(x => `<button data-df="${field}" data-v="${x.id}" class="${D[field] === x.id ? 'on' : ''}">${esc(x.t)}</button>`).join('')}</div>`;
-    const html = hdr('⚖️ 結案推理報告', true) + `<div class="body">
+    const html = hdr('⚖️ 結案推理報告') + `<div class="body">
       <p class="note">${G.mode === 'online' ? '大家可以一起改這份報告（即時同步），最後由房主送出。' : '填好後送出。'}可以打開「鑑識手冊」對照。</p>
       <details><summary style="cursor:pointer;color:var(--amber)">📖 打開鑑識手冊／目前推論</summary>${manualHtml()}</details>
       <h4>1. 兇手是誰？（40 分）</h4><div class="sus">${C.suspects.map(s => suspectCard(s, true)).join('')}</div>
@@ -1123,7 +1127,7 @@ function openDeduce() {
 }
 function openResult() {
   const R = G.st.result; if (!R) return;
-  const html = hdr('📁 結案報告', true) + `<div class="body res"><div class="rank">${R.rank}</div><p style="text-align:center;font-size:20px;margin:4px 0 12px">${R.total} / 100 分${R.bonus ? `<br><small style="color:var(--dim);font-size:13px">基本 ${R.base}＋獎勵 ${R.bonus}${R.pen ? ` ${R.pen}` : ''}${R.raw > 100 ? '（滿分 100）' : ''}</small>` : ''}</p>
+  const html = hdr('📁 結案報告') + `<div class="body res"><div class="rank">${R.rank}</div><p style="text-align:center;font-size:20px;margin:4px 0 12px">${R.total} / 100 分${R.bonus ? `<br><small style="color:var(--dim);font-size:13px">基本 ${R.base}＋獎勵 ${R.bonus}${R.pen ? ` ${R.pen}` : ''}${R.raw > 100 ? '（滿分 100）' : ''}</small>` : ''}</p>
     <table>${R.rows.map(r => `<tr><td>${r.label}</td><td class="${r.ok ? 'ok' : 'ng'}">${r.ok ? '✔' : '✖'} ${esc(r.pick)}${r.ok ? '' : `<br><small>正解：${esc(r.right)}</small>`}</td><td style="text-align:right">${r.pts}/${r.max}</td></tr>`).join('')}
     <tr><td>關鍵證據</td><td>${R.keys.map(k => `${esc(k.name)}（+${k.pts}）`).join('<br>') || '—'}</td><td style="text-align:right">${R.keyPts}/15</td></tr>
     ${R.timeB != null ? `<tr><td>結案速度</td><td>分局長耐心還剩 ${Math.round(G.st.patience)}%</td><td style="text-align:right">+${R.timeB || 0}/10</td></tr><tr><td>實驗室額度</td><td>花了 ${R.spent} 點（剩 ${G.st.budget}／${G.st.budgetMax}）</td><td style="text-align:right">+${R.budB || 0}/5</td></tr>` : ''}
@@ -1134,7 +1138,13 @@ function openResult() {
   openOv('result', html);
 }
 $('#bNote').onclick = () => openNote();
-$('#bClose').onclick = () => { if (confirm('結案進入推理？之後就不能再採證了。\n（越早結案、省下越多實驗室額度，分數越高）')) doAct({ type: 'close' }); };
+$('#bClose').onclick = () => {
+  const ph = G.st && G.st.phase;
+  if (ph === 'deduce') return openDeduce();   // 已經在推理：直接回到推理報告（草稿 st.draft 都還在）
+  if (ph === 'result') return openResult();
+  if (ph !== 'play' || !isHost()) return;
+  if (confirm('結案進入推理？之後就不能再採證了。\n（越早結案、省下越多實驗室額度，分數越高）')) doAct({ type: 'close' });
+};
 $('#bMenu').onclick = () => {
   openOv('menu', hdr('☰ 選單') + `<div class="body"><div class="opts">
     <button data-m="brief">📋 案件簡報與玩法</button>
@@ -1337,7 +1347,7 @@ const Tut = {
     { t: '打開 <b>📒 筆記本</b>：「👮 員警」是報告、「🧬 比對」幫你對照樣本，最後切到 <b>📖 鑑識手冊</b>——每種手法 3 個特徵，✔ 確認、✖ 排除。', enter() { for (const l of G.st.labs) if (!l.back) l.due = G.st.clock; }, done: () => G.tut.sawMan, hl: ['#bNote', '[data-tab="cop"]', '[data-tab="cmp"]', '[data-tab="man"]'] },
     { t: '線索齊了（左上「案情進度」）。關掉筆記本，按 <b>⚖️ 結案推理</b>。', done: () => G.st.phase !== 'play', hl: ['#bClose', '#win [data-close]'] },
     { t: '照鑑識手冊選：兇手、行兇方式、兇器、第一現場，再勾 1～3 項關鍵證據，按 <b>📨 送出推理報告</b>。', done: () => G.st.phase === 'result', hl: ['#submit'] },
-    { t: '🎉 <b>教學完成！</b>正式案件裡兇手、手法、房間每局都不同。<br>・<b>員警</b>：先聽報告；派人 <b>🚪 守大門</b>攔下溜進來的人，或 <b>👶 盯菜鳥</b>免得他亂碰證物。<br>・<b>關係人</b>：<b>👀 觀察</b>找破綻；頭上冒 <b>😰</b> 就去 <b>🗣️ 周旋</b>，或叫員警攔住他。<br>・<b>分局長</b>：要求做到就去碰他交差；不理他，<b>耐心</b>掉光就得結案。<br>・人越少節奏越慢（單人約 ×2.1），工具次數也比較多。<br>分數＝答對多少＋早點結案＋省下的實驗室額度。', last: true }
+    { t: '🎉 <b>教學完成！</b>正式案件每局兇手、手法、房間都不同。<br>・<b>員警</b>：先聽報告；派他 <b>🚪 守大門</b>或 <b>👶 盯菜鳥</b>。<br>・<b>關係人</b>：<b>👀 觀察</b>找破綻，冒 <b>😰</b> 就 <b>🗣️ 周旋</b>。<br>・<b>分局長</b>：做到要求就碰他交差；<b>耐心</b>掉光就得結案。<br>・人越少節奏越慢、工具越多；分數＝答對＋早結案＋省實驗室額度。', last: true }
   ],
   start() {
     Snd.init(); this.stop(); G.mode = 'solo'; G.me = 0; G.host = true; G.room = null;
@@ -1345,7 +1355,7 @@ const Tut = {
     G.tut = { i: 0, ev: [], sawMan: false }; G.seen = new Set(); G.glinted = new Set(); document.body.classList.add('tutOn');
     enterGame(false); this.render(); Snd.startAmb();
   },
-  stop() { G.tut = null; document.body.classList.remove('tutOn'); const b = $('#tut'); if (b) b.classList.add('hidden'); document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl')); },
+  stop() { G.tut = null; document.body.classList.remove('tutOn', 'tutLast'); const b = $('#tut'); if (b) b.classList.add('hidden'); document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl')); },
   cur() { return G.tut && this.steps[G.tut.i]; },
   target() { const s = this.cur(); if (!s || !s.at || !G.st) return null; const p = s.at(); if (!p) return null; const o = p.h ? { x: p.x, y: p.y - (p.flat ? 0 : p.h) } : p; return o; },
   tick() {
@@ -1358,7 +1368,7 @@ const Tut = {
   render() {
     const s = this.cur(), b = $('#tut'); if (!s) return;
     b.innerHTML = `<img src="${url('mentor_portrait')}" alt=""><div class="tx"><div class="st">🎓 新手教學　${G.tut.i + 1} / ${this.steps.length}　・沈組長</div>${sbTxt(s.t)}<div>${s.last ? '<button class="pri" id="tutHome">🏠 回首頁開始正式案件</button>' : '<button id="tutSkip" style="font-size:12px;padding:4px 8px">跳過教學</button>'}</div></div>`;
-    b.classList.remove('hidden');
+    b.classList.remove('hidden'); document.body.classList.toggle('tutLast', !!s.last);   // 結案後：側欄不再顯示待處理／結果卡，教學總整理完整顯示
   }
 };
 $('#tut').addEventListener('click', e => { if (e.target.closest('#tutSkip') && confirm('跳過新手教學？')) { Tut.stop(); backHome(); } if (e.target.closest('#tutHome')) { Tut.stop(); closeOv(); backHome(); } });

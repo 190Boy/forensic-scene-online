@@ -327,7 +327,16 @@ body.sb .evc.rc .rh{gap:8px;align-items:flex-start;padding-right:18px}
 body.sb .evc.rc .rh>div{min-width:0;overflow-wrap:anywhere}
 body.sb .evc.rc .where{font-size:11.5px;line-height:1.5;overflow-wrap:anywhere}
 body.sb .evc.rc .qual,body.sb .evc.rc>div:not(.rh):not(.where){max-width:100%;overflow-wrap:anywhere;font-size:12px}
-body.sb .tl,body.sb #tut{flex:0 1 auto;min-height:0}
+/* v17：側欄只有「現場紀錄」會被壓縮；新手教學框永遠完整顯示，待處理／結果卡自己捲動，快捷列永遠在畫面內 */
+body.sb #tut{flex:0 0 auto;flex-shrink:0;min-height:auto;max-height:none;overflow:visible}
+body.sb #hud>.tl{flex:0 0 auto}
+body.sb.tutOn #obj{display:none}
+body.sb #hud>#cards{flex:0 1 auto;min-height:min(56px,6vh)}
+body.sb #hud>#logW{flex:1 1 0;min-height:72px}
+body.sb #log{flex:1 1 0;min-height:0;overflow-y:auto}
+body.sb #hud>#tut{flex:0 0 auto}
+body.sb.tutLast #hud>#cards,body.sb.tutLast #labs{display:none}
+@media (max-height:780px){body.sb #hud>#logW{min-height:30px}body.sb #hud{gap:6px}}
 body.sb .ov,body.sb #mg{left:var(--sbw)}
 body.sb #chat{right:12px;bottom:12px}
 </style>
@@ -412,10 +421,10 @@ body.sb #chat{right:12px;bottom:12px}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=16"></script>
-<script src="engine.js?v=16"></script>
-<script src="assets.js?v=16"></script>
-<script src="minigames.js?v=16"></script>
-<script src="app.js?v=16"></script>
+<script src="casegen.js?v=17"></script>
+<script src="engine.js?v=17"></script>
+<script src="assets.js?v=17"></script>
+<script src="minigames.js?v=17"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>

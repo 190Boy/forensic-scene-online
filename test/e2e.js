@@ -51,7 +51,10 @@ async function tutSocial(pg, order = 'door') {
 async function tutChase(pg, find, until, ms = 30000) { const t0 = Date.now(); while (Date.now() - t0 < ms && (await tutStep(pg)) < until) { const q = await pg.evaluate(find); if (q) await tp(pg, q.x + 6, q.y + 8); await sleep(200); } await waitStep(pg, until, 3000); }
 // 從頭玩到「🎉 教學完成！」：每一步都檢查步驟號碼一格一格往前走（小遊戲自動給高分；opt.manual 讓呼叫的人自己玩）
 async function tutFull(pg, tag) {
-  const seen = []; const mark = async n => { await waitStep(pg, n); seen.push(n); };
+  const seen = []; const mark = async n => { await waitStep(pg, n); seen.push(n); await sleep(120);
+    const sb = await pg.evaluate(() => { if (!document.body.classList.contains('sb')) return null; const t = document.querySelector('#tut'), b = document.querySelector('#bar').getBoundingClientRect(); if (!t.offsetParent) return null;
+      return { h: t.clientHeight, sh: t.scrollHeight, bar: Math.round(b.bottom), vh: innerHeight }; });
+    if (sb && (sb.sh > sb.h + 2 || sb.h < 90 || sb.bar > sb.vh)) errors.push(`${tag} 第 ${n + 1} 步側欄：教學框被擠扁或快捷列跑出畫面 ` + JSON.stringify(sb)); };
   await pg.evaluate(() => { window.__hlSeen = {}; setInterval(() => { const T = __fs.Tut, g = __fs.G.tut; const s = g && T.steps[g.i]; if (s && s.hl && s.hl.some(q => document.querySelector(q))) __hlSeen[g.i] = 1; }, 80); });
   await tp(pg, 640, 718); await mark(1);
   await tutSocial(pg); seen.push(2, 3, 4, 5);

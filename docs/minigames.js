@@ -169,7 +169,7 @@ function prints(o) {
 
 // ── 4. 肝溫：按住讓讀數待在綠色區間；再依現場暖氣／窗戶修正 ──
 function thermo(o) {
-  const room = o.room || {}; let ph = 1, m = .5, c = .55, nz = 0, inB = 0, el = 0, pick = -1, temp = 31 + Math.random() * 3; const need = 14 * F, BW = .18;
+  const room = o.room || {}; let ph = 1, m = .5, c = .55, nz = 0, inB = 0, el = 0, out = 0, pick = -1, temp = 31 + Math.random() * 3; const need = 14 * F, BW = .18;
   const ans = room.heater && !room.window ? 0 : room.window && !room.heater ? 1 : 2;
   const choose = i => { if (ph !== 2) return; pick = i; game.done = true; };
   const g2 = () => { ph = 2; btns([0, 1, 2].map(i => ({ label: ['⏪ 死亡時間往前推', '⏩ 死亡時間往後推', '不用修正'][i], k: String(i + 1), fn: () => choose(i), id: 'c' + i }))); helpEl.textContent = '現場溫度會影響屍體降溫速度：暖氣讓它降得慢、開窗（冷風）讓它降得快。要怎麼修正？'; };
@@ -180,7 +180,7 @@ function thermo(o) {
     step(dt) {
       if (ph !== 1) return; el += dt; c = .55 + .16 * Math.sin(el * .55) + .05 * Math.sin(el * 1.7);
       nz += (rnd(-1, 1) * 2.2 - nz * .9) * dt; m = clamp(m + ((inp.down ? .36 : -.32) + nz * .22) * dt);
-      if (Math.abs(m - c) < BW / 2) inB += dt;
+      if (Math.abs(m - c) < BW / 2) inB += dt; else out += dt;   // out：只給「讀數偏差」紅條看，分數算法不變
       if (el >= need) g2();
     },
     draw() {
@@ -190,11 +190,12 @@ function thermo(o) {
       g.fillStyle = 'rgba(90,220,120,.35)'; g.fillRect(gx, gy + (1 - c - BW / 2) * gh, 46, BW * gh);
       g.fillStyle = Math.abs(m - c) < BW / 2 ? '#7dff9a' : '#ffb35a'; g.fillRect(gx - 8, gy + (1 - m) * gh - 3, 62, 6);
       const inn = Math.abs(m - c) < BW / 2; label(ph === 1 ? (inn ? temp.toFixed(1) + '°C' : (temp + rnd(-3, 3)).toFixed(1) + '°C') : temp.toFixed(1) + '°C', 240, 60, inn || ph === 2 ? '#a9f5c0' : '#f7c58a', 22);
-      if (ph === 1) { bar(40, 400, 300, el / need, '#4fd2ff', '量測中…'); label('讓指針待在綠色區間', gx + 23, gy + gh + 30, '#cfd6e0', 14); }
+      if (ph === 1) { bar(40, 400, 260, el / need, '#4fd2ff', '量測中…'); bar(340, 400, 260, clamp(out / (need * .4)), '#ff7a7a', '讀數偏差'); label('讓指針待在綠色區間', gx + 23, gy + gh + 30, '#cfd6e0', 14);
+        if (!inn) { if ((el * 4 | 0) % 2 === 0) { g.strokeStyle = 'rgba(255,90,90,.9)'; g.lineWidth = 3; g.strokeRect(gx - 10, gy - 4, 66, gh + 8); } label('⚠️ 指針偏離綠區！讀數偏差累積中', W / 2, 30, '#ff9a9a', 18); } }
       else { label(`現場：暖氣 ${room.heater ? '🔥開著' : '關著'}　窗戶 ${room.window ? '🪟開著' : '關著'}`, W / 2, 400, '#f2d045', 17); }
     },
     score: () => .7 * clamp(el ? inB / el / .85 : 0) + .3 * (pick === ans ? 1 : 0),
-    dbg: () => ({ ph, m, c, inB, el, ans })
+    dbg: () => ({ ph, m, c, inB, el, out, ans })
   };
   return self;
 }
