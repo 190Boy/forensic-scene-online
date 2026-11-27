@@ -15,18 +15,15 @@ async function pick(pg, d) {
   await p2.goto(BASE + '?room=' + code); await sleep(800); await p2.fill('#name', 'Cynthia'); await p2.click('#bJoin'); await sleep(1200);
   await p1.click('#rmStart'); await sleep(1500);
   for (const p of [p1, p2]) { await closeWin(p); await p.click('#win footer [data-close]', { timeout: 1200 }).catch(() => { }); }
-  /* 側欄結果卡：員警初步報告（窄欄標題、縮圖比例） */
-  { let okc = false;
-    for (let k = 0; k < 6 && !okc; k++) { const c = await p1.evaluate(() => { const G = __fs.G, cs = G.st.cops.filter(c => !c.rk).sort((a, b) => Math.hypot(a.x - G.Me.x, a.y - G.Me.y) - Math.hypot(b.x - G.Me.x, b.y - G.Me.y)); const c = cs[0]; return { id: c.id, x: c.x, y: c.y }; });
-      await walkTo(p1, c.x + 30, c.y + 20, 40); await p1.evaluate(id => __fs.doAct({ type: 'brief', obj: id }), c.id);
-      okc = await p1.waitForFunction(() => document.querySelector('#cards .evc.rc .big'), null, { timeout: 2500 }).then(() => true, () => false);
-      if (!okc) console.log('brief 重試', k, JSON.stringify(await p1.evaluate(id => { const G = __fs.G, c = G.st.cops.find(q => q.id === id), me = G.st.players[G.me]; return { me: [Math.round(me.x), Math.round(me.y)], c: [Math.round(c.x), Math.round(c.y), c.mode], toast: (document.querySelector('#toasts') || {}).textContent, log: [...document.querySelectorAll('#log .lg')].slice(-2).map(x => x.textContent) }; }, c.id))); }
-    if (!okc) errors.push('拿不到員警初步報告結果卡'); await sleep(500); await closeWin(p1); await sleep(200);
+  /* 側欄結果卡排版（用鑑識結果卡，員警報告改走對話泡泡） */
+  { await p1.evaluate(() => __fs.resultCard({ img: 'ev_photo', kicker: '🔎 近拍傷口・屍體', big: '傷口邊緣可見鈍器重擊造成的撕裂傷', text: '已記到筆記本', where: '📒 已記到筆記本' }));
+    const okc = await p1.waitForFunction(() => document.querySelector('#cards .evc.rc .big'), null, { timeout: 2500 }).then(() => true, () => false);
+    if (!okc) errors.push('拿不到側欄鑑識結果卡'); await sleep(200);
     const r = await p1.evaluate(() => { const c = document.querySelector('#cards .evc.rc'); if (!c) return null; const cb = c.getBoundingClientRect(), bg = c.querySelector('.big'), rg = document.createRange(), big = (rg.selectNodeContents(bg), { width: Math.max(...[...rg.getClientRects()].map(x => x.width)), left: bg.getBoundingClientRect().left }), sp = c.querySelector('.rh span'), im = c.querySelector('.rh img');
       const s = sp && sp.textContent ? sp.getBoundingClientRect() : null;
       return { card: Math.round(cb.width), big: Math.round(big.width), bigLeft: Math.round(big.left - cb.left), span: s ? Math.round(s.width) : 0, fit: getComputedStyle(im).objectFit, nat: im.naturalWidth / Math.max(1, im.naturalHeight), box: im.clientWidth / Math.max(1, im.clientHeight), x: !!c.querySelector('.rcx') }; });
     console.log('側欄結果卡：', JSON.stringify(r));
-    if (!r) errors.push('側欄沒有員警報告結果卡');
+    if (!r) errors.push('側欄沒有鑑識結果卡');
     else { if (r.big < r.card * 0.55) errors.push('結果卡標題還是擠成窄欄（最長一行的寬度）：' + JSON.stringify(r)); if (r.span && r.span < r.card * 0.75) errors.push('結果卡內文沒有跨整張卡：' + JSON.stringify(r)); if (r.fit !== 'contain') errors.push('結果卡縮圖沒有保持比例（object-fit）：' + r.fit); }
     const lf = await p1.evaluate(() => { const i = document.querySelector('#log .lg img'); return i ? getComputedStyle(i).objectFit : 'none-img'; }); if (lf !== 'contain' && lf !== 'none-img') errors.push('紀錄縮圖沒有保持比例：' + lf);
     const box = await p1.locator('#cards .evc.rc').boundingBox(); if (box) await p1.screenshot({ path: '/workspace/forensic_v18_sidebar_card.png', clip: { x: 0, y: Math.max(0, box.y - 20), width: 300, height: Math.min(360, box.height + 40) } }); }

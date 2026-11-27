@@ -364,6 +364,14 @@ body.sb.tutLast #hud>#cards,body.sb.tutLast #labs{display:none}
 @media (max-height:780px){body.sb #hud>#logW{min-height:30px}body.sb #hud{gap:6px}}
 body.sb .ov,body.sb #mg{left:var(--sbw)}
 body.sb #chat{right:12px;bottom:12px}
+
+/* v20：側欄新紀錄閃一下、清單精簡註腳、世界回饋不用另開樣式 */
+@keyframes pulseGlow{0%{box-shadow:0 0 0 0 rgba(79,210,255,.55);border-color:#8ff0df}60%{box-shadow:0 0 14px 3px rgba(79,210,255,.28)}100%{box-shadow:none}}
+.pulse{animation:pulseGlow .9s ease-out}
+#bNote.pulse{box-shadow:0 0 0 2px rgba(79,210,255,.6);border-radius:8px}
+#logW.pulse{box-shadow:0 0 0 2px rgba(79,210,255,.45)}
+#act .dn.more{display:block;font-size:11.5px;line-height:1.45;color:#8fa3bf;padding:3px 2px 1px;max-width:280px}
+body.kb #act .dn.more{display:block;opacity:.85}
 </style>
 </head>
 <body>
@@ -446,10 +454,10 @@ body.sb #chat{right:12px;bottom:12px}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=19"></script>
-<script src="engine.js?v=19"></script>
-<script src="assets.js?v=19"></script>
-<script src="minigames.js?v=19"></script>
-<script src="app.js?v=19"></script>
+<script src="casegen.js?v=20"></script>
+<script src="engine.js?v=20"></script>
+<script src="assets.js?v=20"></script>
+<script src="minigames.js?v=20"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>

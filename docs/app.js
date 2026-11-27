@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '19';
+const VER = '20';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -59,6 +59,7 @@ function logPush(html, cls, icon) {
   d.innerHTML = `<time>${logTime()}</time>${icon ? `<img src="${url(icon)}" alt="">` : ''}<div class="lt">${html}</div>`;
   box.appendChild(d); while (box.children.length > 150) box.firstChild.remove();
   if (stick) logBottom(); else $('#logNew').classList.remove('hidden');
+  if (SBon() && /ev|inter/.test(cls || '')) { pulseEl('#logW'); if (/ev/.test(cls || '')) pulseEl('#bNote'); }
 }
 function toast(msg, bad) {
   if (SBon()) return logPush(esc(msg), bad ? 'bad' : '');
@@ -86,6 +87,7 @@ function resultCard(o) {
   const sb = SBon(); d.onclick = e => { if (!sb || e.target.closest('.rcx')) d.remove(); }; box.appendChild(d);
   while (box.children.length > (sb ? 1 : 2)) box.firstChild.remove();
   if (sb) box.scrollTop = 0;
+  pulseEl(d); if (sb) pulseEl('#bNote');
   setTimeout(() => d.remove(), sb ? (o.lab ? 30000 : 22000) : (o.lab ? 12000 : 9000));
   Snd.ding(o.lab);
 }
@@ -113,14 +115,14 @@ function myActionCard(evs) {
   if (found.length) {
     const e = C.evidence[found[0].id];
     const fq = G.st.found.find(x => x.id === found[0].id) || {};
-    resultCard({ img: e.icon, kicker: an ? `🔬 車上分析結果（${an.label}）` : `🔎 ${use ? use.label : '新發現'}${o ? '・' + o.name : ''}`, big: e.name, text: e.text + (found.length > 1 ? `（另外還有 ${found.length - 1} 項）` : ''), where: whereEv(found[0].id), qual: use && use.q ? qualHtml(use.q, use.score, use.obj, use.act) : fq.q ? qualHtml(fq.q, fq.sc) : '' });
-    if (o && !SBon()) G.floats.push({ x: o.x, y: o.y - (o.flat ? 10 : o.h), text: e.name.replace(/^.*：/, ''), t: performance.now() });
+    resultCard({ img: e.icon, kicker: an ? `🔬 車上分析結果（${an.label}）` : `🔎 ${use ? use.label : '新發現'}${o ? '・' + o.name : ''}`, big: e.name, text: found.length > 1 ? `另外還有 ${found.length - 1} 項` : '', where: '📒 已記到筆記本', qual: use && use.q ? qualHtml(use.q, use.score, use.obj, use.act) : fq.q ? qualHtml(fq.q, fq.sc) : '' });
+    if (o) pillAt(o.id, '✓ ' + e.name.replace(/^.*：/, ''));
     return true;
   }
-  if (smp) { const t = C.tools.find(x => x.id === (use && use.tool)); resultCard({ img: t ? t.icon : 'ev_print', kicker: `🧫 ${use ? use.label : '採樣'}${o ? '・' + o.name : ''}`, big: '採到樣本：' + smp.label, text: '現在還不知道是誰的、什麼結果。', qual: qualHtml(smp.q, use && use.score, use && use.obj, use && use.act), where: `⏳ 樣本在你身上（下方工具列 🧫）→ ${nextStep(smp, use)}，結果會再跳出來`, wait: true }); return true; }
-  if (use && use.tool === 'luminol') { resultCard({ img: 'tool_luminol', kicker: `🧪 噴好魯米諾・${o.name}`, big: use.lit ? '燈太亮，看不出有沒有螢光' : (use.reveal ? '黑暗中浮出藍色螢光！' : '暗處看起來沒有螢光'), text: use.lit ? '魯米諾的藍光很弱，要在暗處才看得到。' : '', where: use.lit ? `💡 請隊友（或自己）去關掉<b>${C.roomName[o.room]}的電燈開關</b>，再按「記錄螢光位置」` : '👉 接著按「記錄螢光位置」把結果記進筆記本', wait: true }); if (use.reveal) G.fx.push({ x: o.x, y: o.y, t: performance.now(), kind: 'spray' }); return true; }
-  if (bag) { const ob = ENG.objById(C, bag.obj); resultCard({ img: ob ? ob.img : 'ev_lab', kicker: '🛍️ 裝進證物袋', big: bag.name, text: '證物袋在下方工具列。', where: '⏳ 拿回<b>鑑識車</b>交給快遞員小吳送實驗室，報告回來會再跳出結果卡', wait: true }); return true; }
-  if (sent) { resultCard({ img: 'ev_lab', kicker: '🛵 交給小吳送實驗室', big: sent.name, text: '', where: `⏳ 實驗室額度 -${sent.cost}，約 ${C.labSec} 秒後報告回來（左上「待處理」看得到）`, wait: true }); return true; }
+  if (smp) { const t = C.tools.find(x => x.id === (use && use.tool)); resultCard({ img: t ? t.icon : 'ev_print', kicker: `🧫 ${use ? use.label : '採樣'}${o ? '・' + o.name : ''}`, big: '採到樣本：' + smp.label, text: '', qual: qualHtml(smp.q, use && use.score, use && use.obj, use && use.act), where: `⏳ 帶回車上分析`, wait: true }); if (o) pillAt(o.id, '🧫 已採樣'); return true; }
+  if (use && use.tool === 'luminol') { resultCard({ img: 'tool_luminol', kicker: `🧪 噴好魯米諾・${o.name}`, big: use.lit ? '燈太亮，看不出有沒有螢光' : (use.reveal ? '黑暗中浮出藍色螢光！' : '暗處看起來沒有螢光'), text: use.lit ? '魯米諾的藍光很弱，要在暗處才看得到。' : '', where: use.lit ? `💡 先關掉<b>${C.roomName[o.room]}的燈</b>，再記錄螢光` : '👉 接著按「記錄螢光位置」', wait: true }); if (use.reveal) G.fx.push({ x: o.x, y: o.y, t: performance.now(), kind: 'spray' }); pillAt(o.id, use.lit ? '🧪 已噴灑，去關燈' : (use.reveal ? '🧪 黑暗中出現螢光' : '🧪 已噴灑，沒有螢光')); return true; }
+  if (bag) { const ob = ENG.objById(C, bag.obj); resultCard({ img: ob ? ob.img : 'ev_lab', kicker: '🛍️ 裝進證物袋', big: bag.name, text: '', where: '⏳ 拿回鑑識車交給小吳送驗', wait: true }); pillAt(bag.obj, '🛍️ 已裝袋'); return true; }
+  if (sent) { resultCard({ img: 'ev_lab', kicker: '🛵 交給小吳送實驗室', big: sent.name, text: '', where: `⏳ 額度 -${sent.cost}，約 ${C.labSec} 秒後回來`, wait: true }); pillAt('courier', '🛵 已送驗'); speakNPC('courier', '好，我送去實驗室！'); return true; }
   if (use) { resultCard({ img: 'ev_photo', kicker: `🔎 ${use.label}・${o.name}`, big: use.q === 'poor' ? '這次沒有拿到有用的結果' : '沒有新發現', text: '', where: '', qual: qualHtml(use.q, use.score, use.obj, use.act) }); return true; }
   return false;
 }
@@ -130,6 +132,92 @@ const myRes = () => (G.st.results && G.st.results[G.me]) || G.st.result;
 const iSubmitted = () => !!(G.st.submitted && G.st.submitted[G.me]);
 const teamN = () => Object.values(G.st.players).filter(p => p.active).length;
 const pname = pid => { const p = G.st && G.st.players[pid]; return p ? (pid === G.me ? '你' : p.name) : '隊友'; };
+
+/* ---------- v20：教學鎖定、世界微回饋、NPC 對話泡泡 ---------- */
+function tutWant() { return (G.tut && Tut.cur() && Tut.cur().want) || null; }
+function tutIds() {
+  if (!G.tut) return null; const w = tutWant(), ids = new Set();
+  if (!w || w.ui) return ids;
+  const add = x => { if (x) ids.add(x); };
+  if (w.obj) (Array.isArray(w.obj) ? w.obj : [w.obj]).forEach(add);
+  if (w.cop === 'brief' || w.cop === 'any') {
+    const cs = (G.st.cops || []).filter(c => !c.rk || !c.known); add('cop:' + ((cs.find(c => c.id === 'cop2') || cs[0] || {}).id || ''));
+  }
+  if (w.cop === 'briefed') { const b = G.st.briefed || {}, c = (G.st.cops || []).find(c => b[c.id] != null) || (G.st.cops || [])[2]; if (c) add('cop:' + c.id); }
+  if (w.sus) for (const n of G.st.npcs || []) if (n.mode !== 'gone') add('npc:' + n.id);
+  if (w.who === 'boss') add('boss');
+  if (w.who === 'rookie') for (const c of G.st.cops || []) if (c.mode === 'in' || (c.rk && c.known)) add('cop:' + c.id);
+  return ids;
+}
+function tutAllows(id, act) {
+  if (!G.tut) return true; const w = tutWant(), ids = tutIds();
+  if (!ids || !ids.size) return false;
+  if (id && !ids.has(id)) return false;
+  if (act && w && w.acts && w.acts.length) {
+    if (act === 'dispatch' || act === 'disp') return w.acts.includes('disp') || w.acts.some(a => /^disp/.test(a));
+    return w.acts.includes(act);
+  }
+  return true;
+}
+const tutHint = () => '先跟著上面沈組長的提示做這一步';
+function pulseEl(sel) {
+  const el = typeof sel === 'string' ? document.querySelector(sel) : sel; if (!el) return;
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+  clearTimeout(el._pulseT); el._pulseT = setTimeout(() => el.classList.remove('pulse'), 950);
+}
+function worldPill(text, x, y) { if (text) G.floats.push({ text, x, y, t: performance.now() }); }
+function pillAt(id, text) {
+  let x = G.Me.x, y = G.Me.y - 80;
+  if (id === 'boss' && G.st.boss) { x = G.st.boss.x; y = G.st.boss.y - CH - 20; }
+  else if (id && String(id).startsWith('cop:')) { const c = (G.st.cops || []).find(q => q.id === id.slice(4)); if (c) { x = c.vx != null ? c.vx : c.x; y = (c.vy != null ? c.vy : c.y) - CH - 16; } }
+  else if (id && String(id).startsWith('npc:')) { const n = (G.st.npcs || []).find(q => q.id === id.slice(4)); if (n) { x = n.vx != null ? n.vx : n.x; y = (n.vy != null ? n.vy : n.y) - CH - 16; } }
+  else if (id) { const o = ENG.objById(C, id); if (o) { x = o.x; y = o.flat ? o.y - o.h / 2 - 18 : o.y - (o.h || 80) - 16; } }
+  worldPill(text, x, y);
+}
+function speakNPC(id, text, ms) {
+  if (!text) return; const now = performance.now();
+  G.speech = { id, text: String(text).replace(/\s+/g, ' ').trim(), t0: now, until: now + (ms || 6000) };
+}
+function speechWho() {
+  const s = G.speech; if (!s || !G.st) return null;
+  if (s.id === 'boss' && G.st.boss) return { x: G.st.boss.x, y: G.st.boss.y, h: CH };
+  if (s.id && String(s.id).startsWith('cop:')) { const c = (G.st.cops || []).find(q => q.id === s.id.slice(4)); if (c) return { x: c.vx != null ? c.vx : c.x, y: c.vy != null ? c.vy : c.y, h: CH }; }
+  if (s.id && String(s.id).startsWith('npc:')) { const n = (G.st.npcs || []).find(q => q.id === s.id.slice(4)); if (n) return { x: n.vx != null ? n.vx : n.x, y: n.vy != null ? n.vy : n.y, h: n.id === 'daughter' ? CH * .94 : CH }; }
+  const o = s.id && ENG.objById(C, s.id); if (o) return { x: o.x, y: o.y, h: o.h || CH };
+  return { x: G.Me.x, y: G.Me.y, h: CH };
+}
+function wrapTxt(ctx, text, maxW, maxLines) {
+  const lines = []; let cur = '';
+  for (const ch of [...String(text)]) {
+    if (ctx.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch; } else cur += ch;
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) { lines.length = maxLines; let last = lines[maxLines - 1]; while (last.length && ctx.measureText(last + '…').width > maxW) last = last.slice(0, -1); lines[maxLines - 1] = last + '…'; }
+  return lines;
+}
+function drawSpeech(now) {
+  const s = G.speech; if (!s) return; const who = speechWho();
+  if (!who) { G.speech = null; return; }
+  if (Math.hypot(G.Me.x - who.x, G.Me.y - who.y) > 380) { G.speech = null; return; }
+  if (now > s.until) { G.speech = null; return; }
+  const a = Math.max(0, Math.min(1, (now - s.t0) / 180, (s.until - now) / 700));
+  const [sx, sy] = W2S(who.x, who.y - who.h - 18);
+  ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = a;
+  ctx.font = 'bold 13px "PingFang TC","Noto Sans TC","Noto Sans CJK TC",sans-serif';
+  const lines = wrapTxt(ctx, s.text, 230, 2), tw = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const padX = 12, padY = 8, lh = 18, bw = tw + padX * 2, bh = lines.length * lh + padY * 2;
+  let bx = Math.max(8, Math.min(VW - bw - 8, sx - bw / 2)), by = Math.max(8, Math.min(VH - bh - 24, sy - bh - 14));
+  const tailX = Math.max(bx + 16, Math.min(bx + bw - 16, sx)), tailY = by + bh;
+  ctx.fillStyle = 'rgba(250,248,240,.97)'; ctx.strokeStyle = 'rgba(20,24,34,.88)'; ctx.lineWidth = 2;
+  ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 10); else ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(tailX - 7, tailY - 1); ctx.lineTo(tailX, tailY + 10); ctx.lineTo(tailX + 7, tailY - 1); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(250,248,240,.97)'; ctx.fillRect(tailX - 8, tailY - 3, 16, 4);
+  ctx.fillStyle = '#1a2130'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  lines.forEach((l, i) => ctx.fillText(l, bx + padX, by + padY + i * lh));
+  ctx.restore();
+}
+function npcQuote(s) { const m = String(s || '').match(/「([^」]+)」/); return m ? '「' + m[1] + '」' : s; }
+
 
 /* ---------- 音效（Web Audio 合成，不需要檔案） ---------- */
 const Snd = {
@@ -182,8 +270,28 @@ function openMg(e) {
 }
 
 /* ---------- 動作：單機直接套用；連線送給伺服器 ---------- */
+function tutActOk(a) {
+  if (!G.tut || !a) return true; const w = tutWant();
+  if (w && w.ui && !/^(draft|submit|forceReveal|close)$/.test(a.type)) return false;
+  const typ = a.type, obj = a.obj, act = a.act;
+  if (typ === 'brief') return tutAllows('cop:' + obj, 'brief');
+  if (typ === 'dispatch') return tutAllows('cop:' + obj, 'disp');
+  if (typ === 'observe') return tutAllows('npc:' + obj, 'obs');
+  if (typ === 'calm') return tutAllows('npc:' + obj, 'calm');
+  if (typ === 'boss') return tutAllows('boss', 'boss');
+  if (typ === 'refill') return tutAllows('van', 'van');
+  if (typ === 'gear') return !!(w && w.tools && (a.tools || []).every(x => w.tools.includes(x)) && (a.tools || []).length);
+  if (typ === 'analyze') { if (!tutAllows('van', 'van') && !tutAllows('van', 'analyze')) return false; if (w && w.analyze) { const sm = (meP() && meP().samples || []).find(s => s.sid === a.sid); return !sm || sm.kind === w.analyze; } return true; }
+  if (typ === 'lab' || typ === 'slab' || typ === 'courier') return tutAllows(obj || 'courier', typ === 'courier' ? 'courier' : 'lab') || tutAllows('van', 'lab') || tutAllows('courier', 'lab');
+  if (typ === 'light') return tutAllows(obj, 'light');
+  if (typ === 'bag') return tutAllows(obj, 'bag');
+  if (typ === 'use' || typ === 'mgStart' || typ === 'mgCancel') return typ === 'mgCancel' || tutAllows(obj, act || typ);
+  if (typ === 'draft' || typ === 'submit' || typ === 'forceReveal' || typ === 'close') return true;
+  return !w || !w.acts || tutAllows(obj, typ);
+}
 function doAct(a, opt) {
   Snd.init(); const quiet = opt && opt.quiet;
+  if (G.tut && !tutActOk(a)) { if (!quiet) toast(tutHint(), true); return; }
   if (G.mode === 'solo') {
     const r = ENG.act(C, G.st, G.me, a);
     if (!r.ok) { if (r.ev && r.ev.length) { onEvents(r.ev); refresh(); } if (!quiet) { toast(r.err, true); Snd.bad(); } return; }
@@ -195,27 +303,47 @@ function onEvents(evs) {
   for (const e of evs) {
     const mine = e.by === G.me;
     switch (e.k) {
-      case 'use': { const o = ENG.objById(C, e.obj); toast(`${pname(e.by)}：${e.label}（${o.name}）`); if (e.tool === 'luminol') Snd.spray(); else Snd.click(); if (G.tut) G.tut.ev.push(e); break; }
-      case 'light': { toast(`💡 ${pname(e.by)}${e.on ? '打開' : '關掉'}了${C.roomName[e.room]}的燈`); Snd.sw(); break; }
+      case 'use': { const o = ENG.objById(C, e.obj); if (!mine) toast(`${pname(e.by)}：${e.label}（${o.name}）`); if (e.tool === 'luminol') Snd.spray(); else Snd.click(); if (G.tut) G.tut.ev.push(e); break; }
+      case 'light': { pillAt(e.obj, e.on ? '💡 燈開了' : '💡 燈關了'); if (!mine || !SBon()) toast(`💡 ${pname(e.by)}${e.on ? '打開' : '關掉'}了${C.roomName[e.room]}的燈`); Snd.sw(); break; }
       case 'found': if (!mine && !evs.some(x => x.k === 'lab_back' && x.id === e.id)) card(e.id, false); else if (mine && !big) card(e.id, false); break;
       case 'lab_back': card(e.id, true); toast(`📨 實驗室：${e.label} 的報告回來了`); break;
-      case 'lab_sent': toast(`🛵 ${pname(e.by)} 把「${e.name}」交給小吳送實驗室（實驗室額度 -${e.cost}，約 ${C.labSec} 秒後回報）`); Snd.click(); break;
-      case 'bag': toast(`🛍️ ${pname(e.by)} 把「${e.name}」裝進證物袋`); Snd.click(); break;
-      case 'sample': toast(`🧫 ${pname(e.by)} 取得樣本：${e.label}（要拿回鑑識車分析）`); break;
-      case 'analyze': toast(`🔬 ${pname(e.by)} 在車上分析：${e.label}`); Snd.click(); break;
+      case 'lab_sent': if (!mine) toast(`🛵 ${pname(e.by)} 把「${e.name}」交給小吳送實驗室`); Snd.click(); speakNPC('courier', '好，我送去實驗室！'); break;
+      case 'bag': if (!mine) toast(`🛍️ ${pname(e.by)} 把「${e.name}」裝進證物袋`); Snd.click(); break;
+      case 'sample': if (!mine) toast(`🧫 ${pname(e.by)} 取得樣本：${e.label}`); break;
+      case 'analyze': if (!mine) toast(`🔬 ${pname(e.by)} 在車上分析：${e.label}`); else pillAt('van', '🔬 分析完成'); Snd.click(); break;
       case 'gear': if (mine) toast('🧰 裝備就緒，慢慢看、仔細找'); else toast(`🧰 ${pname(e.by)} 換了裝備`); break;
       case 'refill': if (mine) toast(e.auto ? '🔄 回到鑑識車旁：工具次數自動補滿了' : '🔄 工具次數補滿了'); break;
       case 'brief': {
-        const d = copDef(e.cop), L = (C.copReports[e.cop] || []).map(x => x.t);
-        if (mine) resultCard({ img: d.img, kicker: `📋 警員初步報告・${d.name}`, big: L[0] || '沒有特別發現', text: L.slice(1).join(' '), where: '📒 已記到筆記本「👮 員警」：他說的是線索，要靠證據自己驗證' });
-        else if (e.first) toast(`📋 ${pname(e.by)} 聽了${d.name}的初步報告（筆記本「👮 員警」可以看）`);
+        const d = copDef(e.cop), L = (C.copReports[e.cop] || []).map(x => x.t), line = L[0] || '沒有特別發現';
+        if (mine) {
+          speakNPC('cop:' + e.cop, line);
+          logPush(`<em>📋 警員初步報告・${esc(d.name)}</em><b>${esc(line)}</b>${L[1] ? `<span>${esc(L.slice(1).join(' '))}</span>` : ''}`, 'ev', d.img);
+          if (!SBon()) resultCard({ img: d.img, kicker: `📋 警員初步報告・${d.name}`, big: line, text: L.slice(1).join(' '), where: '📒 已記到筆記本「👮 員警」' });
+          pillAt('cop:' + e.cop, '📋 已記進筆記本');
+        } else if (e.first) toast(`📋 ${pname(e.by)} 聽了${d.name}的初步報告`);
         Snd.click(); break;
       }
       case 'observe': {
-        const sp = C.suspects.find(x => x.id === e.npc) || {}, T = C.tells[e.npc] || [];
-        if (mine) resultCard({ img: sp.img, kicker: `👀 觀察・${sp.name}`, big: T[0] || '看不出異狀', text: T.slice(1).join(' '), where: '📒 已記到筆記本「🧑 關係人」：可疑的樣子不一定就是兇手，要和證據互相對照' });
-        else if (e.first) toast(`👀 ${pname(e.by)} 仔細觀察了 ${sp.name}`);
+        const sp = C.suspects.find(x => x.id === e.npc) || {}, T = C.tells[e.npc] || [], line = T[0] || '看不出異狀';
+        if (mine) {
+          speakNPC('npc:' + e.npc, line);
+          logPush(`<em>👀 觀察・${esc(sp.name)}</em><b>${esc(line)}</b>${T[1] ? `<span>${esc(T.slice(1).join(' '))}</span>` : ''}`, 'ev', sp.img);
+          if (!SBon()) resultCard({ img: sp.img, kicker: `👀 觀察・${sp.name}`, big: line, text: T.slice(1).join(' '), where: '📒 已記到筆記本「🧑 關係人」' });
+          pillAt('npc:' + e.npc, '📋 已記進筆記本');
+        } else if (e.first) toast(`👀 ${pname(e.by)} 仔細觀察了 ${sp.name}`);
         break;
+      }
+      case 'calm': {
+        const sp = C.suspects.find(x => x.id === e.npc) || {}, say = e.say || npcQuote(e.text) || '好，我待在外面。';
+        if (mine) { speakNPC('npc:' + e.npc, say); logPush(esc(e.text || say), 'calm'); }
+        else toast(`🗣️ ${pname(e.by)} 安撫了 ${sp.name}`);
+        break;
+      }
+      case 'dispatch': {
+        const d = copDef(e.cop), say = e.say || (e.v === 'door' ? '收到！我去守大門。' : e.v === 'rookie' ? '好，我盯緊他！' : '收到，我回原位。');
+        if (mine) { speakNPC('cop:' + e.cop, say); logPush(esc(e.text || say), 'calm'); }
+        else toast(`📣 ${pname(e.by)} 調度了${d.name}`);
+        Snd.click(); break;
       }
       case 'pace': toast(`👥 現在 ${Object.values(G.st.players).filter(q => q.active).length} 人調查：插曲節奏調整為 ×${e.pace}`); break;
       case 'left': toast(`🚪 ${G.st.players[e.by] ? G.st.players[e.by].name : '隊友'} ${e.drop ? '斷線太久，先離隊了（證物袋和樣本交給隊友）' : '離隊了'}`); break;
@@ -231,7 +359,7 @@ function onEvents(evs) {
       case 'mgEnd': if (mine && e.cancel && MG.on) MG.close(); break;
       case 'start': case 'draft': break;
       case 'callcops': toast(`📣 ${pname(e.by)} 請${e.name}去攔住 ${(C.suspects.find(x => x.id === e.npc) || {}).name || '那個人'}`); Snd.soft && Snd.soft(); refreshAlert(); break;
-      default: if (e.text) banner(e.text, e.k); if (/nervous|flee|held|fled/.test(e.k)) refreshAlert(); if (G.tut) G.tut.ev.push(e);
+      default: if (e.text) banner(e.text, e.k); if (/nervous|flee|held|fled/.test(e.k)) refreshAlert(); if (e.k === 'rookie_stop' || e.k === 'rookie_guard') speakNPC('cop:' + (e.cop || ((G.st.cops || []).find(c => c.rk) || {}).id || ''), e.k === 'rookie_guard' ? '我攔住他了！' : '好…我回去崗位。'); if (G.tut) G.tut.ev.push(e);
     }
   }
 }
@@ -543,10 +671,10 @@ function render(now) {
       const nearC = near === 'cop:' + c.id; if (nearC) { ctx.save(); ctx.shadowColor = '#4fd2ff'; ctx.shadowBlur = 20; }
       drawImg(d.img, it.x, it.y - bob, CH * 2 / 3, CH, { flip: (c.vx != null && c.tx != null ? c.tx < c.vx : false) });
       if (nearC) ctx.restore();
-      const unb = G.st.briefed && G.st.briefed[c.id] == null && c.mode !== 'in' && !(c.rk && c.known);
+      const unb = G.st.briefed && G.st.briefed[c.id] == null && c.mode !== 'in' && !(c.rk && c.known) && (!G.tut || tutAllows('cop:' + c.id, 'brief'));
       late.push(['label', (c.mode === 'in' ? '⚠️ 菜鳥 ' : c.known ? '😅 ' : '') + (unb && !MO ? '💬 ' : '') + d.name, it.x, it.y - CH - 12, c.mode === 'in' ? '#ffd58a' : '#cfe0ff', c.mode === 'in' ? 'rgba(80,55,15,.88)' : 'rgba(10,14,22,.6)']);
       if (c.order && c.mode !== 'in' && !MO) late.push(['label', c.order === 'door' ? '🚪 守門' : '👶 盯菜鳥', it.x, it.y - CH - 36, '#1d2333', c.order === 'door' ? 'rgba(143,240,223,.92)' : 'rgba(255,213,138,.92)']);
-      if (c.mode === 'in') late.push(['img', 'ui_alert', it.x, it.y - CH - 32 - Math.abs(Math.sin(t * 2)) * 5, 34]);
+      if (c.mode === 'in' && (!G.tut || tutAllows('cop:' + c.id))) late.push(['img', 'ui_alert', it.x, it.y - CH - 32 - Math.abs(Math.sin(t * 2)) * 5, 34]);
     } else if (it.kind === 'b') {
       const B = it.b, bob = it.mv ? Math.abs(Math.sin(t * 6)) * 3 : 0;
       ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(it.x, it.y, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
@@ -594,9 +722,10 @@ function render(now) {
       if (S.revealed.length && !isDark) { ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(242,208,69,.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(o.x, o.flat ? o.y : o.y - o.h * .4, o.flat ? o.w * .4 : 34, o.flat ? o.h * .35 : 26, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     }
   }
-  // 可互動標記（電燈開關用燈泡）
+  // 可互動標記（電燈開關用燈泡）；教學中只顯示當前步驟的目標
   for (const o of C.objects) {
     if (o.deco || o.van || G.st.obj[o.id].gone) continue;
+    if (G.tut && !tutAllows(o.id)) continue;
     const yy = (o.flat ? o.y - o.h / 2 - 16 : o.y - o.h - 14) - Math.abs(Math.sin(t * 2 + o.x)) * 5;
     if (o.sw) { const on = lights[o.sw] !== false; ctx.fillStyle = on ? '#ffe9a8' : '#3a4560'; ctx.beginPath(); ctx.arc(o.x, yy, 10, 0, Math.PI * 2); ctx.fill(); ctx.font = '13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💡', o.x, yy + 1); continue; }
     const a = available(o); if (!a) continue;
@@ -618,12 +747,22 @@ function render(now) {
   // 噴灑特效、浮動文字
   G.fx = G.fx.filter(f => now - f.t < 900);
   for (const f of G.fx) { const k = (now - f.t) / 900; ctx.save(); ctx.globalAlpha = 1 - k; ctx.fillStyle = '#bfefff'; for (let i = 0; i < 18; i++) { const a = i * 2.4, r = 10 + k * 70 * ((i % 5) / 5 + .5); ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * r, f.y - 40 + Math.sin(a) * r * .6, 3, 0, Math.PI * 2); ctx.fill(); } ctx.restore(); }
-  G.floats = G.floats.filter(f => now - f.t < 2600);
-  for (const f of G.floats) { const k = (now - f.t) / 2600; ctx.save(); ctx.globalAlpha = Math.min(1, (1 - k) * 2); label('🔎 ' + f.text, f.x, f.y - 20 - k * 40, '#8ff0df', 'rgba(6,30,34,.9)'); ctx.restore(); }
+  G.floats = G.floats.filter(f => now - f.t < 2500);
+  for (const f of G.floats) {
+    const k = (now - f.t) / 2500, yy = f.y - 8 - k * 46;
+    ctx.save(); ctx.globalAlpha = Math.min(1, (1 - k) * 1.8);
+    ctx.font = 'bold 13px "PingFang TC","Noto Sans TC","Noto Sans CJK TC",sans-serif';
+    const tw = ctx.measureText(f.text).width + 16;
+    ctx.fillStyle = 'rgba(8,22,28,.9)'; ctx.strokeStyle = 'rgba(143,240,223,.9)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(f.x - tw / 2, yy - 12, tw, 24, 12); else ctx.rect(f.x - tw / 2, yy - 12, tw, 24); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e8fff8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(f.text, f.x, yy + 1);
+    ctx.restore();
+  }
   // 夜色：畫面四周很淡的暗角
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const [sx, sy] = W2S(G.Me.x, G.Me.y - 30); const g = ctx.createRadialGradient(sx, sy, 220 * Z, sx, sy, Math.max(VW, VH) * .8);
   g.addColorStop(0, 'rgba(5,8,20,0)'); g.addColorStop(1, 'rgba(5,8,20,.45)'); ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  drawSpeech(now);
   // 畫面外指示：菜鳥、分局長、逃跑中的人、教學目標
   const marks = [];
   for (const c of G.st.cops || []) if (c.mode === 'in') marks.push([c.vx != null ? c.vx : c.x, c.vy != null ? c.vy : c.y, '⚠️', '#c98a3a']);
@@ -734,7 +873,15 @@ function bossAuto() {
   if (G.mode !== 'online') { const p = meP(); if (p) { p.x = G.Me.x; p.y = G.Me.y; } }
   doAct({ type: 'boss' }, { quiet: true });
 }
-function interactNearest() { const id = nearest(); if (!id) return; if (id === 'boss') return doAct({ type: 'boss' }); if (id.startsWith('cop:')) return doAct({ type: 'brief', obj: id.slice(4) }); const ob = ENG.objById(C, id); if (ob && ob.sw) return doAct({ type: 'light', obj: id }); if (id.startsWith('npc:')) return openPerson(id.slice(4)); const o = ENG.objById(C, id); if (o && o.van) openVan(); }
+function interactNearest() {
+  const id = nearest(); if (!id) return;
+  if (G.tut && !tutAllows(id)) return toast(tutHint(), true);
+  if (id === 'boss') return doAct({ type: 'boss' });
+  if (id.startsWith('cop:')) return doAct({ type: 'brief', obj: id.slice(4) });
+  const ob = ENG.objById(C, id); if (ob && ob.sw) return doAct({ type: 'light', obj: id });
+  if (id.startsWith('npc:')) return openPerson(id.slice(4));
+  const o = ENG.objById(C, id); if (o && o.van) openVan();
+}
 
 /* ================= 主迴圈 ================= */
 let last = performance.now(), slowT = 0;
@@ -833,7 +980,7 @@ function refresh() {
   if (p.samples.length) bar.push(`<div class="slot" title="樣本：${esc(p.samples.map(s => s.label).join('、'))}">🧫<small>${p.samples.length}</small></div>`);
   $('#bar').innerHTML = bar.join('');
   { // v17：關掉推理視窗後還能回來（所有人都看得到「回到結案推理」／「結案報告」）
-    const ph = G.st.phase, bc = $('#bClose'); bc.style.display = ph === 'play' ? (isHost() ? '' : 'none') : ''; bc.disabled = false;
+    const ph = G.st.phase, bc = $('#bClose'); bc.style.display = ph === 'play' ? (isHost() ? '' : 'none') : ''; const tw = tutWant(); bc.disabled = !!(G.tut && ph === 'play' && !(tw && (tw.ui === 'deduce' || tw.ui === 'submit')));
     const want = ph === 'deduce' ? '⚖️<span class="lbl">回到結案推理</span>' : ph === 'result' ? '📁<span class="lbl">結案報告</span>' : '⚖️<span class="lbl">結案推理</span>';
     if (bc.dataset.lb !== want) { bc.innerHTML = want; bc.dataset.lb = want; } }
   refreshAct(); hudPress(); Voice.render();
@@ -902,10 +1049,26 @@ function keyed(items) { // 編號固定：工具動作依物件上的順序 1、
   return { live: items.sort((p, q) => (p.key === 'e') - (q.key === 'e') || (+p.key || 0) - (+q.key || 0)), doneN, anyLive: live.length };
 }
 function btnHtml(x, extra) { return `<button class="${x.done ? 'done' : ''}${x.mg ? ' mgo' : ''}" data-k="${x.k}" data-a="${x.a || ''}" data-key="${x.key}" ${x.mg ? `data-mg="${x.mg}"` : ''} ${extra || ''} ${x.why ? 'disabled' : ''}><kbd>${x.key === 'e' ? 'E' : x.key}</kbd>${x.emoji || ''} ${esc(x.label)}${x.cost ? `<span class="cost">額度 -${x.cost}</span>` : x.uses != null ? `<span class="cost">剩 ${x.uses} 次</span>` : ''}${x.mg && !x.done && !x.why ? '<span class="mgt">小遊戲</span>' : ''}${x.done ? '<span class="ok">✓</span>' : x.why ? `<span class="why">${esc(x.why)}</span>` : ''}</button>`; }
+
+function packOpts(opts, oid) {
+  let items = keyed((opts || []).map(x => ({ k: x.kind, a: x.id, label: x.label, emoji: x.emoji, why: x.why, cost: x.cost, uses: x.uses, tool: x.kind === 'use' && x.tool, mg: x.mg, redo: x.redo }))).live;
+  if (G.tut) items = items.filter(x => tutAllows(oid, x.a || x.k));
+  const missing = G.tut ? [] : items.filter(x => x.why && /^沒帶/.test(x.why));
+  const show = items.filter(x => !x.done && (G.tut || !x.why || !/^沒帶/.test(x.why)));
+  const names = [];
+  for (const x of missing) { const n = (C.tools.find(t => t.id === x.tool) || {}).name || x.why.replace(/^沒帶/, ''); if (n && !names.includes(n)) names.push(n); }
+  const foot = names.length ? `<span class="dn more">另有 ${names.length} 項需回車上換工具：${names.slice(0, 3).join('、')}${names.length > 3 ? '…' : ''}</span>` : '';
+  return { btns: show.map(x => btnHtml(x)).join(''), foot, n: show.length };
+}
 function refreshAct(force) {
   const box = $('#act'); const id = G.nearId;
   if (!G.st || !id || !$('#ov').classList.contains('hidden')) { box.classList.add('hidden'); return; }
   box.dataset.at = id;
+  if (G.tut && !tutAllows(id)) {
+    const name = id.startsWith('cop:') ? '這位員警' : id.startsWith('npc:') ? '這位關係人' : ((ENG.objById(C, id) || {}).name || '這裡');
+    box.innerHTML = `<div class="ah"><b>${esc(tutHint())}</b></div><div class="dn more">現在先不要查${esc(name)}。</div>`;
+    box.dataset.obj = ''; box.classList.remove('hidden'); return;
+  }
   if (id === 'boss') {
     const B = G.st.boss; if (!B || B.mode !== 'in') return box.classList.add('hidden');
     const d = B.demand, done = ENG.bossDone(C, G.st, d), R = C.reports[d.kind === 'progress' ? 'progress' : d.rep];
@@ -914,23 +1077,26 @@ function refreshAct(force) {
   }
   if (id.startsWith('npc:')) {
     const sp = C.suspects.find(x => x.id === id.slice(4)); if (!sp) return box.classList.add('hidden');
-    const so = (C.stains || []).find(x => x.npc === sp.id); let extra = '', cue = '';
-    if (so) { cue = `<div class="ad stn">🩸 ${esc(so.spot)}有疑似血漬</div>`; const { live } = keyed(ENG.options(C, G.st, G.me, so.id).map(x => ({ k: x.kind, a: x.id, label: x.label, emoji: x.emoji, why: x.why, tool: x.kind === 'use' && x.tool, mg: x.mg, redo: x.redo }))); extra = live.map(x => btnHtml(x)).join(''); }
+    const so = (C.stains || []).find(x => x.npc === sp.id); let extra = '', cue = '', foot = '';
+    if (so) { cue = `<div class="ad stn">🩸 ${esc(so.spot)}有疑似血漬</div>`; const packed = packOpts(ENG.options(C, G.st, G.me, so.id), id); extra = packed.btns; foot = packed.foot; }
     const n = (G.st.npcs || []).find(q => q.id === sp.id) || {}, nk = so ? 2 : 1, seen = G.st.obs && G.st.obs[sp.id], rest = G.st.clock < (n.calmAt != null ? n.calmAt : -99) + 15;
     const restless = ['nervous', 'sneak', 'curious'].includes(n.mode);
-    extra += btnHtml({ k: 'obs', key: String(nk), emoji: '👀', label: seen ? '再看一次觀察結果' : '觀察嫌疑人' }, `data-obs="${sp.id}"`);
-    extra += btnHtml({ k: 'calm', key: String(nk + 1), emoji: '🗣️', label: restless ? '周旋／安撫（他坐不住了！）' : '周旋／安撫', why: n.mode === 'flee' ? '他已經在跑了，快追上去' : rest ? '剛安撫過，讓他喘口氣' : '' }, `data-calm="${sp.id}"`);
-    box.innerHTML = `<div class="ah"><b>🧑 ${esc(sp.name)}</b><small>（${esc(sp.role)}・關係人）</small>${restless ? '<span class="why">😰 坐立不安</span>' : ''}</div>${cue}<div class="btns">${extra}${btnHtml({ k: 'person', key: 'e', emoji: '💬', label: '問話・查看資料' }, `data-person="${sp.id}"`)}</div>`;
+    const allow = act => !G.tut || tutAllows(id, act);
+    if (allow('obs')) extra += btnHtml({ k: 'obs', key: String(nk), emoji: '👀', label: seen ? '再看一次觀察結果' : '觀察嫌疑人' }, `data-obs="${sp.id}"`);
+    if (allow('calm')) extra += btnHtml({ k: 'calm', key: String(nk + 1), emoji: '🗣️', label: restless ? '周旋／安撫（他坐不住了！）' : '周旋／安撫', why: n.mode === 'flee' ? '他已經在跑了，快追上去' : rest ? '剛安撫過，讓他喘口氣' : '' }, `data-calm="${sp.id}"`);
+    const ask = allow('person') ? btnHtml({ k: 'person', key: 'e', emoji: '💬', label: '問話・查看資料' }, `data-person="${sp.id}"`) : '';
+    box.innerHTML = `<div class="ah"><b>🧑 ${esc(sp.name)}</b><small>（${esc(sp.role)}・關係人）</small>${restless ? '<span class="why">😰 坐立不安</span>' : ''}</div>${cue}<div class="btns">${extra}${ask}${foot}</div>`;
     box.dataset.obj = so ? so.id : ''; box.classList.remove('hidden'); return;
   }
   if (id.startsWith('cop:')) {
     const c = (G.st.cops || []).find(q => q.id === id.slice(4)), d = c && copDef(c.id); if (!c || c.mode === 'in') return box.classList.add('hidden');
     const br = G.st.briefed && G.st.briefed[c.id] != null, rk = c.rk && c.known, ord = c.order;
     const badge = ord ? `<span class="tag host">${ord === 'door' ? '🚪 守門中' : '👶 盯菜鳥中'}</span>` : '';
-    let b = btnHtml({ k: 'brief', key: 'e', emoji: '📋', label: br ? '再看一次初步報告' : '聽取初步報告' }, `data-brief="${c.id}"`);
-    if (rk) b += '<span class="dn">😅 他就是菜鳥，沒辦法調度</span>';
-    else b += btnHtml({ k: 'disp', key: '1', emoji: '🚪', label: '守住大門（攔截嫌疑人）', why: ord === 'door' ? '已經在守了' : '' }, `data-disp="door"`) + btnHtml({ k: 'disp', key: '2', emoji: '👶', label: '看住菜鳥警員', why: ord === 'rookie' ? '已經在盯了' : '' }, `data-disp="rookie"`) + btnHtml({ k: 'disp', key: '3', emoji: '📋', label: '回原位待命', why: ord ? '' : '已經在原位' }, `data-disp="post"`);
-    box.innerHTML = `<div class="ah"><b>👮 ${esc(d.name)}</b>${badge}${br ? '' : '<small>💬 還沒聽他報告</small>'}</div><div class="btns">${b}</div>`;
+    const allow = act => !G.tut || tutAllows(id, act);
+    let b = allow('brief') ? btnHtml({ k: 'brief', key: 'e', emoji: '📋', label: br ? '再看一次初步報告' : '聽取初步報告' }, `data-brief="${c.id}"`) : '';
+    if (rk) { if (!G.tut) b += '<span class="dn">😅 他就是菜鳥，沒辦法調度</span>'; }
+    else if (allow('disp')) b += btnHtml({ k: 'disp', key: '1', emoji: '🚪', label: '守住大門（攔截嫌疑人）', why: ord === 'door' ? '已經在守了' : '' }, `data-disp="door"`) + btnHtml({ k: 'disp', key: '2', emoji: '👶', label: '看住菜鳥警員', why: ord === 'rookie' ? '已經在盯了' : '' }, `data-disp="rookie"`) + (G.tut ? '' : btnHtml({ k: 'disp', key: '3', emoji: '📋', label: '回原位待命', why: ord ? '' : '已經在原位' }, `data-disp="post"`));
+    box.innerHTML = `<div class="ah"><b>👮 ${esc(d.name)}</b>${badge}${br || G.tut ? '' : '<small>💬 還沒聽他報告</small>'}</div><div class="btns">${b}</div>`;
     box.dataset.obj = c.id; box.classList.remove('hidden'); return;
   }
   const o = ENG.objById(C, id); if (!o) return box.classList.add('hidden');
@@ -940,8 +1106,8 @@ function refreshAct(force) {
   }
   const opts = ENG.options(C, G.st, G.me, o.id); const st = G.st.obj[o.id];
   const tam = st.f && (st.f.tampered || st.f.contam) ? `<span class="why">⚠️ ${st.f.tampered ? '有人動過' : '被菜鳥碰過'}</span>` : '';
-  const { live } = keyed(opts.map(x => ({ k: x.kind, a: x.id, label: x.label, emoji: x.emoji, why: x.why, cost: x.cost, uses: x.uses, tool: x.kind === 'use' && x.tool, mg: x.mg, redo: x.redo })));
-  box.innerHTML = `<div class="ah"><b>${esc(o.name)}</b>${tam}</div>${o.desc ? `<div class="ad">${esc(o.desc)}</div>` : ''}<div class="btns">${live.map(x => btnHtml(x)).join('')}${!live.length && !o.deco ? '<span class="dn">這裡沒有可以做的事</span>' : ''}</div>`;
+  const packed = packOpts(opts, o.id);
+  box.innerHTML = `<div class="ah"><b>${esc(o.name)}</b>${tam}</div>${o.desc && !G.tut ? `<div class="ad">${esc(o.desc)}</div>` : ''}<div class="btns">${packed.btns}${packed.foot}${!packed.btns && !packed.foot && !o.deco ? '<span class="dn">這裡沒有可以做的事</span>' : ''}</div>`;
   box.dataset.obj = o.id; box.classList.remove('hidden');
 }
 // 電腦版：把清單放在物件旁邊（每一格畫面更新位置）
@@ -1037,27 +1203,33 @@ function openBriefing() {
 }
 function openPerson(id) {
   const s = C.suspects.find(x => x.id === id); if (!s) return;
+  if (G.tut && !tutAllows('npc:' + id, 'person')) return toast(tutHint(), true);
+  const greet = s.say ? s.say.replace(/。$/, '') : (s.alibi ? '那段時間我' + s.alibi : '找我有事嗎？');
+  speakNPC('npc:' + id, '「' + greet.replace(/[「」]/g, '') + '」');
   openOv('person', hdr('🧑 ' + esc(s.name)) + `<div class="body">${suspectCard(s, false, true)}<p class="note">兇手如果被你們撞見偷動證物、被攔下逃跑，筆記本會記下「可疑舉動」。</p></div><footer><button data-close="1">關閉</button></footer>`);
 }
 let vanSel = null;
 function openVan() {
-  const p = meP(); if (!p) return; vanSel = null;
+  const p = meP(); if (!p) return;
+  if (G.tut && !tutAllows('van', 'van') && !tutAllows('courier', 'lab') && !tutAllows('van', 'lab')) return toast(tutHint(), true);
+  vanSel = null;
   const draw = () => {
     const p = meP(); const near = ENG.nearVan(C, p); if (vanSel === null) vanSel = p.tools.slice();
     const same = vanSel.length === p.tools.length && vanSel.every(t => p.tools.includes(t));
-    const cost = 0;
+    const cost = 0; const w = tutWant(); const only = w && w.tools, onlyAn = w && w.analyze, onlyLab = w && w.acts && w.acts.includes('lab') && !only;
+    const tools = C.tools.filter(t => !only || only.includes(t.id));
     const html = hdr('🚐 行動鑑識車') + `<div class="body" style="--vanbg:url(${url('van_interior')})">
       ${near ? '' : '<p class="why" style="font-size:14px">⚠️ 你離車子太遠了，走回車旁才能操作。</p>'}
-      <h4>🧰 裝備架（最多帶 ${C.carryTools} 件・隨時免費更換）</h4>
-      <div class="grid">${C.tools.map(t => `<div class="tc ${vanSel.includes(t.id) ? 'on' : ''}" data-tool="${t.id}"><img src="${url(t.icon)}" alt=""><b>${t.emoji} ${esc(t.name)}</b><small>${esc(t.desc)}・每次出門 ${ENG.maxUses(C, G.st, t.id)} 次</small></div>`).join('')}</div>
-      <div class="row"><button class="pri" id="gearOk" ${same || !near || !vanSel.length ? 'disabled' : ''}>✅ 確認裝備${cost && !same ? `（-${cost}）` : ''}</button><span class="note">已選 ${vanSel.length}/${C.carryTools}</span>${p.tools.length ? `<button id="refill" ${near && p.tools.some(t => ENG.usesLeft(p, t) < ENG.maxUses(C, G.st, t)) ? '' : 'disabled'}>🔄 補滿工具次數（${p.tools.map(t => (C.tools.find(x => x.id === t) || {}).emoji + ENG.usesLeft(p, t) + '/' + ENG.maxUses(C, G.st, t)).join(' ')}）</button>` : ''}</div>
-      <h4>🔬 車上設備（樣本要由採集的人帶回來）</h4>
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">${C.machines.map(m => { const ss = p.samples.filter(s => s.kind === m.kind);
-        return `<div class="mc"><div class="hd"><img src="${url(m.icon)}" alt="">${esc(m.name)}</div>${ss.length ? ss.map(s => `<div class="it"><span class="grow">🧫 ${esc(s.label)}</span><button data-an="${s.sid}" ${near ? '' : 'disabled'}>分析（免費）</button>${s.lab ? `<button data-slab="${s.sid}" ${near && G.st.budget >= C.sampleLabAP + G.st.costUp ? '' : 'disabled'}>送實驗室 DNA <span class="cost">額度 -${C.sampleLabAP + G.st.costUp}</span></button>` : ''}</div>`).join('') : '<span class="note">沒有這類樣本</span>'}</div>`; }).join('')}</div>
-      <h4>🛵 實驗室快遞員・小吳</h4>
+      ${!w || only ? `<h4>🧰 裝備架（最多帶 ${C.carryTools} 件・隨時免費更換）</h4>
+      <div class="grid">${tools.map(t => `<div class="tc ${vanSel.includes(t.id) ? 'on' : ''}" data-tool="${t.id}"><img src="${url(t.icon)}" alt=""><b>${t.emoji} ${esc(t.name)}</b><small>${esc(t.desc)}・每次出門 ${ENG.maxUses(C, G.st, t.id)} 次</small></div>`).join('')}</div>
+      <div class="row"><button class="pri" id="gearOk" ${same || !near || !vanSel.length ? 'disabled' : ''}>✅ 確認裝備${cost && !same ? `（-${cost}）` : ''}</button><span class="note">已選 ${vanSel.length}/${C.carryTools}</span>${p.tools.length ? `<button id="refill" ${near && p.tools.some(t => ENG.usesLeft(p, t) < ENG.maxUses(C, G.st, t)) ? '' : 'disabled'}>🔄 補滿工具次數（${p.tools.map(t => (C.tools.find(x => x.id === t) || {}).emoji + ENG.usesLeft(p, t) + '/' + ENG.maxUses(C, G.st, t)).join(' ')}）</button>` : ''}</div>` : ''}
+      ${(only && !onlyAn) || onlyLab ? '' : `<h4>🔬 車上設備（樣本要由採集的人帶回來）</h4>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">${C.machines.filter(m => !onlyAn || m.kind === onlyAn).map(m => { const ss = p.samples.filter(s => s.kind === m.kind);
+        return `<div class="mc"><div class="hd"><img src="${url(m.icon)}" alt="">${esc(m.name)}</div>${ss.length ? ss.map(s => `<div class="it"><span class="grow">🧫 ${esc(s.label)}</span><button data-an="${s.sid}" ${near ? '' : 'disabled'}>分析（免費）</button>${s.lab ? `<button data-slab="${s.sid}" ${near && G.st.budget >= C.sampleLabAP + G.st.costUp ? '' : 'disabled'}>送實驗室 DNA <span class="cost">額度 -${C.sampleLabAP + G.st.costUp}</span></button>` : ''}</div>`).join('') : '<span class="note">沒有這類樣本</span>'}</div>`; }).join('')}</div>`}
+      ${only && !onlyLab ? '' : `<h4>🛵 實驗室快遞員・小吳</h4>
       <div class="mc">${p.bag.length ? p.bag.map(b => `<div class="it"><img src="${url(b.img)}" alt="" style="width:36px;height:36px"><span class="grow">${esc(b.name)}${b.size > 1 ? '（大型）' : ''}</span><button data-lab="${b.obj}" ${near && G.st.budget >= C.labCost[b.size] + G.st.costUp ? '' : 'disabled'}>送實驗室 <span class="cost">額度 -${C.labCost[b.size] + G.st.costUp}</span></button></div>`).join('') : '<span class="note">證物袋是空的。在現場把證物「裝袋」帶回來，或請小吳到現場取件。</span>'}
       <div class="note">送驗花<b>全隊共用的實驗室額度</b>（剩 ${G.st.budget} 點），約 ${C.labSec} 秒後報告回來${G.st.costUp ? `；分局長不高興，每次多花 ${G.st.costUp} 點` : ''}。</div>
-      ${G.st.labs.map(l => `<div class="it">${l.back ? '✅' : '⏳'} ${esc(l.label)}：${l.back ? '報告已回來' : `約 ${Math.max(1, Math.ceil(l.due - G.st.clock))} 秒`}</div>`).join('')}</div>
+      ${G.st.labs.map(l => `<div class="it">${l.back ? '✅' : '⏳'} ${esc(l.label)}：${l.back ? '報告已回來' : `約 ${Math.max(1, Math.ceil(l.due - G.st.clock))} 秒`}</div>`).join('')}</div>`}
       </div><footer><span class="note" style="flex:1">🧪 實驗室額度 ${G.st.budget}／${G.st.budgetMax}</span><button data-close="1">關閉</button></footer>`;
     const sc = $('#win .body') ? $('#win .body').scrollTop : 0;
     openOv('van', html, 'van', draw); const b = $('#win .body'); if (b) b.scrollTop = sc;
@@ -1065,7 +1237,7 @@ function openVan() {
   draw();
 }
 $('#win').addEventListener('click', e => {
-  const t = e.target.closest('[data-tool]'); if (t && G.ovKind === 'van') { const id = t.dataset.tool; if (vanSel.includes(id)) vanSel = vanSel.filter(x => x !== id); else if (vanSel.length < C.carryTools) vanSel.push(id); else { vanSel.shift(); vanSel.push(id); } G.ovRender(); return; }
+  const t = e.target.closest('[data-tool]'); if (t && G.ovKind === 'van') { const id = t.dataset.tool; const w = tutWant(); if (w && w.tools && !w.tools.includes(id)) return toast(tutHint(), true); if (vanSel.includes(id)) vanSel = vanSel.filter(x => x !== id); else if (vanSel.length < C.carryTools) vanSel.push(id); else { vanSel.shift(); vanSel.push(id); } G.ovRender(); return; }
   if (e.target.closest('#refill')) return doAct({ type: 'refill' });
   if (e.target.closest('#gearOk')) { doAct({ type: 'gear', tools: vanSel }); vanSel = null; return; }
   const an = e.target.closest('[data-an]'); if (an) return doAct({ type: 'analyze', sid: +an.dataset.an });
@@ -1345,31 +1517,31 @@ const TS = {
 };
 const Tut = {
   steps: [
-    { t: '這裡是命案別墅。慢慢來，這一關<b>不會失敗</b>。<br>用 <b>WASD／方向鍵</b>（手機：在畫面上<b>拖曳</b>）走到箭頭指的<b>封鎖線入口</b>。', at: () => ({ x: 640, y: 718 }), done: () => Math.hypot(G.Me.x - 640, G.Me.y - 718) < 90 || TS.brief() || TS.wound() },
-    { t: '入口的<b>蔡警員</b>頭上有 <b>💬</b>：員警比你早到，先聽他的<b>初步報告</b>。<br>走到他旁邊按 <kbd class="k">E</kbd><span class="touchonly">（或點「📋 聽取初步報告」）</span>。報告是線索方向，會記進筆記本「👮 員警」。', at: TS.cop, done: TS.brief, hl: ['#act [data-brief]'] },
-    { t: '員警也可以<b>調度</b>：請他 <b>🚪 守住大門</b>（攔下想溜進封鎖線的人）<span class="kbonly">按 <kbd class="k">1</kbd></span>，或 <b>👶 看住菜鳥警員</b><span class="kbonly">（<kbd class="k">2</kbd>）</span>。選哪個都可以。', at: TS.myCop, done: TS.disp, hl: ['#act [data-disp="door"]', '#act [data-disp="rookie"]'] },
-    { t: '封鎖線外站著幾位<b>關係人</b>。走到任何一位旁邊，按 <b>👀 觀察嫌疑人</b>：看他身上、手上和舉止有沒有異狀（可疑不等於兇手，要和證據對照）。', at: TS.sus, done: TS.obs, hl: ['#act [data-obs]'] },
-    { t: '再試試 <b>🗣️ 周旋／安撫</b>：陪他聊幾句，緊張的人會冷靜下來，想溜走或亂闖的時間也會往後延。', at: TS.sus, done: TS.calm, hl: ['#act [data-calm]'] },
-    { t: '工具都在<b>鑑識車</b>裡：走到車旁打開它<span class="kbonly">（按 <kbd class="k">E</kbd>）</span>，選 <b>📷 鑑識相機</b>、<b>🧪 魯米諾</b>、<b>🔍 指紋採集組</b>，按 <b>✅ 確認裝備</b>。一次只能帶 3 件，隨時可以免費回來換。', at: () => ENG.objById(C, 'van'), done: () => TS.tools('camera', 'luminol', 'prints') || (TS.wound() && TS.mark() && TS.statue()), hl: ['#act [data-van]', '[data-tool="camera"]', '[data-tool="luminol"]', '[data-tool="prints"]', '#gearOk'] },
-    { t: '關掉車上視窗，走到客廳的<b>屍體</b>旁，用 <b>📷 近拍傷口</b><span class="kbonly">（按清單上的數字鍵）</span><span class="touchonly">（點下方按鈕）</span>。<br>拍照小遊戲：移動取景框找傷口，<b>停穩等框變綠</b>再拍。做完會跳出<b>結果卡</b>（電腦版在左側欄），並記進筆記本。', at: () => ENG.objById(C, 'body'), done: TS.wound, hl: ['#act [data-a="wound"]', '#win [data-close]'] },
-    { t: '對<b>客廳地毯</b>按 <b>🧪 噴灑魯米諾</b>——燈亮著是看不到藍光的。<br>工具都有<b>使用次數</b>（工具格右下角），用完回車上補滿。', at: () => ENG.objById(C, 'floor_living'), done: TS.rug, hl: ['#act [data-a="lum"]'] },
-    { t: '去客廳門邊的 <b>💡 電燈開關</b>把燈關掉<span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。多人時可以一人關燈、一人記錄。', at: () => ENG.objById(C, 'sw_living'), done: () => G.st.lights.living === false || TS.mark(), hl: ['#act [data-k="light"]'] },
-    { t: '地毯浮出<b>藍色螢光</b>了！回到地毯按 <b>記錄螢光位置</b>：<b>慢慢</b>移動紫外燈掃過地面，藍光浮現就點一下標記，掃完按 <b>✅ 完成記錄</b>。', at: () => ENG.objById(C, 'floor_living'), done: TS.mark, hl: ['#act [data-a="lum_mk"]'] },
-    { t: '燈還關著，去<b>銅雕獎座</b>：<b>🧪 噴灑魯米諾</b> → <b>記錄螢光位置</b> → <b>🔍 採集指紋</b>。<br>刷指紋：按住拖曳刷粉，<b>紋路一出現就換地方</b>，刷太多會糊掉。指紋是「樣本」，要回車上分析。', at: () => ENG.objById(C, 'w_statue'), done: TS.statue, hl: ['#act [data-a="lum"]', '#act [data-a="lum_mk"]', '#act [data-a="prints"]'] },
-    { t: '回<b>鑑識車</b>：左上「📋 待處理」列著你的樣本。在<b>指紋比對電腦</b>按 <b>分析</b>。', at: () => ENG.objById(C, 'van'), done: TS.print, hl: ['#act [data-van]', '[data-an]'] },
-    { t: '換第二組工具：<b>🌡️ 肝溫計</b>、<b>💉 血液採取器</b>、<b>👣 足跡採集器</b>，按 <b>✅ 確認裝備</b>。<br>換裝和回到車旁都會<b>補滿使用次數</b>（1–2 人走到車旁就自動補滿）。', at: () => ENG.objById(C, 'van'), done: () => TS.tools('thermo', 'swab', 'shoe') || (TS.temp() && TS.swab() && TS.shoe()), hl: ['[data-tool="thermo"]', '[data-tool="swab"]', '[data-tool="shoe"]', '#gearOk'] },
-    { t: '回到<b>屍體</b>旁，用 <b>🌡️ 量測肝溫</b>：讀出體溫，推算<b>死亡時間</b>。', at: () => ENG.objById(C, 'body'), done: TS.temp, hl: ['#act [data-a="temp"]', '#win [data-close]'] },
-    { t: '再用 <b>💉 採集死者血液</b>：棉棒輕輕沾取，不要蹭到旁邊。血液樣本等一下回車上用<b>離心機</b>驗血型。', at: () => ENG.objById(C, 'body'), done: TS.swab, hl: ['#act [data-a="swab"]'] },
-    { t: '屍體旁邊的<b>死者手機</b>要送實驗室：按 <b>🛍️ 裝袋帶走</b><span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。', at: () => ENG.objById(C, 'phone'), done: TS.phone, hl: ['#act [data-k="bag"]'] },
-    { t: '穿過廚房到<b>後院</b>：泥地上有一串<b>鞋印</b>。用 <b>👣 追蹤並採集鞋印</b>：沿著腳印方向灌石膏取模。', at: () => ENG.objById(C, 'mud'), done: TS.shoe, hl: ['#act [data-a="cast"]'] },
-    { t: '回<b>鑑識車</b>：在<b>離心機＋血液快篩</b>按 <b>分析</b>，看血液樣本的血型（鞋印樣本也可以送「鞋印資料庫」分析）。', at: () => ENG.objById(C, 'van'), done: TS.blood, hl: ['#act [data-van]', '[data-an]'] },
-    { t: '把手機交給車旁的快遞員<b>小吳</b>：按 <b>送實驗室</b>。<br>送驗會花<b>全隊共用的實驗室額度</b>（上方 🧪），這是唯一要省著用的東西；結果過一陣子回來。', at: () => ENG.objById(C, 'courier'), done: TS.lab, hl: ['#act [data-van]', '[data-lab]'] },
-    { t: '<b>分局長</b>走進封鎖線了，他頭上的<b>泡泡</b>就是要求——死亡時間你剛好量好了：<b>走到他旁邊</b>就會交差<span class="kbonly">（或按 <kbd class="k">E</kbd>）</span>。', enter() { closeOv(); G.st.forceBoss = { kind: 'report', rep: 'tod' }; }, at: () => { const B = G.st.boss; return B && B.mode === 'in' ? { x: B.x, y: B.y - 110 } : null; }, done: () => G.st.bossOk > 0 },
-    { t: '有位員警頭上冒出 <b>⚠️</b>——他其實是<b>菜鳥</b>，想去亂碰證物！<b>走過去碰他</b>請他回崗位。<br>（如果剛才派了員警<b>👶 看住菜鳥</b>，他也會幫你拉住。）', enter() { G.tut.ev = []; G.st.forceRookie = 'w_statue'; }, at: () => { const c = (G.st.cops || []).find(c => c.mode === 'in'); return c ? { x: c.x, y: c.y - 110 } : null; }, done: TS.rookie, tick() { if (G.tut.ev.some(e => e.k === 'rookie_hit') && !(G.st.cops || []).some(c => c.mode === 'in')) { G.tut.ev = []; G.st.forceRookie = 'w_statue'; } } },
-    { t: '打開 <b>📒 筆記本</b>：「👮 員警」是報告、「🧬 比對」幫你對照樣本，最後切到 <b>📖 鑑識手冊</b>——每種手法 3 個特徵，✔ 確認、✖ 排除。', enter() { for (const l of G.st.labs) if (!l.back) l.due = G.st.clock; }, done: () => G.tut.sawMan, hl: ['#bNote', '[data-tab="cop"]', '[data-tab="cmp"]', '[data-tab="man"]'] },
-    { t: '線索齊了（左上「案情進度」）。關掉筆記本，按 <b>⚖️ 結案推理</b>。', done: () => G.st.phase !== 'play', hl: ['#bClose', '#win [data-close]'] },
-    { t: '照鑑識手冊選：兇手、行兇方式、兇器、第一現場，再勾 1～3 項關鍵證據，按 <b>📨 送出推理報告</b>。', done: () => G.st.phase === 'result', hl: ['#submit'] },
-    { t: '🎉 <b>教學完成！</b>正式案件每局兇手、手法、房間都不同。<br>・<b>員警</b>：先聽報告；派他 <b>🚪 守大門</b>或 <b>👶 盯菜鳥</b>。<br>・<b>關係人</b>：<b>👀 觀察</b>找破綻，冒 <b>😰</b> 就 <b>🗣️ 周旋</b>。<br>・<b>分局長</b>：做到要求就碰他交差；<b>耐心</b>掉光就得結案。<br>・人越少節奏越慢、工具越多；分數＝答對＋早結案＋省實驗室額度。', last: true }
+    { t: '用 <b>WASD／方向鍵</b>（手機：在畫面上拖曳）走到箭頭的<b>封鎖線入口</b>。這一關不會失敗。', at: () => ({ x: 640, y: 718 }), done: () => Math.hypot(G.Me.x - 640, G.Me.y - 718) < 90 || TS.brief() || TS.wound(), want: {} },
+    { t: '走到入口<b>蔡警員</b>旁，按 <kbd class="k">E</kbd><span class="touchonly">（或點「📋 聽取初步報告」）</span>。線索會記進筆記本「👮 員警」。', at: TS.cop, done: TS.brief, hl: ['#act [data-brief]'], want: { cop: 'brief', acts: ['brief'] } },
+    { t: '調度他：<b>🚪 守住大門</b>或 <b>👶 看住菜鳥</b>，選一個即可<span class="kbonly">（按 <kbd class="k">1</kbd> 或 <kbd class="k">2</kbd>）</span>。', at: TS.myCop, done: TS.disp, hl: ['#act [data-disp="door"]', '#act [data-disp="rookie"]'], want: { cop: 'briefed', acts: ['disp'] } },
+    { t: '走到封鎖線外任一<b>關係人</b>旁，按 <b>👀 觀察嫌疑人</b>。看出的異狀要和證據對照，可疑≠兇手。', at: TS.sus, done: TS.obs, hl: ['#act [data-obs]'], want: { sus: true, acts: ['obs'] } },
+    { t: '再按 <b>🗣️ 周旋／安撫</b>：陪他聊幾句，想溜走的人會先冷靜下來。', at: TS.sus, done: TS.calm, hl: ['#act [data-calm]'], want: { sus: true, acts: ['calm'] } },
+    { t: '到<b>鑑識車</b>選 <b>📷 相機</b>、<b>🧪 魯米諾</b>、<b>🔍 指紋採集組</b>，按 <b>✅ 確認裝備</b>。一次帶 3 件，可隨時回來換。', at: () => ENG.objById(C, 'van'), done: () => TS.tools('camera', 'luminol', 'prints') || (TS.wound() && TS.mark() && TS.statue()), hl: ['#act [data-van]', '[data-tool="camera"]', '[data-tool="luminol"]', '[data-tool="prints"]', '#gearOk'], want: { obj: 'van', acts: ['van'], tools: ['camera', 'luminol', 'prints'] } },
+    { t: '到客廳<b>屍體</b>旁，用 <b>📷 近拍傷口</b>：取景框停穩變綠再拍。結果會記進筆記本。', at: () => ENG.objById(C, 'body'), done: TS.wound, hl: ['#act [data-a="wound"]', '#win [data-close]'], want: { obj: 'body', acts: ['wound'] } },
+    { t: '對<b>客廳地毯</b>按 <b>🧪 噴灑魯米諾</b>。燈亮時看不到藍光；工具次數在格子右下角。', at: () => ENG.objById(C, 'floor_living'), done: TS.rug, hl: ['#act [data-a="lum"]'], want: { obj: 'floor_living', acts: ['lum'] } },
+    { t: '去客廳門邊按 <b>💡 關燈</b><span class="kbonly">（<kbd class="k">E</kbd>）</span>。多人時可以一人關燈、一人記錄。', at: () => ENG.objById(C, 'sw_living'), done: () => G.st.lights.living === false || TS.mark(), hl: ['#act [data-k="light"]'], want: { obj: 'sw_living', acts: ['light'] } },
+    { t: '地毯出現<b>藍光</b>了！回來按 <b>記錄螢光位置</b>：慢慢掃、點一下標記，再按 <b>✅ 完成</b>。', at: () => ENG.objById(C, 'floor_living'), done: TS.mark, hl: ['#act [data-a="lum_mk"]'], want: { obj: 'floor_living', acts: ['lum_mk'] } },
+    { t: '燈還關著，去<b>銅雕獎座</b>：<b>噴魯米諾</b> → <b>記錄螢光</b> → <b>採指紋</b>。指紋是樣本，要回車上分析。', at: () => ENG.objById(C, 'w_statue'), done: TS.statue, hl: ['#act [data-a="lum"]', '#act [data-a="lum_mk"]', '#act [data-a="prints"]'], want: { obj: 'w_statue', acts: ['lum', 'lum_mk', 'prints'] } },
+    { t: '回<b>鑑識車</b>，在<b>指紋比對電腦</b>按 <b>分析</b>。', at: () => ENG.objById(C, 'van'), done: TS.print, hl: ['#act [data-van]', '[data-an]'], want: { obj: 'van', acts: ['van', 'analyze'], analyze: 'print' } },
+    { t: '換成第二組：<b>🌡️ 肝溫計</b>、<b>💉 血液採取器</b>、<b>👣 足跡採集器</b>，按 <b>✅ 確認裝備</b>。', at: () => ENG.objById(C, 'van'), done: () => TS.tools('thermo', 'swab', 'shoe') || (TS.temp() && TS.swab() && TS.shoe()), hl: ['[data-tool="thermo"]', '[data-tool="swab"]', '[data-tool="shoe"]', '#gearOk'], want: { obj: 'van', acts: ['van'], tools: ['thermo', 'swab', 'shoe'] } },
+    { t: '回到<b>屍體</b>旁，用 <b>🌡️ 量測肝溫</b>，推算死亡時間。', at: () => ENG.objById(C, 'body'), done: TS.temp, hl: ['#act [data-a="temp"]', '#win [data-close]'], want: { obj: 'body', acts: ['temp'] } },
+    { t: '再用 <b>💉 採集死者血液</b>。樣本等一下回車上用離心機驗血型。', at: () => ENG.objById(C, 'body'), done: TS.swab, hl: ['#act [data-a="swab"]'], want: { obj: 'body', acts: ['swab'] } },
+    { t: '把旁邊的<b>死者手機</b><b>🛍️ 裝袋帶走</b><span class="kbonly">（<kbd class="k">E</kbd>）</span>。', at: () => ENG.objById(C, 'phone'), done: TS.phone, hl: ['#act [data-k="bag"]'], want: { obj: 'phone', acts: ['bag'] } },
+    { t: '到<b>後院</b>泥地的鞋印，用 <b>👣 追蹤並採集鞋印</b>取模。', at: () => ENG.objById(C, 'mud'), done: TS.shoe, hl: ['#act [data-a="cast"]'], want: { obj: 'mud', acts: ['cast'] } },
+    { t: '回<b>鑑識車</b>，在<b>離心機</b>按 <b>分析</b>，看血液樣本血型。', at: () => ENG.objById(C, 'van'), done: TS.blood, hl: ['#act [data-van]', '[data-an]'], want: { obj: 'van', acts: ['van', 'analyze'], analyze: 'blood' } },
+    { t: '把手機交給車旁<b>小吳</b>，按 <b>送實驗室</b>。這會花全隊共用的實驗室額度。', at: () => ENG.objById(C, 'courier'), done: TS.lab, hl: ['#act [data-van]', '[data-lab]'], want: { obj: ['courier', 'van'], acts: ['van', 'lab', 'courier'] } },
+    { t: '<b>分局長</b>來了——死亡時間你已量好，<b>走到他旁邊</b>交差<span class="kbonly">（或按 <kbd class="k">E</kbd>）</span>。', enter() { closeOv(); G.st.forceBoss = { kind: 'report', rep: 'tod' }; }, at: () => { const B = G.st.boss; return B && B.mode === 'in' ? { x: B.x, y: B.y - 110 } : null; }, done: () => G.st.bossOk > 0, want: { who: 'boss', acts: ['boss'] } },
+    { t: '有員警頭上冒 <b>⚠️</b>：他是菜鳥，想亂碰證物。<b>走過去碰他</b>請他回崗位（派去盯菜鳥的員警也會攔）。', enter() { G.tut.ev = []; G.st.forceRookie = 'w_statue'; }, at: () => { const c = (G.st.cops || []).find(c => c.mode === 'in'); return c ? { x: c.x, y: c.y - 110 } : null; }, done: TS.rookie, tick() { if (G.tut.ev.some(e => e.k === 'rookie_hit') && !(G.st.cops || []).some(c => c.mode === 'in')) { G.tut.ev = []; G.st.forceRookie = 'w_statue'; } }, want: { who: 'rookie' } },
+    { t: '打開 <b>📒 筆記本</b>：看「👮 員警」「🧬 比對」，再切到 <b>📖 鑑識手冊</b>對照手法特徵。', enter() { for (const l of G.st.labs) if (!l.back) l.due = G.st.clock; }, done: () => G.tut.sawMan, hl: ['#bNote', '[data-tab="cop"]', '[data-tab="cmp"]', '[data-tab="man"]'], want: { ui: 'note' } },
+    { t: '線索齊了。關掉筆記本，按 <b>⚖️ 結案推理</b>。', done: () => G.st.phase !== 'play', hl: ['#bClose', '#win [data-close]'], want: { ui: 'deduce' } },
+    { t: '選兇手、手法、兇器、第一現場，勾 1～3 項關鍵證據，按 <b>📨 送出推理報告</b>。', done: () => G.st.phase === 'result', hl: ['#submit'], want: { ui: 'submit' } },
+    { t: '🎉 <b>教學完成！</b>正式案件每局都不同。<br>・先聽<b>員警報告</b>，需要時派他守門或盯菜鳥。<br>・<b>觀察／周旋</b>關係人；做到分局長的要求就碰他交差。', last: true, want: { ui: 'done' } }
   ],
   start() {
     Snd.init(); this.stop(); G.mode = 'solo'; G.me = 0; G.host = true; G.room = null;
@@ -1383,7 +1555,7 @@ const Tut = {
   tick() {
     const s = this.cur(); if (!s) return;
     if (s.tick) s.tick();
-    if (s.done && s.done()) { G.tut.i++; const n = this.cur(); if (n && n.enter) n.enter(); Snd.ding(false); this.render(); if (n && n.last) LS.set('fs_tutDone', '1'); }
+    if (s.done && s.done()) { G.tut.i++; const n = this.cur(); if (n && n.enter) n.enter(); Snd.ding(false); this.render(); if (n && n.last) LS.set('fs_tutDone', '1'); if (G.ovKind === 'van' && G.ovRender) { vanSel = null; G.ovRender(); } refreshAct(); }
     document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl'));
     const c = this.cur(); if (c && c.hl) for (const sel of c.hl) document.querySelectorAll(sel).forEach(e => e.classList.add('hl'));
   },
@@ -1413,4 +1585,4 @@ function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; G.n
 // 測試用：世界座標 → 瀏覽器視窗座標（含側欄位移）
 const w2c = (x, y) => { const [sx, sy] = W2S(x, y); return [sx + OX, sy + OY]; };
 const stage = () => ({ OX, OY, VW, VH, Z, sb: isSB() });
-window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard, Net };
+window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard, Net, tutAllows, tutIds, tutWant, packOpts, speakNPC, pulseEl };

@@ -226,8 +226,9 @@ function act(C, st, pid, a) {
     else { for (const q of st.cops) if (q !== c && q.order === v) { q.order = null; q.mode = 'back'; const QD = copDef(C, q.id); q.path = findPath(C, q.x, q.y, QD.posts[q.leg].x, QD.posts[q.leg].y) || []; }   // 一個崗位一個人
       c.order = v; c.mode = 'go'; const g = C.guardSpots[v]; c.path = findPath(C, c.x, c.y, g.x, g.y) || []; }
     const text = v === 'door' ? `🚪 ${p.name}請${D.name}守住大門：有人想溜進封鎖線就攔下來` : v === 'rookie' ? `👶 ${p.name}請${D.name}盯住菜鳥：有人要亂碰證物就拉住他` : `📋 ${p.name}請${D.name}回原位待命`;
+    const say = v === 'door' ? '收到！我去守大門。' : v === 'rookie' ? '好，我盯緊他！' : '收到，我回原位。';
     if (v !== 'post') st.dispN = (st.dispN || 0) + 1;   // v16：教學用（派過就算，之後改回原位也不會退步）
-    logNews(st, text); out.push({ k: 'dispatch', by: pid, cop: c.id, v, text }); st.seq++; return { ok: true, ev: out };
+    logNews(st, text); out.push({ k: 'dispatch', by: pid, cop: c.id, v, text, say }); st.seq++; return { ok: true, ev: out };
   }
   /* v14：觀察關係人／周旋安撫 */
   if (a.type === 'observe' || a.type === 'calm') {
@@ -249,7 +250,8 @@ function act(C, st, pid, a) {
       else text = `🗣️ 你陪${S.name}聊了幾句，他看起來比較放鬆了，答應乖乖待在封鎖線外。`;
       n.calmUntil = T + cool; if (n.id === C.culprit) st.tamperAt = Math.max(st.tamperAt, T + cool);
     }
-    n.calmAt = T; logNews(st, text); out.push({ k: 'calm', by: pid, npc: n.id, text }); st.seq++; return { ok: true, ev: out };
+    const say = (text.match(/「([^」]+)」/) || [])[1] ? '「' + text.match(/「([^」]+)」/)[1] + '」' : '好，我待在外面，不亂跑。';
+    n.calmAt = T; logNews(st, text); out.push({ k: 'calm', by: pid, npc: n.id, text, say }); st.seq++; return { ok: true, ev: out };
   }
   if (a.type === 'mgCancel') { if (!p.mg) return { ok: true, ev: [] }; p.mg = null; out.push({ k: 'mgEnd', by: pid, cancel: true }); st.seq++; return { ok: true, ev: out }; }
   if (a.type === 'mgStart') {

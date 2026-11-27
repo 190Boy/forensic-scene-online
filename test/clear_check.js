@@ -30,7 +30,7 @@ eval(head + `
   else { if (a.card.r > a.sbw || a.card.l < 0) errors.push('結果卡不在左側欄裡'); if (!a.card.close) errors.push('結果卡沒有 ✕'); if (!a.cardAboveLog) errors.push('結果卡不在現場紀錄上方'); }
   if (a.cardsOverflowX || a.hudOverflowX) errors.push('側欄橫向溢出');
   if (a.barBottom > a.vh || !a.logAboveBar || a.logH < 60) errors.push('快捷列被擠出畫面或紀錄太小：' + JSON.stringify(a));
-  if (a.toastsShown || a.floats) errors.push('桌機還有浮動提示：toast ' + a.toastsShown + ' 浮字 ' + a.floats);
+  if (a.toastsShown) errors.push('桌機還有浮動 toast：' + a.toastsShown); // 畫布微回饋 pill（G.floats）是 v20 刻意加上的，不算系統訊息
   if (a.logHas < 4) errors.push('系統訊息沒有記到現場紀錄：' + a.logHas);
   if (a.stageBad.length || a.over.length) errors.push('舞台上有浮動元素：' + JSON.stringify({ bad: a.stageBad, over: a.over }));
   await pg.screenshot({ path: '/workspace/forensic_v13_desktop_clear.png' });

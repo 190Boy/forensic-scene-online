@@ -1,4 +1,4 @@
-// v14：①聽取員警初步報告（桌機卡片在左側欄、記進筆記本）②調度員警（守大門／盯菜鳥＋名牌徽章）
+// v14：①聽取員警初步報告（桌機改為頭上泡泡＋側欄紀錄、記進筆記本）②調度員警（守大門／盯菜鳥＋名牌徽章）
 //      ③觀察嫌疑人＋周旋安撫 ④手機版照常 ⑤連線同步調度＋按人數放慢節奏
 const fs = require('fs');
 const src = fs.readFileSync(__dirname + '/e2e.js', 'utf8'); const head = src.slice(0, src.indexOf('(async () => {')).replace("forensic_v13_", "forensic_v14_");
@@ -27,12 +27,13 @@ const stageClean = pg => pg.evaluate(() => { const sbw = __fs.stage().OX, bad = 
   const cop = await nearCop(pg, 0);
   { const t = await pg.textContent('#act'); if (!/聽取初步報告/.test(t) || !/守住大門/.test(t) || !/看住菜鳥/.test(t) || !/回原位待命/.test(t)) errors.push('員警小清單缺按鈕：' + t); }
   await pg.keyboard.press('e'); await sleep(600);
-  { const r = await pg.evaluate(id => { const c = document.querySelector('#cards .evc.rc'), cr = c && c.getBoundingClientRect(); return { card: c ? c.textContent.slice(0, 90) : '', r: cr ? Math.round(cr.right) : -1, sbw: Math.round(__fs.stage().OX), briefed: __fs.G.st.briefed[id] != null, rep: __fs.C.copReports[id].map(x => x.t), log: [...document.querySelectorAll('#log .lg')].some(x => /警員初步報告/.test(x.textContent)) }; }, cop);
-    console.log('初步報告卡片：', JSON.stringify(r));
-    if (!/警員初步報告/.test(r.card) || r.r > r.sbw) errors.push('初步報告卡不在左側欄：' + JSON.stringify(r));
-    if (!r.briefed || !r.log) errors.push('聽完報告沒有記錄');
+  { const r = await pg.evaluate(id => { const c = document.querySelector('#cards .evc.rc'); return { card: c ? c.textContent.slice(0, 90) : '', speech: (__fs.G.speech && __fs.G.speech.text) || '', briefed: __fs.G.st.briefed[id] != null, rep: __fs.C.copReports[id].map(x => x.t), log: [...document.querySelectorAll('#log .lg')].some(x => /警員初步報告/.test(x.textContent)) }; }, cop);
+    console.log('初步報告：', JSON.stringify(r));
+    if (/警員初步報告/.test(r.card)) errors.push('桌機不該再跳出員警報告結果卡：' + r.card);
+    if (!r.speech) errors.push('聽報告後沒有員警對話泡泡：' + JSON.stringify(r));
+    if (!r.briefed || !r.log) errors.push('聽完報告沒有記錄到筆記本／現場紀錄');
     const cul = await pg.evaluate(() => __fs.C.suspects.find(s => s.id === __fs.C.culpritId) || {}); if (r.rep.some(t => /兇手|就是他/.test(t))) errors.push('員警報告直接講出兇手'); }
-  { const s = await stageClean(pg); if (s.bad.length || s.toasts || s.floats) errors.push('聽報告時畫布上有浮動元素：' + JSON.stringify(s)); }
+  { const s = await stageClean(pg); if (s.bad.length || s.toasts) errors.push('聽報告時畫布上有多餘的 DOM／toast：' + JSON.stringify(s)); }
   // ② 調度：守大門
   await pg.click('#act button[data-disp="door"]'); await sleep(500);
   { const r = await pg.evaluate(id => { const c = __fs.G.st.cops.find(c => c.id === id); return { order: c.order, mode: c.mode }; }, cop); console.log('派去守大門：', JSON.stringify(r)); if (r.order !== 'door') errors.push('守大門沒派成功：' + JSON.stringify(r)); }
@@ -59,9 +60,9 @@ const stageClean = pg => pg.evaluate(() => { const sbw = __fs.stage().OX, bad = 
   const sus = await nearSus(pg);
   { const t = await pg.textContent('#act'); if (!/觀察嫌疑人/.test(t) || !/周旋／安撫/.test(t)) errors.push('關係人小清單缺按鈕：' + t); }
   await pg.click('#act button[data-obs]'); await sleep(1700);
-  { const r = await pg.evaluate(id => ({ obs: !!__fs.G.st.obs[id], card: (document.querySelector('#cards .evc.rc') || {}).textContent || '', tells: __fs.C.tells[id] }), sus);
-    console.log('觀察結果：', JSON.stringify(r)); if (!r.obs || !/觀察/.test(r.card)) errors.push('觀察沒有出結果卡'); }
-  { const s = await stageClean(pg); if (s.bad.length || s.toasts || s.floats) errors.push('觀察時畫布上有浮動元素：' + JSON.stringify(s)); }
+  { const r = await pg.evaluate(id => ({ obs: !!__fs.G.st.obs[id], card: (document.querySelector('#cards .evc.rc') || {}).textContent || '', speech: (__fs.G.speech && __fs.G.speech.text) || '', log: [...document.querySelectorAll('#log .lg')].some(x => /觀察/.test(x.textContent)), tells: __fs.C.tells[id] }), sus);
+    console.log('觀察結果：', JSON.stringify(r)); if (!r.obs || !r.speech || !r.log) errors.push('觀察沒有對話泡泡或現場紀錄：' + JSON.stringify(r)); if (/觀察/.test(r.card) && /已記到筆記本/.test(r.card)) errors.push('桌機不該再跳出觀察結果卡'); }
+  { const s = await stageClean(pg); if (s.bad.length || s.toasts) errors.push('觀察時畫布上有多餘的 DOM／toast：' + JSON.stringify(s)); }
   await pg.screenshot({ path: '/workspace/forensic_v14_suspect_observe.png' });
   await pg.keyboard.press('n'); await sleep(400); await pg.click('#win [data-tab="sus"]'); await sleep(300);
   { const t = await pg.textContent('#win .body'); if (!/👀 觀察/.test(t)) errors.push('筆記本關係人沒有觀察紀錄'); }
@@ -81,7 +82,7 @@ const stageClean = pg => pg.evaluate(() => { const sbw = __fs.stage().OX, bad = 
   { const t = await mp.evaluate(() => (document.querySelector('#cards .evc.rc') || {}).textContent || ''); console.log('手機初步報告：', t.slice(0, 60)); if (!/警員初步報告/.test(t)) errors.push('手機沒有初步報告卡'); }
   await mp.click('#act button[data-disp="rookie"]'); await sleep(300);
   await nearSus(mp); await mp.click('#act button[data-obs]'); await sleep(1700);
-  { const t = await mp.evaluate(() => (document.querySelector('#cards .evc.rc') || {}).textContent || ''); if (!/觀察/.test(t)) errors.push('手機沒有觀察卡'); }
+  { const t = await mp.evaluate(() => [...document.querySelectorAll('#cards .evc.rc')].map(x => x.textContent).join('\\n')); if (!/觀察/.test(t)) errors.push('手機沒有觀察卡：' + t.slice(0, 80)); }
   await shot(mp, 'mobile_observe');
   /* ---------- 連線：兩人調度同步 ---------- */
   const p1 = await page(br, { viewport: { width: 1280, height: 800 } }), p2 = await page(br, { viewport: { width: 1280, height: 800 } });

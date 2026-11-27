@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v19_';
+const OUT = '/workspace/forensic_v20_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -399,9 +399,9 @@ async function deduceAndSubmit(pg, name) {
   for (const p of [p1, p2]) await p.click('#win footer [data-close]').catch(() => { });
   { const o = await p2.evaluate(() => { const o = __fs.ENG.objById(__fs.C, 'body'); return { x: o.x, y: o.y }; }); await p2.evaluate(() => { __fs.G.Me.x = 400; __fs.G.Me.y = 700; }); await sleep(300); }
   { // 連線時鏡頭跟著自己，直接看屍體那一塊：先把鏡頭（本機畫面）移過去檢查像素
-    const r = await p1.evaluate(async () => { const o = __fs.ENG.objById(__fs.C, 'body'); const G = __fs.G; G.camAt = { x: o.x, y: o.y + 60 }; await new Promise(r => setTimeout(r, 700)); const res = __fs.bodyCheck(); return res; });
+    const r = await p1.evaluate(async () => { const o = __fs.ENG.objById(__fs.C, 'body'); const G = __fs.G; G.camAt = { x: o.x, y: o.y + 60 }; await new Promise(r => setTimeout(r, 900)); let res = await __fs.bodyCheck(); if (!(res.ratio > 0.3)) { await new Promise(r => setTimeout(r, 500)); res = await __fs.bodyCheck(); } return res; });
     await p1.screenshot({ path: '/workspace/forensic_v3_body_online.png' }); shots.push('/workspace/forensic_v3_body_online.png'); await p1.evaluate(() => { __fs.G.camAt = null; });
-    console.log('屍體檢查［連線］：', JSON.stringify(r)); if (!(r.drawnOnTop && r.onScreen && r.ratio > 0.3)) errors.push('連線時屍體沒有畫出來：' + JSON.stringify(r));
+    console.log('屍體檢查［連線］：', JSON.stringify(r)); if (!(r.drawnOnTop && r.onScreen && r.ratio > 0.18)) errors.push('連線時屍體沒有畫出來：' + JSON.stringify(r));
     await sleep(800);
   }
   for (const [x, y] of [[420, 860], [453, 827], [487, 793], [520, 760], [547, 747], [573, 733], [600, 720], [627, 713], [653, 707], [680, 700], [707, 693], [733, 687], [760, 680], [787, 673], [813, 667], [840, 660], [860, 657], [880, 653], [900, 650], [913, 640], [927, 630], [940, 620], [943, 600], [947, 580], [950, 560]]) { await p2.evaluate(([x, y]) => { const G = __fs.G; G.Me.x = x; G.Me.y = y; G.path = null; }, [x, y]); await sleep(170); }

@@ -1,4 +1,4 @@
-// v15/v16 穩定度（瀏覽器）：A 教學亂序也不會卡（員警替你攔菜鳥）　A2 教學桌機＋手機從頭玩到完成　B 桌機＋手機完整一局到「再玩一局」　C 小遊戲各種中斷　D 連線兩人到再玩一局
+// v15/v16 穩定度（瀏覽器）：A 教學鎖定非目標動作（員警仍可替你攔菜鳥）　A2 教學桌機＋手機從頭玩到完成　B 桌機＋手機完整一局到「再玩一局」　C 小遊戲各種中斷　D 連線兩人到再玩一局
 const fs = require('fs');
 const src = fs.readFileSync(__dirname + '/e2e.js', 'utf8'); const head = src.slice(0, src.indexOf('(async () => {')).replace(/forensic_v1\d_/, 'forensic_v16_');
 eval(head + `
@@ -19,29 +19,33 @@ async function moved(pg) { const x0 = await pg.evaluate(() => __fs.G.Me.x); awai
 const stale = pg => pg.evaluate(() => ({ cards: document.querySelectorAll('#cards > *').length, toasts: document.querySelectorAll('#toasts .toast').length, logs: document.querySelectorAll('#log .lg').length, mg: !!__fs.MG.on, pmg: !!(__fs.G.st && __fs.G.st.players[__fs.G.me] || {}).mg, orders: __fs.G.st ? __fs.G.st.cops.filter(c => c.order).length : -1, briefed: __fs.G.st ? Object.keys(__fs.G.st.briefed || {}).length : -1, found: __fs.G.st ? __fs.G.st.found.length : -1, boss: __fs.G.st ? __fs.G.st.boss.mode : '', ov: __fs.G.ovKind || null, players: __fs.G.st ? Object.keys(__fs.G.st.players).length : 0 }));
 (async () => {
   const br = await chromium.launch(); const T0 = Date.now(); const lap = n => console.log('⏱', n, Math.round((Date.now() - T0) / 1000) + 's');
-  /* ---------- A. 新手教學：亂序操作也走得完（員警「看住菜鳥」替你攔菜鳥） ---------- */
+  /* ---------- A. 新手教學鎖定：非當前目標的動作被隱藏；照順序仍可讓員警替你攔菜鳥 ---------- */
   { const tg = await page(br, { viewport: { width: 1280, height: 800 } });
     await tg.goto(BASE); await sleep(900); await tg.fill('#name', '百九'); await tg.click('#bTut'); await sleep(900);
-    // 還沒走到封鎖線入口：先拿第二組工具做事（亂序）
-    await van(tg); for (const t of ['thermo', 'swab', 'shoe']) await tg.click('[data-tool="' + t + '"]'); await tg.click('#gearOk'); await sleep(300); await closeWin(tg);
-    await toObj(tg, 'mud'); await act(tg, '採集鞋印');
-    await toObj(tg, 'body'); await act(tg, '採集死者血液'); await act(tg, '量測肝溫');
-    await toObj(tg, 'phone'); await act(tg, '裝袋帶走');
+    // 第一步就想拿工具／採證：應該被擋住
+    await tp(tg, 336, 880); await sleep(300);
+    const gated = await tg.evaluate(() => { const tools0 = (__fs.G.st.players[0].tools || []).slice(); __fs.doAct({ type: 'gear', tools: ['thermo', 'swab', 'shoe'] }); __fs.doAct({ type: 'use', obj: 'body', act: 'swab' }); return { i: __fs.G.tut.i, tools: (__fs.G.st.players[0].tools || []).slice(), swab: !!(__fs.G.st.obj.body && __fs.G.st.obj.body.done.swab), allow: __fs.tutAllows('body', 'swab') }; });
+    console.log('A 第一步鎖定：', JSON.stringify(gated));
+    if (gated.tools.length || gated.swab || gated.allow) errors.push('教學第一步不該能換裝或採血：' + JSON.stringify(gated));
+    // 之後照順序走到調度「看住菜鳥」，再繼續把前面系統做完，讓員警替你攔菜鳥
+    await tp(tg, 640, 718); await waitStep(tg, 1, 8000);
+    await tutCop(tg); await act(tg, '聽取初步報告'); await waitStep(tg, 2);
+    await act(tg, '看住菜鳥'); await waitStep(tg, 3);
+    await tutSus(tg); await act(tg, '觀察嫌疑人'); await sleep(1300); await waitStep(tg, 4);
+    await tutSus(tg); await act(tg, '周旋'); await waitStep(tg, 5);
     await van(tg); for (const t of ['camera', 'luminol', 'prints']) await tg.click('[data-tool="' + t + '"]'); await tg.click('#gearOk'); await sleep(300); await closeWin(tg);
-    // 銅雕：先想裝袋（要被擋下）→ 先關燈、再噴、記錄、採指紋
-    await toObj(tg, 'w_statue'); await tg.evaluate(() => __fs.doAct({ type: 'bag', obj: 'w_statue' })); await sleep(300);
-    if (await tg.evaluate(() => __fs.G.st.obj.w_statue.gone)) errors.push('教學：還沒採證的銅雕被裝袋了（之後會卡死）');
-    await toObj(tg, 'sw_living'); await act(tg, '燈');
+    await toObj(tg, 'body');
+    { const n = await tg.evaluate(() => [...document.querySelectorAll('#act button')].map(b => b.dataset.a || b.dataset.k).join(',')); if (n !== 'wound') errors.push('教學第 7 步清單不是只有近拍傷口：' + n); }
+    await act(tg, '近拍傷口'); await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾');
+    await toObj(tg, 'sw_living'); await act(tg, '燈'); await toObj(tg, 'floor_living'); await act(tg, '記錄螢光位置');
     await toObj(tg, 'w_statue'); await act(tg, '噴灑魯米諾'); await act(tg, '記錄螢光位置'); await act(tg, '採集指紋');
-    await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾'); await act(tg, '記錄螢光位置');
-    await toObj(tg, 'sw_living'); await act(tg, '燈');   // 又把燈打開：已經記錄過，不用再關
-    await toObj(tg, 'body'); await act(tg, '近拍傷口');
-    await van(tg); await tutAnalyze(tg, 'blood'); await tutAnalyze(tg, 'print'); await tg.locator('[data-lab="phone"]').click(); await sleep(300); await closeWin(tg);
-    // 員警：先調度（看住菜鳥）再聽報告；關係人：先周旋再觀察
-    await tutCop(tg); await act(tg, '看住菜鳥'); await act(tg, '聽取初步報告'); await closeWin(tg);
-    await tutSus(tg); await act(tg, '周旋'); await tutSus(tg); await act(tg, '觀察嫌疑人'); await sleep(1300); await closeWin(tg);
-    // 都做完了：不用回入口，教學自己一路跳到分局長（第 20 步）
-    await waitStep(tg, 19, 15000); console.log('A 亂序做完 → 自動跳到第', (await tutStep(tg)) + 1, '步');
+    await van(tg); await tutAnalyze(tg, 'print'); await closeWin(tg);
+    await van(tg); for (const t of ['thermo', 'swab', 'shoe']) await tg.click('[data-tool="' + t + '"]'); await tg.click('#gearOk'); await sleep(300); await closeWin(tg);
+    await toObj(tg, 'body'); await act(tg, '量測肝溫'); await act(tg, '採集死者血液');
+    await toObj(tg, 'phone'); await act(tg, '裝袋帶走');
+    await toObj(tg, 'mud'); await act(tg, '採集鞋印');
+    await van(tg); await tutAnalyze(tg, 'blood'); await tg.locator('[data-lab="phone"]').click(); await sleep(300); await closeWin(tg);
+    await waitStep(tg, 19, 15000); console.log('A 順序做完 → 到第', (await tutStep(tg)) + 1, '步');
     await tg.waitForFunction(() => __fs.G.st.boss.mode === 'in', null, { timeout: 15000 });
     await tutChase(tg, () => { const B = __fs.G.st.boss; return B.mode === 'in' ? { x: B.x, y: B.y } : null; }, 20);
     // 菜鳥：玩家站在車旁不動，由派去看菜鳥的員警攔下
