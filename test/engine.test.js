@@ -71,18 +71,19 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   const C = GEN.generate(5, 'normal'), st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }, { pid: 1, name: 'B', ci: 1 }], { pressure: false });
   ok(st.budget === C.labBudget && st.players[0].ap === undefined, '全隊共用實驗室額度，沒有個人點數');
   ok(!FS.act(C, st, 0, { type: 'gear', tools: ['camera', 'luminol', 'prints', 'swab'] }).ok, '最多帶 3 件');
-  ok(FS.act(C, st, 0, { type: 'gear', tools: ['camera', 'luminol', 'swab'] }).ok && st.players[0].lum === C.lumCharges, '帶魯米諾 → 有 ' + C.lumCharges + ' 次');
+  const LUM = FS.maxUses(C, st, 'luminol'); ok(LUM === C.toolUses.luminol + C.smallBonus.luminol, '2 人隊伍：魯米諾多 1 次（' + LUM + '）');
+  ok(FS.act(C, st, 0, { type: 'gear', tools: ['camera', 'luminol', 'swab'] }).ok && st.players[0].lum === LUM && st.players[0].uses.camera === FS.maxUses(C, st, 'camera'), '帶魯米諾 → 有 ' + LUM + ' 次，相機也有次數');
   ok(FS.act(C, st, 0, { type: 'gear', tools: ['camera', 'luminol', 'thermo'] }).ok && st.budget === C.labBudget, '換裝備免費');
   ok(!MG(C, st, 0, { type: 'use', obj: 'body', act: 'wound' }).ok, '離屍體太遠不能拍');
   at(st, 0, FS.objById(C, 'body')); const r = MG(C, st, 0, { type: 'use', obj: 'body', act: 'wound' });
   ok(r.ok && FS.hasEv(st, 'E_wound') && st.budget === C.labBudget, '近拍傷口不花額度、拿到證據');
   ok(!MG(C, st, 0, { type: 'use', obj: 'body', act: 'wound' }).ok, '同一件事不用做兩次');
   // 魯米諾次數
-  let used = 0; for (const id of ['floor_living', 'floor_study', 'floor_kitchen', 'w_statue']) { const o = FS.objById(C, id); at(st, 0, o); if (MG(C, st, 0, { type: 'use', obj: id, act: 'lum' }).ok) used++; }
-  ok(used === C.lumCharges && st.players[0].lum === 0, `魯米諾用 ${C.lumCharges} 次就空了`);
-  at(st, 0, FS.objById(C, 'w_statue')); ok(FS.options(C, st, 0, 'w_statue').some(x => x.why && /用完/.test(x.why)), '用完時按鈕會說要回車上補充');
+  let used = 0; for (const id of ['floor_living', 'floor_study', 'floor_kitchen', 'w_statue', 'w_poker', 'w_opener']) { const o = FS.objById(C, id); at(st, 0, o); if (MG(C, st, 0, { type: 'use', obj: id, act: 'lum' }).ok) used++; }
+  ok(used === LUM && st.players[0].lum === 0, `魯米諾用 ${LUM} 次就空了`);
+  at(st, 0, FS.objById(C, 'w_knife')); ok(FS.options(C, st, 0, 'w_knife').some(x => x.why && /用完/.test(x.why)), '用完時按鈕會說要回車上補充');
   ok(!FS.act(C, st, 0, { type: 'refill' }).ok, '不在車旁不能補充');
-  at(st, 0, C.start[0]); ok(FS.act(C, st, 0, { type: 'refill' }).ok && st.players[0].lum === C.lumCharges, '回車上補充魯米諾（免費）');
+  at(st, 0, C.start[0]); ok(FS.act(C, st, 0, { type: 'refill' }).ok && st.players[0].lum === LUM, '回車上補充魯米諾（免費）');
   // 送實驗室：花全隊額度、時間到才回來
   at(st, 1, FS.objById(C, 'phone')); ok(FS.act(C, st, 1, { type: 'bag', obj: 'phone' }).ok && st.obj.phone.gone, '手機裝袋（免費），從現場消失');
   at(st, 1, C.start[1]); ok(FS.act(C, st, 1, { type: 'lab', obj: 'phone' }).ok && st.budget === C.labBudget - C.labCost[1], '送驗扣全隊實驗室額度');
@@ -106,8 +107,8 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
 {
   let seen = { decay: 0, boss_in: 0, boss_fail: 0, tampered: 0, rookie: 0, rookie_hit: 0, flee: 0, fled: 0, caught: 0 }; let forced = 0, overlap = 0, minGap = 1e9;
   for (let seed = 1; seed <= 40; seed++) {
-    const C = GEN.generate(seed, 'hard'), st = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }]);
-    st.players[0].ap = 999; st.players[0].x = 1620; st.players[0].y = 1050;
+    const C = GEN.generate(seed, 'hard'), st = FS.newGame(C, [0, 1, 2, 3].map(i => ({ pid: i, name: 'P' + i, ci: i })));   // 4 人＝基準節奏
+    for (const q of Object.values(st.players)) { q.ap = 999; q.x = 1620; q.y = 1050; }
     let lastEnd = -1e9, busy = false;
     for (let t = 0; t < 1600 && st.phase === 'play'; t += 0.2) {
       if (Math.abs(t - 200) < 0.1) { for (const id of ['E_shoe', 'E_phone']) st.found.push({ id, n: 0 }); }
@@ -461,4 +462,112 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   const far = FS.walkable(C, P2.x, P2.y); const r2 = far ? FS.act(C, s2, 0, { type: 'boss' }) : { ok: true };
   ok(r2.ok, '在交差半徑內按 E → 交差成功：' + (r2.err || ''));
 }
+/* 17. v14：警員初步報告、觀察／周旋關係人、調度員警、按人數放慢節奏、裝備次數平衡 */
+{
+  const team = n => [0, 1, 2, 3].slice(0, n).map(i => ({ pid: i, name: 'P' + i, ci: i }));
+  // (a) 警員初步報告：每位員警 1–2 條，跟這個案件有關，不會直接說誰是兇手
+  let repOK = true, repLeak = 0, repCase = 0, nLines = 0;
+  for (let seed = 1; seed <= 200; seed++) for (const diff of ['easy', 'normal', 'hard']) {
+    const C = GEN.generate(seed, diff), cu = C.suspects.find(x => x.id === C.culprit);
+    for (const c of C.cops) { const L = C.copReports[c.id] || []; if (L.length < 1 || L.length > 2) repOK = false; nLines += L.length;
+      for (const x of L) { if (/兇手|凶手/.test(x.t)) repLeak++; if (x.k === 'room' || x.k === 'call' || x.k === 'phone') repCase++; } }
+  }
+  ok(repOK, '每位員警都有 1–2 條初步報告'); ok(repLeak === 0, '初步報告不會直接點名兇手'); ok(repCase > 600, `報告內容跟案件有關（房間／報案人／手機：${repCase} 條，共 ${nLines} 條）`);
+  { const C = GEN.generate(158, 'normal'), st = FS.newGame(C, team(2)), c = st.cops.find(q => !q.rk), p = st.players[0];
+    ok(!FS.act(C, st, 0, { type: 'brief', obj: c.id }).ok, '離員警太遠不能聽報告');
+    p.x = c.x + 40; p.y = c.y; const r = FS.act(C, st, 0, { type: 'brief', obj: c.id });
+    ok(r.ok && r.ev[0].k === 'brief' && r.ev[0].first && st.briefed[c.id] === 0, '走近員警按 E → 聽取初步報告，記下是誰聽的');
+    ok(st.news.some(n => n.text.includes(C.copReports[c.id][0].t)), '報告內容記進筆記本的現場動態');
+    const r2 = FS.act(C, st, 1, Object.assign({ type: 'brief', obj: c.id })); ok(!r2.ok, '隊友離太遠也不能聽');
+    st.players[1].x = c.x - 30; st.players[1].y = c.y; const r3 = FS.act(C, st, 1, { type: 'brief', obj: c.id }); ok(r3.ok && !r3.ev[0].first && st.briefed[c.id] === 0, '已經報告過 → 再聽一次不會重複記錄');
+  }
+  // (b) 觀察關係人：兇手的破綻跟案情一致；無辜的人也有看似可疑但有解釋的樣子
+  let tellOK = true, rhN = 0, calmN = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const C = GEN.generate(seed, 'normal'), M = GEN.METHODS.find(m => m.id === C.method);
+    for (const sp of C.suspects) { const T = C.tells[sp.id] || []; if (!T.length) tellOK = false;
+      if (sp.id === C.culprit) { const t = T.join(''); if (T.length !== 2) tellOK = false; if (/抓痕/.test(t) && !M.nails) tellOK = false; if (/漂白水/.test(t) && !M.blood) tellOK = false; if (/泥巴/.test(t) && C.shoeSpot.ground !== 'mud') tellOK = false; if (/藥袋/.test(t) && C.method !== 'poison') tellOK = false; }
+      else if (/神情疲憊/.test(T[0])) calmN++; else rhN++; }
+  }
+  ok(tellOK, '兇手的觀察結果跟真相一致（抓痕↔掙扎、漂白水↔清理血跡、泥巴↔泥鞋印、藥袋↔下毒）');
+  ok(rhN > 200 && calmN > 200, `無辜的人有一般反應（${calmN}）也有看似可疑的紅鯡魚（${rhN}）`);
+  { const C = GEN.generate(158, 'normal'), st = FS.newGame(C, team(1)), n = st.npcs[0], p = st.players[0];
+    p.x = 2050; p.y = 900; ok(!FS.act(C, st, 0, { type: 'observe', obj: n.id }).ok, '離太遠不能觀察'); p.x = n.x + 50; p.y = n.y;
+    const r = FS.act(C, st, 0, { type: 'observe', obj: n.id }); ok(r.ok && st.obs[n.id] && st.obs[n.id].by === 0, '👀 觀察關係人 → 記到他的筆記');
+  }
+  // (c) 周旋／安撫：想溜走的兇手冷靜下來，45–60 秒內不會再想跑；好奇溜進來的人會走回去
+  { const C = GEN.generate(158, 'normal'), st = FS.newGame(C, team(1), { pressure: true }), n = st.npcs.find(q => q.id === C.culprit), p = st.players[0];
+    st.boss.nextAt = 1e9; st.cops.forEach(c => c.nextAt = 1e9); st.tamperAt = 1e9; st.curiousAt = 1e9;
+    for (const id of ['E_shoe', 'E_phone', 'E_motive']) st.found.push({ id, n: 0 });   // 證據指向兇手 → 他會緊張想跑
+    p.x = 2000; p.y = 900; let ev = []; for (let t = 0; t < 20 && n.mode !== 'nervous'; t += 0.2) ev = ev.concat(FS.tick(C, st, 0.2));
+    ok(n.mode === 'nervous', '證據指向兇手 → 他開始緊張想溜');
+    p.x = n.x + 60; p.y = n.y; const r = FS.act(C, st, 0, { type: 'calm', obj: n.id });
+    ok(r.ok && n.mode === 'idle' && /不走/.test(r.ev[0].text), '🗣️ 周旋 → 他冷靜下來：「好，我不走」');
+    ok(!FS.act(C, st, 0, { type: 'calm', obj: n.id }).ok, '剛安撫過，要等一下才能再安撫');
+    p.x = 2000; p.y = 900; let fled = false, t = 0; for (; t < 42; t += 0.2) for (const e of FS.tick(C, st, 0.2)) if (e.k === 'nervous' || e.k === 'flee') fled = true;
+    ok(!fled, '安撫後 42 秒內不會再想溜');
+    for (; t < 120 && !fled; t += 0.2) for (const e of FS.tick(C, st, 0.2)) if (e.k === 'nervous') fled = true;
+    ok(fled, '冷靜期過了，證據還是指向他 → 之後還是可能想溜');
+    const s2 = FS.newGame(C, team(1), { pressure: true }), m = s2.npcs.find(q => q.id !== C.culprit); m.mode = 'curious'; m.x = 700; m.y = 720; m.path = [];
+    s2.players[0].x = 740; s2.players[0].y = 720; const r2 = FS.act(C, s2, 0, { type: 'calm', obj: m.id }); ok(r2.ok && m.mode === 'back', '溜進封鎖線的人被叫住 → 走回去');
+  }
+  // (d) 調度員警：守大門
+  let stops = 0, miss = 0, trials = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const C = GEN.generate(seed, 'normal'), st = FS.newGame(C, team(1), { pressure: true }); st.boss.nextAt = 1e9; st.cops.forEach(c => c.nextAt = 1e9);
+    const c = st.cops.find(q => !q.rk), p = st.players[0]; p.x = c.x + 30; p.y = c.y;
+    const r = FS.act(C, st, 0, { type: 'dispatch', obj: c.id, v: 'door' }); if (!r.ok) { ok(false, '派員警守大門：' + r.err); break; }
+    p.x = 2050; p.y = 900; for (let t = 0; t < 40 && c.mode !== 'guard'; t += 0.2) FS.tick(C, st, 0.2);
+    if (seed === 1) ok(c.mode === 'guard' && Math.hypot(c.x - C.guardSpots.door.x, c.y - C.guardSpots.door.y) < 30, '員警走到大門口站崗');
+    const n = st.npcs.find(q => q.id === C.culprit), o = FS.objById(C, 'phone'); n.mode = 'sneak'; n.tgt = 'phone'; n.path = FS.findPath(C, n.x, n.y, o.x, o.y + 10, 30); trials++;
+    for (let t = 0; t < 60 && n.mode === 'sneak'; t += 0.2) for (const e of FS.tick(C, st, 0.2)) { if (e.k === 'guard_stop') stops++; if (e.k === 'guard_miss') miss++; }
+  }
+  console.log(`v14 守大門：攔下 ${stops}/${trials}，漏看 ${miss}`);
+  ok(stops >= trials * 0.6 && stops < trials, `守大門的員警攔下大部分想溜進來的人（${stops}/${trials}，漏看 ${miss} 次）——有幫助但不是隱形牆`);
+  // 盯菜鳥
+  let saved = 0, hit = 0, rt = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const C = GEN.generate(seed, 'normal'), st = FS.newGame(C, team(1), { pressure: true }); st.boss.nextAt = 1e9; st.tamperAt = 1e9; st.curiousAt = 1e9;
+    const R = st.cops.find(q => q.rk), g = st.cops.find(q => !q.rk), p = st.players[0]; if (!R || !g) continue;
+    p.x = g.x + 30; p.y = g.y; if (!FS.act(C, st, 0, { type: 'dispatch', obj: g.id, v: 'rookie' }).ok) { ok(false, '派員警盯菜鳥失敗'); break; }
+    p.x = 400; p.y = 1250; for (let t = 0; t < 40 && g.mode !== 'guard'; t += 0.2) FS.tick(C, st, 0.2);
+    st.forceRookie = true; rt++;
+    for (let t = 0; t < 90; t += 0.2) for (const e of FS.tick(C, st, 0.2)) { if (e.k === 'rookie_guard') saved++; if (e.k === 'rookie_hit') hit++; }
+    if (seed === 1) { const r2 = FS.act(C, st, 0, { type: 'dispatch', obj: R.id, v: 'door' }); ok(!R.known || !r2.ok, '已經知道是菜鳥 → 不能調度他'); }
+  }
+  console.log(`v14 盯菜鳥：拉住 ${saved}/${rt}，闖禍 ${hit}`);
+  ok(saved >= rt * 0.7, `盯菜鳥的員警會拉住要亂碰證物的菜鳥（${saved}/${rt}，闖禍 ${hit} 次）`);
+  { const C = GEN.generate(3, 'normal'), st = FS.newGame(C, team(1)), c = st.cops.find(q => !q.rk), p = st.players[0]; p.x = c.x; p.y = c.y;
+    FS.act(C, st, 0, { type: 'dispatch', obj: c.id, v: 'door' }); const c2 = st.cops.find(q => !q.rk && q !== c); p.x = c2.x; p.y = c2.y; FS.act(C, st, 0, { type: 'dispatch', obj: c2.id, v: 'door' });
+    ok(c2.order === 'door' && c.order === null, '同一個崗位只派一個人（新派的人接手，原本的人回原位）');
+    p.x = c2.x; p.y = c2.y; ok(FS.act(C, st, 0, { type: 'dispatch', obj: c2.id, v: 'post' }).ok && c2.order === null && c2.mode === 'back', '📋 回原位待命');
+    ok(!FS.act(C, st, 0, { type: 'dispatch', obj: c2.id, v: 'boss' }).ok, '不明的指令會被拒絕'); }
+  // (e) 按人數放慢節奏
+  ok(FS.paceN(1) === 2.1 && FS.paceN(2) === 1.65 && FS.paceN(3) === 1.3 && FS.paceN(4) === 1, '節奏倍率：1 人 ×2.1、2 人 ×1.65、3 人 ×1.3、4 人 ×1');
+  { const C = GEN.generate(9, 'normal'), s1 = FS.newGame(C, team(1)), s4 = FS.newGame(C, team(4));
+    const rk1 = s1.cops.find(c => c.rk).nextAt, rk4 = s4.cops.find(c => c.rk).nextAt;
+    ok(Math.abs(s1.tamperAt / s4.tamperAt - 2.1) < 1e-9 && Math.abs(rk1 / rk4 - 2.1) < 1e-9 && Math.abs(s1.boss.nextAt / s4.boss.nextAt - 2.1) < 1e-9, '單人：兇手溜進來、菜鳥、分局長第一次出現都晚 2.1 倍');
+    for (const s of [s1, s4]) { s.boss.nextAt = 1e9; s.cops.forEach(c => c.nextAt = 1e9); s.tamperAt = 1e9; s.curiousAt = 1e9; for (let t = 0; t < 200; t += 1) FS.tick(C, s, 1); }
+    const d1 = 100 - s1.patience, d4 = 100 - s4.patience; console.log(`v14 耐心 200 秒：單人 -${d1.toFixed(1)}、4 人 -${d4.toFixed(1)}`); ok(Math.abs(d4 / d1 - 2.1) < 0.01, `單人：分局長耐心掉得慢 2.1 倍（200 秒：單人 -${d1.toFixed(1)}、4 人 -${d4.toFixed(1)}）`);
+    const s3 = FS.newGame(C, team(4)), T0 = s3.tamperAt; FS.leave(C, s3, 3); FS.tick(C, s3, 0.1);
+    ok(s3.pace === 1.3 && Math.abs((s3.tamperAt - s3.clock) / (T0 - 0.1) - 1.3) < 0.01, '有人離隊（4→3）→ 還沒發生的插曲時間按新節奏 ×1.3 重新計算'); }
+  // (f) 裝備次數平衡（300 局 × 3 難度）
+  const tools = ['camera', 'luminol', 'prints', 'swab', 'thermo', 'shoe']; let balOK = true; const tmin = {}, tmax = {};
+  for (let seed = 1; seed <= 300; seed++) for (const diff of ['easy', 'normal', 'hard']) {
+    const C = GEN.generate(seed, diff), cnt = {}; tools.forEach(t => cnt[t] = 0);
+    for (const o of C.objects.concat(C.stains || [])) for (const a of o.acts || []) if (a.tool) cnt[a.tool]++;
+    for (const t of tools) { tmin[t] = Math.min(tmin[t] ?? 99, cnt[t]); tmax[t] = Math.max(tmax[t] ?? 0, cnt[t]); const st4 = FS.newGame(C, team(4)), st1 = FS.newGame(C, team(1));
+      const u4 = FS.maxUses(C, st4, t), u1 = FS.maxUses(C, st1, t); if (cnt[t] < 2 || u4 < 2 || u4 > 5 || u1 < u4 || u4 > cnt[t] + 1) balOK = false; }
+  }
+  console.log('每局工具目標數（最少–最多）：', tools.map(t => `${t} ${tmin[t]}–${tmax[t]}`).join('、'));
+  ok(balOK, '每件工具每局至少 2 個目標；4 人時每次出門 2–5 次、最多比目標數多 1 次（留給重做）；1–2 人次數不會比較少');
+  { const C = GEN.generate(5, 'normal'), st = FS.newGame(C, team(1)), p = st.players[0]; p.x = C.start[0].x; p.y = C.start[0].y;
+    FS.act(C, st, 0, { type: 'gear', tools: ['camera', 'luminol', 'thermo'] }); p.uses.camera = 1; p.uses.luminol = 0; syncL(p);
+    const e = FS.tick(C, st, 0.2); ok(e.some(x => x.k === 'refill' && x.auto) && p.uses.camera === FS.maxUses(C, st, 'camera') && p.lum === FS.maxUses(C, st, 'luminol'), '單人走到鑑識車旁 → 工具次數自動補滿');
+    const s4 = FS.newGame(C, team(4)), q = s4.players[0]; q.x = C.start[0].x; q.y = C.start[0].y; FS.act(C, s4, 0, { type: 'gear', tools: ['camera'] }); q.uses.camera = 1;
+    ok(!FS.tick(C, s4, 0.2).some(x => x.k === 'refill') && q.uses.camera === 1, '4 人隊伍：要自己在車上按「補充」');
+    at(st, 0, FS.objById(C, 'body')); p.uses.thermo = 0; ok(FS.options(C, st, 0, 'body').some(x => x.tool === 'thermo' && /用完/.test(x.why)), '肝溫計用完 → 按鈕說要回車上補充');
+    p.uses.thermo = 1; ok(MG(C, st, 0, { type: 'use', obj: 'body', act: 'room' }).ok && p.uses.thermo === 0 && FS.hasEv(st, 'E_roomtemp'), '量室溫用掉 1 次肝溫計、拿到室溫證據'); }
+}
+function syncL(p) { p.lum = p.uses.luminol || 0; }
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

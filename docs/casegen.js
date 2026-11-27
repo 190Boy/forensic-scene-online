@@ -82,7 +82,12 @@ const scR = r => Object.assign({}, r, { x: q(r.x), y: q(r.y), w: q(r.w), h: q(r.
 const scP = o => Object.assign({}, o, { x: q(o.x), y: q(o.y) });
 const SIZES = {"prop_body": [100, 73], "prop_carpet": [325, 215], "prop_rug_study": [224, 96], "prop_mud_prints": [168, 109], "prop_sofa": [202, 119], "prop_coffee_table": [123, 72], "prop_bookshelf": [74, 168], "prop_back_door": [24, 146], "prop_garden_gate": [138, 146], "prop_fireplace": [179, 180], "prop_desk": [179, 141], "prop_counter": [179, 152], "prop_shoe_rack": [123, 86], "prop_statue": [49, 95], "prop_poker": [61, 95], "prop_curtain_cord": [19, 90], "prop_knife_block": [58, 54], "prop_mop_bucket": [69, 95], "prop_trash_can": [56, 78], "prop_wine_glasses": [43, 40], "prop_teacup": [35, 29], "prop_necktie": [62, 41], "prop_letter_opener": [45, 9], "prop_phone": [34, 25], "prop_planted_item": [29, 11], "prop_light_switch": [16, 34], "prop_police_tape": [45, 112], "prop_bush": [134, 144], "prop_tree": [186, 258], "van_exterior": [325, 224], "prop_floor_mark": [123, 119]};
 const BASE = {
-  carryTools: 3, bagSlots: 3, lumCharges: 3, labCost: { 1: 3, 2: 5 }, sampleLabAP: 3,
+  carryTools: 3, bagSlots: 3, lumCharges: 3,
+  // v14 裝備次數：每件工具帶出門的可用次數（回鑑識車免費補滿）；1–2 人時多給一點（smallBonus），而且靠近車子會自動補滿
+  toolUses: { camera: 5, luminol: 3, prints: 3, swab: 3, thermo: 3, shoe: 2 },
+  smallBonus: { camera: 2, luminol: 1, prints: 1, swab: 1, thermo: 0, shoe: 0 },
+  // v14 員警調度的站位（原圖像素，載入時換算）：守大門＝玄關門內；盯菜鳥＝客廳門口（離三個房間都近）
+  guardSpots: { door: scP({ x: 885, y: 905 }), rookie: scP({ x: 1250, y: 830 }) }, labCost: { 1: 3, 2: 5 }, sampleLabAP: 3,
   start: [{ x: 420, y: 1100 }, { x: 490, y: 1130 }, { x: 350, y: 1140 }, { x: 560, y: 1100 }].map(scP),
   van: { x: q(300), y: q(990), r: 190 },
   exit: { x: q(420), y: q(1465) },
@@ -235,6 +240,8 @@ function generate(seed, diff) {
     ev('E_tod_p', `死亡時間 ${hhmm(tod + b2 - 25)}–${hhmm(tod + b2 + 25)}`, 'ev_thermo', `肝溫推算死亡時間約 ${hhmm(tod + b2 - 25)}–${hhmm(tod + b2 + 25)}。`, { tod: 50 }, ALT('poor')); }
   ev('E_tod', `死亡時間 ${hhmm(tod - 15)}–${hhmm(tod + 15)}`, 'ev_thermo', `肝溫推算死亡時間約 ${hhmm(tod - 15)}–${hhmm(tod + 15)}。`, { tod: 30 });
   ev('E_tod_wide', `死亡時間 ${hhmm(tod - 75)}–${hhmm(tod + 45)}（不精確）`, 'ev_thermo', `量得太晚，屍溫已接近室溫，只能推算約 ${hhmm(tod - 75)}–${hhmm(tod + 45)}。`, { tod: 120 });
+  { const rt = 18 + (C.room.heater ? 6 : 0) - (C.room.window ? 4 : 0);
+    ev('E_roomtemp', `室溫 ${rt}°C：${C.room.heater ? '暖氣開著' : '暖氣沒開'}、${C.room.window ? '窗戶開著' : '窗戶關著'}`, 'ev_thermo', `${BASE.roomName[bodyRoom]}室溫約 ${rt}°C。${rt >= 22 ? '屍體降溫比平常慢，肝溫推算的死亡時間可能偏晚，要往前校正一點。' : rt <= 16 ? '冷風讓屍體降溫比平常快，肝溫推算的死亡時間可能偏早，要往後校正一點。' : '室溫正常，肝溫推算不用特別校正。'}`, {}); }
   const toxin = method.id === 'poison';
   ev('E_vblood', toxin ? '死者血液：驗出毒物' : `死者血液：${C.victim.blood} 型，無毒物`, 'ev_blood', toxin ? `離心快篩：死者 ${C.victim.blood} 型，血中驗出高濃度安眠藥與氰化物。` : `離心快篩：死者血型 ${C.victim.blood} 型，沒有驗出毒物。`, toxin || contactM ? { sig: ['toxin'] } : { neg: ['toxin'] });
   if (contactM) Object.assign(E.E_vblood, { name: '死者血液：驗出毒物', text: `離心快篩：死者 ${C.victim.blood} 型，血中驗出極微量的強效神經毒（類似箭毒蛙的蛙毒鹼）。` });
@@ -245,6 +252,7 @@ function generate(seed, diff) {
     { id: 'livid', tool: 'camera', ap: 1, label: '檢查屍斑', ev: ['E_livid'], mg: 'photo', q: { poor: { ev: ['E_livid_x'] } } },
     { id: 'hands', tool: 'camera', ap: 1, label: '檢查雙手', ev: ['E_hands'], mg: 'photo', q: { poor: { ev: ['E_hands_x'] } } },
     { id: 'temp', tool: 'thermo', ap: 1, label: '量測肝溫', ev: ['E_tod'], mg: 'thermo', q: { fair: { ev: ['E_tod_f'] }, poor: { ev: ['E_tod_p'] } }, cond: [{ after: 'todWide', ev: ['E_tod_wide'] }] },
+    { id: 'room', tool: 'thermo', ap: 1, label: '量測室溫（校正肝溫）', ev: ['E_roomtemp'] },
     { id: 'swab', tool: 'swab', ap: 1, label: '採集死者血液', mg: 'swab', sample: { kind: 'blood', label: '死者血液', res: 'E_vblood' }, q: { poor: { sample: { kind: 'blood', label: '死者血液（樣本可能不乾淨）', res: 'E_vblood_x' } } } }
   ];
   if (method.nails) {
@@ -331,6 +339,15 @@ function generate(seed, diff) {
     ev('E_shoe_p', `${SWN}：${off[0]}–${off[1]} 號`, 'ev_shoe', `鞋印斷斷續續，估出鞋號範圍 ${off[0]}–${off[1]} 號。`, { range: [['shoe', off[0], off[1]]] }, ALT('poor')); }
   O.push({ id: 'mud', room: sk, x: SP.x, y: SP.y, img: SP.img, w: SP.w || 200, h: SP.h || 90, ownSize: !SP.out, name: SP.name, flat: true, r: 120, desc: SP.desc, ground: SP.ground,
     acts: [{ id: 'cast', tool: 'shoe', ap: 2, label: '追蹤並採集鞋印', mg: 'shoe', sample: { kind: 'shoe', label: SWN, res: 'E_shoe' }, q: { fair: { sample: { kind: 'shoe', label: SWN + '（不完整）', res: 'E_shoe_f' } }, poor: { sample: { kind: 'shoe', label: SWN + '（斷斷續續）', res: 'E_shoe_p' } } }, cond: SP.out ? [{ flag: 'rain', ev: ['E_shoe_rain'], sample: null }] : [] }] });
+  // v14：第二組鞋印（誘餌）——最先到場的員警或無辜關係人留下的舊鞋印，讓足跡採集器有第二個值得採的目標
+  if (!D.hidden) {
+    const k2 = shuffle(rv, ['foyer', 'kitchen', 'living', 'study'].filter(k => k !== sk && k !== bodyRoom))[0], S2 = SPOTS[k2], cop = rv() < .5, inn2 = others[Math.floor(rv() * others.length)];
+    const W2 = S2.where + '另一組鞋印', size2 = cop ? 26 + Math.floor(rv() * 3) : inn2.shoe;
+    ev('E_shoe2', cop ? `${W2}：警用制式鞋 ${size2} 號` : `${W2}：${size2} 號（舊的）`, 'ev_shoe', cop ? `鞋底是警用制式皮鞋的紋路，${size2} 號——是最先到場的員警踩的，和案情無關。` : `${size2} 號鞋印，上面覆著一層灰，是好幾天前留下的（${inn2.name}平常會來這裡）。`, cop ? {} : { decoy: inn2.id });
+    ev('E_shoe2_p', `${W2}：斷斷續續`, 'ev_shoe', '鞋印斷斷續續，看不出鞋號。', {}, ALT('poor'));
+    O.push({ id: 'mud2', room: k2, x: S2.x + 40, y: S2.y + 30, img: S2.ground === 'mud' ? 'prop_mud_prints' : 'prop_floor_prints', w: 120, h: 56, ownSize: true, name: S2.where + '的另一組鞋印', flat: true, r: 100, desc: S2.ground === 'mud' ? '一組比較淡的泥鞋印，邊緣已經乾了。' : '手電筒斜照，浮出一組比較淡的鞋印。', ground: S2.ground,
+      acts: [{ id: 'cast', tool: 'shoe', ap: 2, label: '採集鞋印', mg: 'shoe', sample: { kind: 'shoe', label: W2, res: 'E_shoe2' }, q: { poor: { sample: { kind: 'shoe', label: W2 + '（斷斷續續）', res: 'E_shoe2_p' } } } }] });
+  }
   // 手機（通聯）
   // 關係人身上的血漬（v10）：兇手可能沾到死者的血；無辜的人也可能有誘餌污漬（自己割傷／生肉血水／紅酒）——光有血漬不代表是兇手
   C.stains = [];
@@ -371,7 +388,8 @@ function generate(seed, diff) {
     ev('E_mop', '拖把沒有血跡', 'ev_luminol', '拖把是乾的，沒有血跡反應。', {});
   }
   O.push({ id: 'trash', room: 'kitchen', x: 1203, y: 1320, img: 'prop_trash_can', baked: true, bw: 80, bh: 115, name: '垃圾桶', r: 90, desc: '垃圾桶最上面有一條揉成一團的毛巾。', acts: [], bag: { ap: 1, size: 1, label: '把毛巾裝袋帶走', lab: 'E_towel' } });
-  O.push({ id: 'mop', room: 'kitchen', x: 1528, y: 1306, img: 'prop_mop_bucket', w: 70, h: 100, name: '拖把和水桶', r: 90, desc: '拖把和水桶放在廚房角落。', acts: [{ id: 'lum', tool: 'luminol', ap: 2, label: '噴灑魯米諾', ev: ['E_mop'], reveal: method.blood ? 'fx_luminol_spot' : null }] });
+  ev('E_mopT', method.blood ? '水桶的水還是溫的' : '水桶的水是冷的', 'ev_thermo', method.blood ? `水桶裡的水約 31°C，比室溫高很多 → 大約 1 小時內有人用熱水拖過地（${hhmm(tod)} 前後屋裡有人在清理）。` : '水桶裡的水和室溫一樣，拖把也是乾的——好幾天沒用了。', {});
+  O.push({ id: 'mop', room: 'kitchen', x: 1528, y: 1306, img: 'prop_mop_bucket', w: 70, h: 100, name: '拖把和水桶', r: 90, desc: '拖把和水桶放在廚房角落。', acts: [{ id: 'lum', tool: 'luminol', ap: 2, label: '噴灑魯米諾', ev: ['E_mop'], reveal: method.blood ? 'fx_luminol_spot' : null }, { id: 'temp', tool: 'thermo', ap: 1, label: '量水桶的水溫', ev: ['E_mopT'] }] });
   /* --- 誘餌線索 --- */
   const decoyKinds = shuffle(r, ['oldprints', 'oldblood', 'frame', 'motive2']).slice(0, D.decoys);
   C.decoys = [];
@@ -447,6 +465,42 @@ function generate(seed, diff) {
   const posts = shuffle(r2, COP_POSTS).slice(0, D.cops), names = shuffle(r2, COP_NAMES);
   C.cops = posts.map((pp, i) => ({ id: 'cop' + i, name: names[i], img: 'npc_officer_' + (1 + Math.floor(r2() * 5)), posts: pp.map(scP) }));
   C.rookies = D.rookies; C.reports = REPORTS; C.roles = ROLES;
+  /* --- v14 警員初步報告：每位員警 1–2 條和這個案件有關的線索（不直接點名兇手，只指向要去驗證的房間／物品／人） --- */
+  const r3 = rng((seed ^ 0x27d4eb2f) >>> 0), RN = BASE.roomName;
+  const disc = pick(r3, sus), watchS = pick(r3, sus), off = [-10, 0, 10][Math.floor(r3() * 3)];
+  const SOUND = { blunt: '「咚」一聲很重的悶響', stab: '一聲短促的尖叫', strangle: '有人在吵架，接著是椅子倒地的聲音', poison: '有人在聊天、碰杯，之後就很安靜', staged: '一聲悶響，像有很重的東西倒下', contact: '沒有聽到什麼聲音，只有屋裡的音樂一直開著' };
+  const pool = [
+    { k: 'call', t: `報案的是${disc.name}（${disc.role.replace(/（.*）/, '')}）：22:05 左右來找死者，看到${RN[bodyRoom]}燈亮著、人倒在地上，馬上打 110。` },
+    { k: 'sound', t: `隔壁住戶說，大約 ${hhmm(tod + off)} 聽到${SOUND[method.id]}，之後就沒有動靜了。` },
+    { k: 'room', t: method.blood ? `我們到的時候，${RN[crime]}的地板特別乾淨，還聞得到清潔劑的味道。` : method.id === 'strangle' ? `${RN[crime]}的椅子歪在一邊，地毯被拖得皺皺的。` : `${RN[W.room]}桌上的東西被人動過，擺得跟平常不太一樣（管家說的）。` },
+    { k: 'shoe', t: `我在${C.shoeSpot.where}看到地上有鞋印，已經請大家繞開別踩。` },
+    { k: 'sus', t: r3() < .5 ? `${watchS.name}從我們到場就一直問什麼時候可以走，很不耐煩。` : `${watchS.name}說${hhmm(tod - 60)} 之後${watchS.alibi}，講到一半改口了一次，你們可以再確認。` },
+    { k: 'phone', t: `死者的手機掉在${RN[bodyRoom]}屍體旁邊，螢幕一直有訊息跳出來，我們沒碰。` }
+  ];
+  const st0 = (C.stains || [])[0]; if (st0) { const sp0 = sus.find(x => x.id === st0.npc); pool.push({ k: 'stain', t: `${sp0.name}的${st0.spot}好像沾到深色的東西，本人好像沒注意到。` }); }
+  const pl = shuffle(r3, pool); C.copReports = {};
+  C.cops.forEach((c, i) => { C.copReports[c.id] = [pl[i % pl.length]]; });
+  pl.slice(C.cops.length).forEach((x, i) => { const c = C.cops[i % C.cops.length]; if (C.copReports[c.id].length < 2) C.copReports[c.id].push(x); });
+  /* --- v14 觀察關係人：兇手的「破綻」和案情一致；無辜的人也可能有看起來可疑、但有合理解釋的樣子 --- */
+  const PHYS = [];
+  if (method.nails) PHYS.push('手背上有兩三道新的抓痕，袖子一直往下拉。');
+  if (method.blood) PHYS.push('身上有淡淡的漂白水／清潔劑味道。');
+  if (C.shoeSpot.ground === 'mud') PHYS.push('鞋底邊緣卡著還沒乾的泥巴。');
+  if (method.id === 'poison') PHYS.push('外套口袋露出一角藥袋，被問到就塞回去。');
+  if (method.id === 'contact') PHYS.push('一直不肯脫手套，露出來的指尖有點紅腫。');
+  if (method.id === 'strangle') PHYS.push('手掌有一道細細的紅色壓痕，像用力拉過繩子。');
+  if (!PHYS.length) PHYS.push('衣服換過了，跟鄰居描述傍晚看到的不一樣。');
+  const BEH = [`說話時眼神一直飄向${RN[crime]}的方向。`, `回答很快、像背好的，問到 ${hhmm(tod)} 前後就變得含糊。`, '你一靠近，他就下意識把手藏到背後。'];
+  const RH = { gardener: '鞋上沾滿泥巴（他是園丁，整天在院子工作）。', maid: '手上有漂白水味（說今天下午才打掃過廚房）。', daughter: '眼睛又紅又腫，一直在哭，問話時情緒很激動。', reporter: '一直偷偷用手機拍現場，被發現就說是工作需要。', neighbor: '身上有很重的菸味，手一直在發抖（說是天氣冷）。', wife: '一直打電話給保險公司，語氣冷靜得有點奇怪。', partner: '一直看錶、傳訊息，說等一下還有客戶要見。' };
+  const CALM = '神情疲憊但很配合，前後說法一致，看不出特別的異狀。';
+  C.tells = {};
+  for (const sp of sus) {
+    if (sp === culprit) { C.tells[sp.id] = [pick(r3, PHYS), pick(r3, BEH)]; continue; }
+    const L = [r3() < .6 ? RH[sp.id] : CALM];
+    const so = (C.stains || []).find(x => x.npc === sp.id);
+    if (so) { const t = (E['E_st_' + sp.id + '_dna'] || {}).text || ''; L.push(/割傷/.test(t) ? '手指貼著 OK 繃（說傍晚切水果割到）。' : /生肉/.test(t) ? `${so.spot}有點腥味（說傍晚在廚房處理過生肉）。` : /紅酒/.test(t) ? `${so.spot}聞得到紅酒味。` : ''); }
+    C.tells[sp.id] = L.filter(Boolean);
+  }
   C.mgMin = D.hidden ? 1.5 : 4;          // 小遊戲最少要花的秒數（伺服器檢查）
   C.mgEasy = !!D.hidden;                 // 新手教學：表現再差也給完整結果（但會顯示分數）
   for (const o of O) { const z = SIZES[o.img]; if (o.baked) { o.w = q(o.bw); o.h = q(o.bh); delete o.bw; delete o.bh; } else if (z && !o.ownSize) { o.w = z[0]; o.h = z[1]; } }

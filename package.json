@@ -9,7 +9,7 @@
     "test": "node test/engine.test.js && node test/server.test.js",
     "assets": "node tools/gen_assets.js",
     "prompts": "node tools/gen_assets.js --prompts",
-    "test:ui": "node test/clear_check.js"
+    "test:ui": "node test/clear_check.js && node test/v14_check.js"
   },
   "engines": {
     "node": ">=18"

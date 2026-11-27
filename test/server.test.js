@@ -69,7 +69,7 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   /* 動作同步 */
   B2.msgs = []; A.send({ t: 'act', a: { type: 'gear', tools: ['camera', 'luminol', 'thermo'] } });
   const sg = await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
-  ok(sg && sg.s.players[0].tools.length === 3 && sg.s.players[0].lum === 3, 'A 換裝備（魯米諾 3 次）→ B 看到');
+  ok(sg && sg.s.players[0].tools.length === 3 && sg.s.players[0].lum === 4 && sg.s.players[0].uses.luminol === 4, 'A 換裝備（2 人隊伍：魯米諾 3+1＝4 次）→ B 看到');
   B2.msgs = []; B2.send({ t: 'act', a: { type: 'light', obj: 'sw_living' } }); ok(!!(await B2.wait(m => m.t === 'err' && /太遠/.test(m.msg))), '離開關太遠不能關燈');
   B2.send({ t: 'act', a: { type: 'gear', tools: ['prints', 'luminol', 'camera'] } }); await B2.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'gear'));
   for (const [x, y] of steps(CC, CC.start[1], ENG.objById(CC, 'sw_living'), 30)) { B2.send({ t: 'mv', x, y, d: 1 }); await sleep(130); }
@@ -106,6 +106,13 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   ok(!!pe, '伺服器會推進壓力系統（' + (pe ? pe.ev.map(e => e.k).join(',') : '無') + '）');
   const bi = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'boss_in'), 12000);
   ok(bi && bi.s.boss.mode === 'in' && bi.s.boss.demand, '分局長進封鎖線，要求同步給所有人（' + (bi ? JSON.stringify(bi.s.boss.demand) : '無') + '）');
+  /* v14：新動作經過伺服器同一套規則（離太遠會被拒絕、指令要合法）；節奏依人數 */
+  { const last = A.msgs.filter(m => m.t === 'state').pop() || sa; const cop = last.s.cops[0], npc = last.s.npcs[0];
+    ok(last.s.pace === 1.65, '2 人連線 → 節奏 ×1.65（' + last.s.pace + '）');
+    ok(!!last.s.briefed && !!last.s.obs && Object.values(last.s.players).every(q => q.uses), '狀態裡有員警報告／觀察紀錄／工具次數，會同步給所有人');
+    for (const [a, re, msg] of [[{ type: 'brief', obj: cop.id }, /走近|攔住|追人/, '聽取員警報告'], [{ type: 'dispatch', obj: cop.id, v: 'door' }, /走近|攔住|追人|菜鳥/, '調度員警'], [{ type: 'observe', obj: npc.id }, /^走近一點$|離開/, '觀察關係人'], [{ type: 'calm', obj: npc.id }, /^走近一點$|離開|喘口氣|跑/, '周旋關係人']]) {
+      B2.msgs = []; B2.send({ t: 'act', a }); const e = await B2.wait(m => m.t === 'err' && m.code === 'act', 3000);
+      ok(e && re.test(e.msg), `連線：${msg}也是伺服器說了算（${e ? e.msg : '沒有回應'}）`); } }
   /* 斷線重連拿回狀態 */
   await B2.close(); await sleep(150);
   const B3 = await client(); B3.send({ t: 'join', code, token: jb.token }); const jb3 = await joined(B3);
@@ -115,6 +122,7 @@ const get = p => new Promise(r => http.get(`http://localhost:${PORT}${p}`, res =
   /* 離隊 */
   A.msgs = []; B3.send({ t: 'leave' }); const sl = await A.wait(m => m.t === 'state' && m.ev.some(e => e.k === 'left'));
   ok(sl && !sl.s.players[1].active && sl.s.phase === 'play', '隊友離隊 → 其他人繼續調查');
+  { const n = await A.wait(m => m.t === 'state' && m.s.pace === 2.1, 4000) || (sl && sl.s.pace === 2.1 ? sl : null); ok(!!n, '剩 1 人 → 伺服器把節奏改成 ×2.1（插曲間隔重新計算）'); }
   /* 推理 → 結果 */
   A.send({ t: 'act', a: { type: 'close' } }); await A.wait(m => m.t === 'state' && m.s.phase === 'deduce');
   const Cg = require('../docs/casegen.js').generate(sa.s.seed, sa.s.diff);
