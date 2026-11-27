@@ -152,8 +152,10 @@ const stale = pg => pg.evaluate(() => ({ cards: document.querySelectorAll('#card
     console.log('D 兩人同時按電燈：', JSON.stringify(L)); if (L[0] !== L[1]) errors.push('D：兩人看到的燈不一樣 ' + JSON.stringify(L));
     await p1.click('#bClose'); await sleep(1000);
     // v17：推理視窗關掉之後（房主、隊友都一樣）按「⚖️ 回到結案推理」回得去，草稿還在
-    { const cul = await p1.evaluate(() => __fs.C.suspects[1].id); await p1.click('[data-cul="' + cul + '"]'); await sleep(400);
-      for (const [p, t] of [[p2, '隊友'], [p1, '房主']]) {
+    { const culs = await p1.evaluate(() => [__fs.C.suspects[1].id, __fs.C.suspects[2].id]);   // v18：每個人各自的草稿
+      for (const p of [p1, p2]) await p.waitForFunction(() => __fs.G.ovKind === 'deduce', null, { timeout: 5000 }).catch(() => { });
+      await p1.click('[data-cul="' + culs[0] + '"]'); await p2.click('[data-cul="' + culs[1] + '"]'); await sleep(500);
+      for (const [p, t, cul] of [[p2, '隊友', culs[1]], [p1, '房主', culs[0]]]) {
         await p.waitForFunction(() => __fs.G.ovKind === 'deduce', null, { timeout: 5000 }).catch(() => errors.push('D：' + t + '沒打開推理'));
         await closeWin(p); await p.click('#bNote'); await sleep(300); await closeWin(p);
         const lb = await p.evaluate(() => { const b = document.querySelector('#bClose'); return { vis: !!b.offsetParent && !b.disabled, t: b.textContent, ov: __fs.G.ovKind }; });
@@ -161,7 +163,8 @@ const stale = pg => pg.evaluate(() => ({ cards: document.querySelectorAll('#card
         await p.click('#bClose'); await sleep(400);
         const r = await p.evaluate(c => ({ ov: __fs.G.ovKind, draft: __fs.G.st.draft.culprit === c, on: !!document.querySelector('#win .su.on[data-cul="' + c + '"]') }), cul);
         console.log('D ' + t + ' 回到推理：', JSON.stringify(r)); if (r.ov !== 'deduce' || !r.draft || !r.on) errors.push('D：' + t + '按結案推理回不到推理／草稿不見 ' + JSON.stringify(r)); } }
-    await deduceAndSubmit(p1, null);
+    await deduceAndSubmit(p1, null); if ((await p1.evaluate(() => __fs.G.st.phase)) !== 'deduce') errors.push('D：只有房主送出就開獎了');
+    await deduceAndSubmit(p2, null);   // v18：隊友也送出自己的報告 → 一起開獎
     await p2.waitForFunction(() => __fs.G.st.phase === 'result' && __fs.G.ovKind, null, { timeout: 6000 }).catch(() => errors.push('D：隊友沒看到結案畫面'));
     await clickable(p1, '#again', 'D 房主再玩一局'); await p1.click('#again'); await sleep(1500);
     await p2.waitForFunction(() => !__fs.G.st && !document.querySelector('#roomScr').classList.contains('hidden'), null, { timeout: 6000 }).catch(() => errors.push('D：隊友沒回到房間'));

@@ -97,7 +97,13 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   for (const [f, v] of [['culprit', C.culprit], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, st, 0, { type: 'draft', field: f, v });
   FS.act(C, st, 0, { type: 'draft', field: 'keys', v: ['E_phone', 'E_wound', 'nonexist'] });
   ok(st.draft.keys.length <= 2 && !st.draft.keys.includes('nonexist'), '關鍵證據只能選已找到的');
-  ok(FS.act(C, st, 0, { type: 'submit' }).ok && st.result.total >= 85, '答對 → 高分 ' + (st.result && st.result.total));
+  ok(FS.act(C, st, 0, { type: 'submit' }).ok && st.phase === 'deduce' && st.submitted[0] && !st.result, 'v18：兩人局，一個人送出 → 等另一個人');
+  ok(!FS.act(C, st, 0, { type: 'draft', field: 'culprit', v: C.suspects[0].id }).ok, 'v18：送出後不能再改自己的草稿');
+  { const wrong = C.suspects.find(x => x.id !== C.culprit).id; for (const [f, v] of [['culprit', wrong], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, st, 1, { type: 'draft', field: f, v }); }
+  ok(st.drafts[0].culprit === C.culprit, 'v18：隊友改草稿不會蓋掉我的');
+  ok(FS.act(C, st, 1, { type: 'submit' }).ok && st.phase === 'result', 'v18：全員送出 → 一起開獎');
+  ok(st.results[0].total > st.results[1].total && st.results[1].rows[0].ok === false, 'v18：各自計分（答錯兇手的人分數比較低）' + st.results[0].total + ' vs ' + st.results[1].total);
+  ok(st.result === st.results[0] && st.result.total >= 85, '答對 → 高分 ' + (st.result && st.result.total));
   ok(st.result.timeB === 10 && st.result.budB >= 0, '早結案有時間獎勵、省額度有預算獎勵');
   const s2 = FS.newGame(C, [{ pid: 0, name: 'A', ci: 0 }], { pressure: false }); s2.patience = 30; s2.budget = 0; s2.phase = 'deduce';
   for (const [f, v] of [['culprit', C.culprit], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, s2, 0, { type: 'draft', field: f, v });
@@ -694,6 +700,38 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   ok(s2.obj.floor_living.marked && FS.hasEv(s2, 'E_wound') && FS.hasEv(s2, 'E_wb_statue') && s2.obj.body.done.temp && s2.obj.body.done.swab && s2.obj.mud.done.cast, '教學：每一步要做的採證在引擎裡都做得到');
   ok(q.samples.some(m => m.kind === 'print') && q.samples.some(m => m.kind === 'blood') && q.samples.some(m => m.kind === 'shoe'), '教學：指紋、血液、鞋印樣本都拿得到（車上分析）');
   ok(d && d.methods.length >= 1, '教學：推理有答案可選');
+}
+/* 22. v18：每個人各自推理、一起開獎 */
+{
+  const C = GEN.generate(21, 'normal'), team3 = [0, 1, 2].map(i => ({ pid: i, name: 'P' + i }));
+  const fill = (st, pid, cul) => { for (const [f, v] of [['culprit', cul], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, st, pid, { type: 'draft', field: f, v }); };
+  const wrong = C.suspects.find(x => x.id !== C.culprit).id;
+  // 單人：送出 → 立刻開獎（和以前一樣）
+  { const st = FS.newGame(C, [{ pid: 0, name: 'A' }]); FS.act(C, st, 0, { type: 'close' }); fill(st, 0, C.culprit);
+    const r = FS.act(C, st, 0, { type: 'submit' }); ok(r.ok && st.phase === 'result' && st.result && st.result === st.results[0] && r.ev.some(e => e.k === 'phase' && e.phase === 'result'), 'v18 單人：送出立刻開獎，st.result 照舊'); }
+  // 三人：獨立草稿、房主立刻開獎（沒填的人 0 分）
+  { const st = FS.newGame(C, team3); FS.act(C, st, 0, { type: 'close' });
+    ok([0, 1, 2].every(i => st.drafts[i] && st.submitted[i] === false), 'v18：每個人都有自己的草稿和送出狀態');
+    fill(st, 0, C.culprit); fill(st, 1, wrong);
+    ok(st.drafts[0].culprit === C.culprit && st.drafts[1].culprit === wrong && st.drafts[2].culprit === null, 'v18：草稿互不覆蓋');
+    ok(FS.act(C, st, 0, { type: 'submit' }).ok && FS.act(C, st, 1, { type: 'submit' }).ok && st.phase === 'deduce', 'v18：三人中兩人送出 → 還在推理');
+    ok(!FS.act(C, st, 2, { type: 'submit' }).ok, 'v18：沒填完不能送出');
+    const r = FS.act(C, st, 0, { type: 'forceReveal' }); ok(r.ok && st.phase === 'result', 'v18：房主立刻開獎');
+    ok(st.results[2] && st.results[2].submitted === false && st.results[2].rows.every(x => !x.ok) && st.results[2].base === 0, 'v18：沒送出的人用草稿計分，空白欄位 0 分');
+    ok(st.results[0].total > st.results[1].total && st.results[1].total > st.results[2].total, `v18：三人各自分數 ${st.results[0].total} > ${st.results[1].total} > ${st.results[2].total}`);
+    ok(st.results[0].rank !== st.results[2].rank, 'v18：評價各自不同'); }
+  // 斷線／離隊：剩下的人都送出了 → 自動開獎
+  { const st = FS.newGame(C, team3); FS.act(C, st, 0, { type: 'close' }); fill(st, 0, C.culprit); fill(st, 1, wrong);
+    FS.act(C, st, 0, { type: 'submit' }); FS.act(C, st, 1, { type: 'submit' });
+    const ev = FS.leave(C, st, 2); ok(st.phase === 'result' && ev.some(e => e.k === 'phase') && !st.results[2], 'v18：最後一個沒送出的人離開 → 自動開獎，房間不會卡住'); }
+  { const st = FS.newGame(C, team3); FS.act(C, st, 0, { type: 'close' }); fill(st, 0, C.culprit); FS.act(C, st, 0, { type: 'submit' });
+    FS.leave(C, st, 0); ok(st.phase === 'deduce', 'v18：已送出的人離開、其他人還沒送 → 繼續等');
+    fill(st, 1, wrong); fill(st, 2, wrong); FS.act(C, st, 1, { type: 'submit' }); FS.act(C, st, 2, { type: 'submit' });
+    ok(st.phase === 'result' && st.results[0] && st.results[0].total > st.results[1].total, 'v18：離開前送出的報告也會被計分'); }
+  // 新的一局 → 全部清空；舊存檔（沒有 drafts）→ 自動補上
+  { const st = FS.newGame(C, team3); ok(Object.values(st.drafts).every(d => !d.culprit) && Object.values(st.submitted).every(x => !x) && !Object.keys(st.results).length, 'v18：新的一局草稿／送出／成績都是空的');
+    delete st.drafts; delete st.submitted; delete st.results; st.phase = 'deduce';
+    ok(FS.act(C, st, 1, { type: 'draft', field: 'culprit', v: wrong }).ok && st.drafts[1].culprit === wrong && st.submitted, 'v18：舊狀態自動補上每人草稿'); }
 }
 function syncL(p) { p.lum = p.uses.luminol || 0; }
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

@@ -71,7 +71,12 @@ const syncLum = p => { p.lum = (p.uses && p.uses.luminol) || 0; };
 function refillAll(C, st, p) { p.uses = p.uses || {}; for (const t of p.tools) p.uses[t] = maxUses(C, st, t); for (const t of Object.keys(p.uses)) if (!p.tools.includes(t)) delete p.uses[t]; syncLum(p); }
 const usesLeft = (p, t) => (p.uses && p.uses[t] != null ? p.uses[t] : 0);
 // 舊存檔（v13 以前）補上新欄位
+const blankDraft = () => ({ culprit: null, method: null, weapon: null, location: null, keys: [] });
+// v18：每個人各自的推理報告（st.drafts / st.submitted / st.results）；st.draft / st.result 對應「主要玩家」（單人＝玩家 0），舊程式照常可用
+const mainPid = st => { const ids = Object.keys(st.players).map(Number).sort((a, b) => a - b); const a = ids.find(i => st.players[i].active); return a != null ? a : ids[0]; };
+function myDraft(st, pid) { st.drafts = st.drafts || {}; if (!st.drafts[pid]) st.drafts[pid] = pid === mainPid(st) && st.draft ? st.draft : blankDraft(); return st.drafts[pid]; }
 function migrate(C, st) {
+  if (!st.drafts || !st.submitted || !st.results) { st.drafts = st.drafts || {}; st.submitted = st.submitted || {}; st.results = st.results || {}; for (const k of Object.keys(st.players)) myDraft(st, +k); }
   if (st.v14) return; st.v14 = true;
   st.briefed = st.briefed || {}; st.obs = st.obs || {}; if (!st.pace) st.pace = paceOf(st);
   for (const p of Object.values(st.players)) if (!p.uses) { p.uses = {}; for (const t of p.tools) p.uses[t] = t === 'luminol' ? (p.lum || 0) : maxUses(C, st, t); }
@@ -86,13 +91,15 @@ function rnd(st) { let a = st.rs | 0; a = a + 0x6D2B79F5 | 0; st.rs = a; let t =
 function newGame(C, players, opts) {
   opts = opts || {};
   const st = { budget: C.labBudget, budgetMax: C.labBudget, costUp: 0, patience: 100, seed: C.seed, diff: C.diff, phase: 'play', spent: 0, seq: 0, sid: 0, clock: 0, rs: (C.seed * 7919 + 13) | 0, pressure: opts.pressure !== false,
-    players: {}, obj: {}, found: [], labs: [], draft: { culprit: null, method: null, weapon: null, location: null, keys: [] }, result: null,
+    players: {}, obj: {}, found: [], labs: [], draft: blankDraft(), result: null, drafts: {}, submitted: {}, results: {},
     flags: {}, ms: {}, labExtra: 0, analyzed: 0, npcs: [], fled: null, threats: 0, news: [], tut: !!opts.tut,
     rep: { print: 0, blood: 0, shoe: 0, lab: 0 }, lights: {}, bossOk: 0, bossFail: 0, cops: [], boss: null, forceBoss: null, forceRookie: null, chase: null, briefed: {}, obs: {}, pace: paceN(players.length), v14: true };
   players.forEach((p, i) => {
     const s = C.start[i % C.start.length];
     st.players[p.pid] = { pid: p.pid, name: p.name, ci: p.ci, lum: 0, uses: {}, tools: [], loaded: false, bag: [], samples: [], x: s.x, y: s.y, dir: 1, active: true, benchUntil: 0, mg: null };
+    st.submitted[p.pid] = false;
   });
+  for (const p of players) myDraft(st, p.pid); st.draft = st.drafts[mainPid(st)];
   for (const o of C.objects.concat(C.stains || [])) st.obj[o.id] = { done: {}, gone: false, revealed: [], courier: false, f: {}, marked: false, q: {}, got: {}, tries: {}, score: {} };
   for (const k of C.switches || []) st.lights[k] = true;
   st.npcs = C.npcStart.map(s => ({ id: s.id, x: s.x, y: s.y, hx: s.x, hy: s.y, mode: 'idle', path: null, wait: 3 + rnd(st) * 6, tgt: null, held: false }));
@@ -158,7 +165,8 @@ function act(C, st, pid, a) {
   migrate(C, st); const out = [];
   if (a.type === 'draft') {
     if (st.phase !== 'deduce') return err('還沒到推理階段');
-    const D = st.draft, ok = (list, v) => v === null || list.some(s => s.id === v);
+    if (st.submitted[pid]) return err('你已經送出推理報告了');
+    const D = myDraft(st, pid), ok = (list, v) => v === null || list.some(s => s.id === v);   // 只改自己的草稿
     if (a.field === 'culprit' && ok(C.suspects, a.v)) D.culprit = a.v;
     else if (a.field === 'method' && ok(C.methods, a.v)) D.method = a.v;
     else if (a.field === 'weapon' && ok(C.weapons, a.v)) D.weapon = a.v;
@@ -169,9 +177,16 @@ function act(C, st, pid, a) {
   }
   if (a.type === 'submit') {
     if (st.phase !== 'deduce') return err('還沒到推理階段');
-    const D = st.draft; if (!D.culprit || !D.method || !D.weapon || !D.location) return err('兇手、行兇方式、兇器、第一現場都要填');
-    st.result = grade(C, st); st.phase = 'result'; st.seq++;
-    return { ok: true, ev: [{ k: 'phase', phase: 'result' }] };
+    if (!p.active) return err('你已經離隊');
+    if (st.submitted[pid]) return err('你已經送出推理報告了');
+    const D = myDraft(st, pid); if (!D.culprit || !D.method || !D.weapon || !D.location) return err('兇手、行兇方式、兇器、第一現場都要填');
+    st.submitted[pid] = true; st.seq++;
+    if (actives(st).every(q => st.submitted[q.pid])) return { ok: true, ev: [{ k: 'submitted', by: pid }, ...revealAll(C, st)] };
+    return { ok: true, ev: [{ k: 'submitted', by: pid }] };
+  }
+  if (a.type === 'forceReveal') {   // 房主：不等了，未送出的人用目前草稿計分（沒填的欄位 0 分）
+    if (st.phase !== 'deduce') return err('還沒到推理階段');
+    st.seq++; return { ok: true, ev: [{ k: 'forced', by: pid }, ...revealAll(C, st)] };
   }
   if (a.type === 'close') { if (st.phase !== 'play') return err('已經在推理了'); st.phase = 'deduce'; st.seq++; return { ok: true, ev: [{ k: 'phase', phase: 'deduce', why: 'close', by: pid }] }; }
   if (st.phase !== 'play') return err('調查已經結束');
@@ -353,7 +368,16 @@ function leave(C, st, pid) {
     rest[0].samples.push(...p.samples); p.samples = [];
     for (const b of p.bag) { const s = st.obj[b.obj]; if (s) s.gone = false; } p.bag = [];
   }
+  if (st.phase === 'deduce' && rest.length && rest.every(q => st.submitted[q.pid])) out.push(...revealAll(C, st));   // v18：剩下的人都送出了 → 自動開獎，房間不會卡住
   checkEnd(st, out); st.seq++; return out;
+}
+// v18：每個人的報告各自評分，一起公布
+function revealAll(C, st) {
+  if (st.phase === 'result') return [];
+  st.results = {};
+  for (const q of Object.values(st.players)) if (q.active || st.submitted[q.pid]) { const r = grade(C, st, myDraft(st, q.pid)); r.pid = q.pid; r.name = q.name; r.submitted = !!st.submitted[q.pid]; st.results[q.pid] = r; }
+  const m = mainPid(st); st.result = st.results[m] || Object.values(st.results)[0] || null; st.draft = myDraft(st, m);
+  st.phase = 'result'; st.seq++; return [{ k: 'phase', phase: 'result' }];
 }
 // v15：斷線太久被當成離隊的人重新連回來 → 回到隊伍（從入口重新開始）
 function rejoin(C, st, pid) {
@@ -676,8 +700,8 @@ function deduce(C, st, ids, opt) {
   if (!loc && weapon && weapon !== 'hearth' && methods.length === 1 && methods[0] !== 'staged') loc = (C.objects.find(o => o.weapon === weapon) || {}).room || null;
   return { sig: [...sig], neg: [...neg], methods, suspects, weapon, location: loc, noroom: [...noroom], negw: [...negw] };
 }
-function grade(C, st) {
-  const D = st.draft, rows = [];
+function grade(C, st, D) {
+  D = D || st.draft || blankDraft(); D.keys = D.keys || []; const rows = [];
   const add = (key, label, pick, right, pts, list) => { const nm = id => (list.find(x => x.id === id) || {}).t || (list.find(x => x.id === id) || {}).name || '—'; const ok = pick === right; rows.push({ key, label, pick: nm(pick), right: nm(right), ok, pts: ok ? pts : 0, max: pts }); };
   add('culprit', '兇手', D.culprit, C.culprit, 40, C.suspects);
   add('method', '行兇方式', D.method, C.method, 20, C.methods);
@@ -699,6 +723,6 @@ function flatOrder(C) {
   const rank = o => o.id === 'body' ? 1 : (o.w * o.h >= 15000 ? 0 : 2);
   return C.objects.filter(o => o.flat).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || (rank(a.o) === 0 ? b.o.w * b.o.h - a.o.w * a.o.h : 0) || a.i - b.i).map(x => x.o);
 }
-const FS = { rejoin, canMake, pickDemand, PACE, paceN, paceOf, maxUses, usesLeft, refillAll, TALK_R, guardStop, syncView, bossXY, posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
+const FS = { revealAll, myDraft, mainPid, blankDraft, actives, rejoin, canMake, pickDemand, PACE, paceN, paceOf, maxUses, usesLeft, refillAll, TALK_R, guardStop, syncView, bossXY, posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
 if (typeof module !== 'undefined' && module.exports) module.exports = FS; else root.FS = FS;
 })(typeof self !== 'undefined' ? self : this);

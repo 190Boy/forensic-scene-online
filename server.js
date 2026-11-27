@@ -125,7 +125,16 @@ function roomView(room) {
 }
 function each(room, f) { room.slots.forEach((p, i) => { if (p && p.ws) f(p, i); }); }
 function broadcastRoom(room) { const v = roomView(room); each(room, p => send(p.ws, { t: 'room', room: v })); }
-function broadcastState(room, ev) { if (!room.st) return; each(room, p => send(p.ws, { t: 'state', s: room.st, ev: ev || [] })); }
+// v18：每個人只拿到自己的推理草稿（推理中不偷看隊友的答案）；開獎後 draft／result 指向自己的那份
+function viewFor(room, slot) {
+  const st = room.st; if (!st || (st.phase !== 'deduce' && st.phase !== 'result')) return st;
+  const own = (st.drafts || {})[slot] || FS.blankDraft(), v = Object.assign({}, st, { draft: own });
+  if (st.phase === 'deduce') v.drafts = { [slot]: own };
+  else v.result = (st.results || {})[slot] || st.result;
+  return v;
+}
+function syncPhase(room) { if (room.st && (room.st.phase === 'result' || room.st.phase === 'deduce')) room.phase = room.st.phase; }
+function broadcastState(room, ev) { if (!room.st) return; syncPhase(room); each(room, (p, i) => send(p.ws, { t: 'state', s: viewFor(room, i), ev: ev || [] })); }
 function startGame(room) {
   const now = Date.now(); room.slots.forEach((p, i) => { if (p && !p.ws && p.offAt && now - p.offAt > HOST_GRACE_MS && !p.host) room.slots[i] = null; });   // v15：離線很久的座位不要變成幽靈隊員
   const players = room.slots.map((p, i) => p ? { pid: i, name: p.name, ci: p.ci } : null).filter(Boolean);
@@ -163,7 +172,7 @@ function cleanText(t) { return String(t || '').replace(/[\u0000-\u001f\u007f]/g,
 // 只留下動作需要的欄位、型別正確（規則引擎還會再驗證一次）
 function cleanAct(a) {
   if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
-  const T = ['gear', 'light', 'refill', 'callcops', 'boss', 'brief', 'dispatch', 'observe', 'calm', 'mgStart', 'mgCancel', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit'];
+  const T = ['gear', 'light', 'refill', 'callcops', 'boss', 'brief', 'dispatch', 'observe', 'calm', 'mgStart', 'mgCancel', 'use', 'bag', 'courier', 'analyze', 'slab', 'lab', 'close', 'draft', 'submit', 'forceReveal'];
   if (!T.includes(a.type)) return null;
   const o = { type: a.type }, s = v => typeof v === 'string' ? v.slice(0, 40) : undefined;
   if (s(a.obj)) o.obj = s(a.obj);
@@ -184,7 +193,7 @@ function attach(ws, room, s, isNew) {
   broadcastRoom(room);
   if (room.st) { const q = room.st.players[s]; if (q && q.mg) q.mg = null;
     if (q && !q.active && room.st.phase === 'play') { const ev = FS.rejoin(room.C, room.st, s); if (ev.length) broadcastState(room, ev); }   // 重新連線：之前沒做完的小遊戲作廢（不然會一直卡在「分析中」）
-    send(ws, { t: 'state', s: room.st, ev: [{ k: 'sync' }] }); }
+    send(ws, { t: 'state', s: viewFor(room, ws.ctx ? ws.ctx.slot : -1), ev: [{ k: 'sync' }] }); }
 }
 function detach(ws) {
   const c = ws.ctx; if (!c) return; ws.ctx = null;
@@ -280,7 +289,7 @@ function handle(ws, m) {
       if (!room.st) break;
       if (over(ws.lim.act, LIM.actConn, Date.now())) return send(ws, { t: 'err', code: 'slow', msg: '動作太快了' });
       const a = cleanAct(m.a); if (!a) break;
-      if ((a.type === 'close' || a.type === 'submit') && !p.host) return send(ws, { t: 'err', msg: '只有房主可以' + (a.type === 'close' ? '提早結案' : '送出推理報告') });
+      if ((a.type === 'close' || a.type === 'forceReveal') && !p.host) return send(ws, { t: 'err', msg: '只有房主可以' + (a.type === 'close' ? '提早結案' : '立刻開獎') });   // v18：每個人都能送出自己的推理
       const r = FS.act(room.C, room.st, slot, a);
       if (!r.ok) { if ((r.ev || []).length) broadcastState(room, r.ev); if (a.type === 'boss' && m.a.quiet === true) break; return send(ws, { t: 'err', code: 'act', msg: r.err }); }   // v15：被拒絕但狀態有變（例：解除分析中）也要同步給大家   // 自動交差試不成就安靜略過
       if (room.st.phase === 'result') room.phase = 'result'; else if (room.st.phase === 'deduce') room.phase = 'deduce';
@@ -323,7 +332,7 @@ setInterval(() => {
     if (room.slots.some(p => p && p.ws)) {
       const host = room.slots.find(p => p && p.host);
       if (!host || (!host.ws && host.offAt && now - host.offAt > HOST_GRACE_MS)) { if (host) host.host = false; const n = room.slots.find(p => p && p.ws); n.host = true; broadcastRoom(room); }
-      if (room.st && room.st.phase === 'play') room.slots.forEach((p, i) => { const q = room.st.players[i]; if (p && !p.ws && p.offAt && now - p.offAt > DROP_MS && q && q.active) { const ev = FS.leave(room.C, room.st, i); ev.forEach(e => { if (e.k === 'left') e.drop = true; }); broadcastState(room, ev); } });
+      if (room.st && (room.st.phase === 'play' || room.st.phase === 'deduce')) room.slots.forEach((p, i) => { const q = room.st.players[i]; if (p && !p.ws && p.offAt && now - p.offAt > DROP_MS && q && q.active) { const ev = FS.leave(room.C, room.st, i); ev.forEach(e => { if (e.k === 'left') e.drop = true; }); broadcastState(room, ev); } });
       const talking = room.slots.filter(p => p && p.ws && p.voice).length >= 2;
       if (!talking && now - room.lastMsg > IDLE_CLOSE_MS) { for (const p of room.slots) if (p && p.ws) { send(p.ws, { t: 'idle' }); try { p.ws.close(); } catch (e) { } } }
       else { room.lastActive = now; continue; }

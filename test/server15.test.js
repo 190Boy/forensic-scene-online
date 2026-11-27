@@ -61,11 +61,23 @@ async function walk(c, C, from, to, r) { for (const [x, y] of steps(C, from, to,
   /* 5. 新房主結案、送出、再玩一局 → 全新的狀態 */
   B.send({ t: 'act', a: { type: 'close' } }); await B.wait(m => m.t === 'state' && m.s.phase === 'deduce');
   for (const [f, v] of [['culprit', C.culprit], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) B.send({ t: 'act', a: { type: 'draft', field: f, v } });
-  await sleep(300); B.send({ t: 'act', a: { type: 'submit' } }); const res = await B.wait(m => m.t === 'state' && m.s.phase === 'result');
+  await sleep(300);
+  // v18：推理中看不到隊友的答案（只收到自己的草稿＋大家的送出狀態）
+  { A2.msgs = []; const wrong = C.suspects.find(x => x.id !== C.culprit).id; A2.send({ t: 'act', a: { type: 'draft', field: 'culprit', v: wrong } });
+    const v = await A2.wait(m => m.t === 'state' && m.s.phase === 'deduce' && m.s.drafts && m.s.drafts[0] && m.s.drafts[0].culprit === wrong);
+    ok(v && !v.s.drafts[1] && v.s.draft.culprit === wrong && Object.keys(v.s.drafts).length === 1 && v.s.submitted && v.s.submitted[1] === false, 'v18：推理中隊友（A2）只收到自己的草稿，看不到房主的答案');
+    ok(v && JSON.stringify(v.s).indexOf('"culprit":"' + C.culprit + '"') < 0 || C.culprit === wrong, 'v18：狀態裡完全沒有房主選的兇手');
+    B.msgs = []; A2.msgs = []; B.send({ t: 'act', a: { type: 'submit' } });
+    const w = await A2.wait(m => m.t === 'state' && (m.ev || []).some(e => e.k === 'submitted' && e.by === 1));
+    ok(w && w.s.phase === 'deduce' && w.s.submitted[1] === true && !w.s.drafts[1], 'v18：房主送出 → 隊友看到「已送出」，但還是看不到答案、還在推理');
+    for (const [f, v2] of [['method', C.method], ['weapon', C.weapon], ['location', C.location]]) A2.send({ t: 'act', a: { type: 'draft', field: f, v: v2 } });
+    await sleep(300); A2.send({ t: 'act', a: { type: 'submit' } }); }
+  const res = await B.wait(m => m.t === 'state' && m.s.phase === 'result'), resA = await A2.wait(m => m.t === 'state' && m.s.phase === 'result');
   ok(res && res.s.result.rows.every(x => x.ok), '新房主可以送出推理，答對全對');
+  ok(resA && resA.s.result && !resA.s.result.rows[0].ok && resA.s.result.pid === 0 && resA.s.results && resA.s.results[1] && resA.s.results[1].total > resA.s.result.total, 'v18：非房主也能送出；全員送出自動開獎；每人拿到自己的成績＋全員比較');
   B.send({ t: 'again' }); ok(!!(await A2.wait(m => m.t === 'lobby', 3000)), '再玩一局 → 大家回到房間');
   A2.msgs = []; B.send({ t: 'start' }); const s2 = await A2.wait(m => m.t === 'state' && (m.ev || []).some(e => e.k === 'start'));
-  const fresh = s2 && s2.s.found.length === 0 && Object.keys(s2.s.briefed).length === 0 && s2.s.cops.every(c => !c.order) && Object.values(s2.s.players).every(p => p.active && !p.mg && !p.bag.length && !p.samples.length) && s2.s.boss.mode === 'away' && s2.s.seed !== s0.s.seed;
+  const fresh = s2 && s2.s.found.length === 0 && Object.values(s2.s.drafts || {}).every(d => !d.culprit) && Object.values(s2.s.submitted || {}).every(x => !x) && !Object.keys(s2.s.results || {}).length && Object.keys(s2.s.briefed).length === 0 && s2.s.cops.every(c => !c.order) && Object.values(s2.s.players).every(p => p.active && !p.mg && !p.bag.length && !p.samples.length) && s2.s.boss.mode === 'away' && s2.s.seed !== s0.s.seed;
   ok(fresh, '新的一局：證據、員警報告、調度、小遊戲、證物袋、分局長全部重置，換新案件');
   /* 6. 連線交差：走過去自動交、按 E 交（每一位都可以） */
   { const H = await client(); H.send({ t: 'create', name: '甲', ci: 0 }); const jh = await joined(H);

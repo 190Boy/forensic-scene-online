@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '17';
+const VER = '18';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -124,6 +124,11 @@ function myActionCard(evs) {
   if (use) { resultCard({ img: 'ev_photo', kicker: `🔎 ${use.label}・${o.name}`, big: use.q === 'poor' ? '這次沒有拿到有用的結果' : '沒有新發現', text: '', where: '', qual: qualHtml(use.q, use.score, use.obj, use.act) }); return true; }
   return false;
 }
+// v18：每個人各自的推理報告
+const myD = () => (G.st.drafts && G.st.drafts[G.me]) || G.st.draft;
+const myRes = () => (G.st.results && G.st.results[G.me]) || G.st.result;
+const iSubmitted = () => !!(G.st.submitted && G.st.submitted[G.me]);
+const teamN = () => Object.values(G.st.players).filter(p => p.active).length;
 const pname = pid => { const p = G.st && G.st.players[pid]; return p ? (pid === G.me ? '你' : p.name) : '隊友'; };
 
 /* ---------- 音效（Web Audio 合成，不需要檔案） ---------- */
@@ -215,6 +220,8 @@ function onEvents(evs) {
       case 'pace': toast(`👥 現在 ${Object.values(G.st.players).filter(q => q.active).length} 人調查：插曲節奏調整為 ×${e.pace}`); break;
       case 'left': toast(`🚪 ${G.st.players[e.by] ? G.st.players[e.by].name : '隊友'} ${e.drop ? '斷線太久，先離隊了（證物袋和樣本交給隊友）' : '離隊了'}`); break;
       case 'rejoin': if (!mine) toast(`🔌 ${G.st.players[e.by] ? G.st.players[e.by].name : '隊友'} 重新連線回來了`); break;
+      case 'submitted': if (e.by !== G.me) toast(`✅ ${pname(e.by)} 送出了推理報告`); else toast('✅ 已送出你的推理報告'); break;
+      case 'forced': toast('⏭️ 房主立刻開獎了'); break;
       case 'phase':
         if (e.phase !== 'play') { try { if (MG.on) MG.close(); } catch (x) { } clearTimeout(G.obsT); G.obsT = null; }   // v15：結案時還開著的小遊戲一起關掉
         if (e.phase === 'deduce') { toast(e.why === 'patience' ? '🌅 分局長的耐心用完了，現在提出推理' : '⚖️ 開始結案推理'); closeOv(); setTimeout(() => openDeduce(), 300); }
@@ -1000,7 +1007,7 @@ function compareHtml() {
     <p class="note" style="font-size:13px">👣 鞋號：泥巴地鞋印 → 鑑識車鞋印資料庫　🩸 兇手血型：死者指甲縫（棉棒）→ 離心機　✋ 慣用手：傷口照片　🖐️ 指紋：刷指紋 → 指紋比對電腦　🩸 身上血漬：帶棉棒靠近那個人採樣 → 離心機看血型（和死者比）或送實驗室驗 DNA；不是死者的血＝誘餌，排除${vb ? '' : '　（死者血型：死者血液 → 離心機）'}</p>`;
 }
 function suspectCard(s, pick, wide) {
-  const st = G.st; const on = pick && st.draft.culprit === s.id; const n = (st.npcs || []).find(q => q.id === s.id), I = stainInfo(s.id);
+  const st = G.st; const on = pick && myD().culprit === s.id; const n = (st.npcs || []).find(q => q.id === s.id), I = stainInfo(s.id);
   const stain = I ? `<span class="stn ${I.r ? I.r.cls : ''}">🩸 ${esc(I.txt)}</span>${wide && !I.r ? `<small class="stnh">帶 🧪 棉棒靠近他，在提示列按「採集${esc(I.so.spot)}的血漬」→ 回車上用離心機看血型，或送實驗室驗 DNA</small>` : ''}` : '';
   return `<div class="su ${wide ? 'wide' : ''} ${pick ? 'pick' : ''} ${on ? 'on' : ''}" ${pick ? `data-cul="${s.id}"` : ''}><img src="${url(s.img)}" alt=""><div><b>${esc(s.name)}</b>（${esc(s.role)}）${n && n.mode === 'gone' ? ' <span class="tag off">已逃離</span>' : n && n.mode === 'held' ? ' <span class="tag host">被攔下</span>' : ''}<q>${esc(s.say)}</q>
     <span style="color:var(--dim)">警方建檔：</span>鞋 ${s.shoe} 號・${s.blood} 型・慣用${s.hand === 'R' ? '右' : '左'}手・指紋 ${s.print}${stain}${st.obs && st.obs[s.id] ? `<span class="obsn">👀 觀察（${esc(pname(st.obs[s.id].by))}）：${(C.tells[s.id] || []).map(esc).join(' ')}</span>` : wide ? '<small class="stnh">走到他旁邊可以 👀 觀察：留意他身上、手上和舉止有沒有異狀</small>' : ''}</div></div>`;
@@ -1065,10 +1072,12 @@ $('#win').addEventListener('click', e => {
   const sl = e.target.closest('[data-slab]'); if (sl) return doAct({ type: 'slab', sid: +sl.dataset.slab });
   const lb = e.target.closest('[data-lab]'); if (lb) return doAct({ type: 'lab', obj: lb.dataset.lab });
   const tb = e.target.closest('[data-tab]'); if (tb) { noteTab = tb.dataset.tab; if (noteTab === 'man' && G.tut) G.tut.sawMan = true; G.ovRender(); return; }
+  const lock = e.target.closest('[data-cul], [data-df]'); if (lock && G.ovKind === 'deduce' && iSubmitted()) return toast('你已經送出推理報告了，等隊友送出', true);
   const cu = e.target.closest('[data-cul]'); if (cu) return doAct({ type: 'draft', field: 'culprit', v: cu.dataset.cul });
   const df = e.target.closest('[data-df]'); if (df) return doAct({ type: 'draft', field: df.dataset.df, v: df.dataset.v });
-  const kk = e.target.closest('[data-key]'); if (kk) { const k = G.st.draft.keys.slice(); const i = k.indexOf(kk.dataset.key); if (i >= 0) k.splice(i, 1); else if (k.length < 3) k.push(kk.dataset.key); else return toast('關鍵證據最多選 3 項', true); return doAct({ type: 'draft', field: 'keys', v: k }); }
-  if (e.target.closest('#submit')) { if (confirm('確定送出推理報告？')) doAct({ type: 'submit' }); return; }
+  const kk = e.target.closest('[data-key]'); if (kk && G.ovKind === 'deduce' && iSubmitted()) return toast('你已經送出推理報告了，等隊友送出', true); if (kk) { const k = myD().keys.slice(); const i = k.indexOf(kk.dataset.key); if (i >= 0) k.splice(i, 1); else if (k.length < 3) k.push(kk.dataset.key); else return toast('關鍵證據最多選 3 項', true); return doAct({ type: 'draft', field: 'keys', v: k }); }
+  if (e.target.closest('#submit')) { if (confirm(teamN() > 1 ? '確定送出你的推理報告？送出後就不能再改，全員送出後一起公布成績。' : '確定送出推理報告？')) doAct({ type: 'submit' }); return; }
+  if (e.target.closest('#forceRev')) { if (confirm('不等了，立刻開獎？還沒送出的人會用目前草稿計分（沒填的欄位 0 分）。')) doAct({ type: 'forceReveal' }); return; }
   if (e.target.closest('#tutHome2')) { LS.set('fs_tutDone', '1'); Tut.stop(); closeOv(); backHome('教學完成！可以開始正式案件了'); return; }
   if (e.target.closest('#again')) { if (G.mode === 'solo') { LS.del('fs_solo'); startSolo(false); } else Net.send({ t: 'again' }); return; }
   if (e.target.closest('#home2')) { if (G.mode === 'solo') { LS.del('fs_solo'); backHome(); } else Net.send({ t: 'leave' }); return; }
@@ -1106,12 +1115,24 @@ function openNote() {
   };
   draw();
 }
+function subBar() {
+  const st = G.st, ps = Object.values(st.players).filter(p => p.active), n = ps.filter(p => st.submitted && st.submitted[p.pid]).length;
+  return `<div class="subBar"><b>已送出 ${n} / ${ps.length} 人</b>${ps.map(p => { const ok = st.submitted && st.submitted[p.pid]; return `<span class="sc ${ok ? 'ok' : ''}">${esc(p.name)}${p.pid === G.me ? '（你）' : ''} ${ok ? '✅ 已送出' : '⏳ 思考中'}</span>`; }).join('')}</div>`;
+}
+function teamResultsHtml() {   // v18：全員推理成績比較
+  const rs = Object.values(G.st.results || {}); if (rs.length < 2) return '';
+  rs.sort((a, b) => b.total - a.total || a.pid - b.pid); const top = rs[0].total;
+  const cell = (r, key) => { const x = r.rows.find(y => y.key === key) || {}; return `<td class="${x.ok ? 'ok' : 'ng'}" title="${esc(x.pick || '—')}">${x.ok ? '✔' : '✖'}${key === 'culprit' ? `<small>${esc(x.pick || '—')}</small>` : ''}</td>`; };
+  return `<h4>🏆 全員推理成績比較</h4><table class="cmpR"><tr><th>玩家</th><th>評價</th><th>分數</th><th>兇手</th><th>手法</th><th>兇器</th><th>現場</th></tr>${rs.map(r => `<tr class="${r.pid === G.me ? 'me' : ''}"><td>${esc(r.name || pname(r.pid))}${r.pid === G.me ? ' <span class="tg">你</span>' : ''}${r.total === top ? ' <span class="tg top">🏆 最高分</span>' : ''}${r.submitted === false ? ' <small class="dim">（未送出，以草稿計分）</small>' : ''}</td><td><b class="rk">${r.rank}</b></td><td>${r.total}</td>${['culprit', 'method', 'weapon', 'location'].map(k => cell(r, k)).join('')}</tr>`).join('')}</table>`;
+}
 function openDeduce() {
   const draw = () => {
-    const st = G.st, D = st.draft; if (!st || st.phase !== 'deduce') return;
-    const opt = (field, list) => `<div class="opts">${list.map(x => `<button data-df="${field}" data-v="${x.id}" class="${D[field] === x.id ? 'on' : ''}">${esc(x.t)}</button>`).join('')}</div>`;
+    const st = G.st; if (!st || st.phase !== 'deduce') return; const D = myD(), multi = teamN() > 1, sub = iSubmitted();
+    const opt = (field, list) => `<div class="opts">${list.map(x => `<button data-df="${field}" data-v="${x.id}" ${sub ? 'disabled' : ''} class="${D[field] === x.id ? 'on' : ''}">${esc(x.t)}</button>`).join('')}</div>`;
     const html = hdr('⚖️ 結案推理報告') + `<div class="body">
-      <p class="note">${G.mode === 'online' ? '大家可以一起改這份報告（即時同步），最後由房主送出。' : '填好後送出。'}可以打開「鑑識手冊」對照。</p>
+      ${multi ? subBar() : ''}
+      ${sub ? '<div class="subDone">✅ 你已送出推理，等待其他隊友…（全員送出後一起公布成績）</div>' : ''}
+      <p class="note">${multi ? '每個人各自寫自己的報告、各自計分；推理中看不到隊友的答案，全員送出後一起開獎。' : '填好後送出。'}可以打開「鑑識手冊」對照。</p>
       <details><summary style="cursor:pointer;color:var(--amber)">📖 打開鑑識手冊／目前推論</summary>${manualHtml()}</details>
       <h4>1. 兇手是誰？（40 分）</h4><div class="sus">${C.suspects.map(s => suspectCard(s, true)).join('')}</div>
       <h4>2. 行兇方式（20 分）</h4>${opt('method', C.methods)}
@@ -1119,20 +1140,21 @@ function openDeduce() {
       <h4>4. 第一現場（10 分）</h4>${opt('location', C.locations)}
       <h4>5. 關鍵證據（最多 3 項，最多 15 分）</h4>
       <div class="evl">${st.found.map(f => { const e = C.evidence[f.id]; const on = D.keys.includes(f.id); return `<div class="ev" data-key="${f.id}" style="cursor:pointer;${on ? 'border-color:var(--amber);background:#3d3012' : ''}"><img src="${url(e.icon)}" alt=""><div><b>${on ? '☑' : '☐'} ${esc(e.name)}</b><span>${esc(e.text)}</span></div></div>`; }).join('') || '<p class="note">沒有找到證據……只能憑直覺了。</p>'}</div>
-      </div><footer>${isHost() ? `<button class="pri" id="submit" ${D.culprit && D.method && D.weapon && D.location ? '' : 'disabled'}>📨 送出推理報告</button>` : '<span class="note">等房主送出…</span>'}</footer>`;
+      </div><footer>${sub ? `<span class="note" style="flex:1">✅ 已送出・等待隊友（${Object.values(st.players).filter(p => p.active && st.submitted[p.pid]).length} / ${teamN()}）</span>` + (isHost() && multi ? '<button class="pri" id="forceRev">⏭️ 立刻開獎（未送出者以目前草稿計分）</button>' : '') : `<button class="pri" id="submit" ${D.culprit && D.method && D.weapon && D.location ? '' : 'disabled'}>📨 送出${multi ? '我的' : ''}推理報告</button>`}</footer>`;
     const sc = $('#win .body') && G.ovKind === 'deduce' ? $('#win .body').scrollTop : 0; const open = $('#win details') && $('#win details').open;
     openOv('deduce', html, '', draw); const b = $('#win .body'); if (b) b.scrollTop = sc; if (open) $('#win details').open = true;
   };
   draw();
 }
 function openResult() {
-  const R = G.st.result; if (!R) return;
-  const html = hdr('📁 結案報告') + `<div class="body res"><div class="rank">${R.rank}</div><p style="text-align:center;font-size:20px;margin:4px 0 12px">${R.total} / 100 分${R.bonus ? `<br><small style="color:var(--dim);font-size:13px">基本 ${R.base}＋獎勵 ${R.bonus}${R.pen ? ` ${R.pen}` : ''}${R.raw > 100 ? '（滿分 100）' : ''}</small>` : ''}</p>
+  const R = myRes(); if (!R) return; const multi = Object.keys(G.st.results || {}).length > 1;
+  const html = hdr('📁 結案報告') + `<div class="body res">${multi ? '<p class="note" style="text-align:center;margin:0 0 4px">你的個人成績</p>' : ''}<div class="rank">${R.rank}</div><p style="text-align:center;font-size:20px;margin:4px 0 12px">${R.total} / 100 分${R.bonus ? `<br><small style="color:var(--dim);font-size:13px">基本 ${R.base}＋獎勵 ${R.bonus}${R.pen ? ` ${R.pen}` : ''}${R.raw > 100 ? '（滿分 100）' : ''}</small>` : ''}</p>
     <table>${R.rows.map(r => `<tr><td>${r.label}</td><td class="${r.ok ? 'ok' : 'ng'}">${r.ok ? '✔' : '✖'} ${esc(r.pick)}${r.ok ? '' : `<br><small>正解：${esc(r.right)}</small>`}</td><td style="text-align:right">${r.pts}/${r.max}</td></tr>`).join('')}
     <tr><td>關鍵證據</td><td>${R.keys.map(k => `${esc(k.name)}（+${k.pts}）`).join('<br>') || '—'}</td><td style="text-align:right">${R.keyPts}/15</td></tr>
     ${R.timeB != null ? `<tr><td>結案速度</td><td>分局長耐心還剩 ${Math.round(G.st.patience)}%</td><td style="text-align:right">+${R.timeB || 0}/10</td></tr><tr><td>實驗室額度</td><td>花了 ${R.spent} 點（剩 ${G.st.budget}／${G.st.budgetMax}）</td><td style="text-align:right">+${R.budB || 0}/5</td></tr>` : ''}
     ${R.pen ? `<tr><td>兇手逃離</td><td class="ng">讓兇手離開了現場</td><td style="text-align:right">${R.pen}</td></tr>` : ''}</table>
     <p class="note">找到 ${R.found} 項證據・調查 ${mmss(R.clock)}・分局長：交差 ${R.bossOk || 0} 次／沒做到 ${R.bossFail || 0} 次</p>
+    ${teamResultsHtml()}
     <h4>🔍 真相</h4><div class="truth">${C.truth.map(t => `<p>${esc(t)}</p>`).join('')}</div></div>
     <footer>${G.tut ? '<button class="pri" id="tutHome2">🎓 完成教學，回首頁</button>' : G.mode === 'solo' ? '<button id="home2">🏠 回首頁</button><button class="pri" id="again">🔁 下一個案件</button>' : (isHost() ? '<button id="home2">🚪 離開房間</button><button class="pri" id="again">🔁 回房間開新案件</button>' : '<button id="home2">🚪 離開房間</button><span class="note">等房主開新案件…</span>')}</footer>`;
   openOv('result', html);

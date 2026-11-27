@@ -93,11 +93,15 @@ for (let sd = 1; sd <= N; sd++) for (const d of DIFFS) {
   // 推理：答對一定滿分贏；答錯扣分
   const s2 = JSON.parse(JSON.stringify(st)); A({ type: 'close' });
   for (const [f, v] of [['culprit', C.culprit], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) A({ type: 'draft', field: f, v });
-  const good = A({ type: 'submit' }); const R = st.result;
+  const good = A({ type: 'submit' }); const wrong1 = C.suspects.find(x => x.id !== C.culprit).id;
+  if (st.phase !== 'deduce') dedBad.push(`${d}#${seed} 兩人局只有一人送出就開獎了`);
+  for (const [f, v] of [['culprit', wrong1], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, st, 1, { type: 'draft', field: f, v });
+  FS.act(C, st, 1, { type: 'submit' }); const R = st.result;
+  if (st.phase !== 'result' || !st.results[1] || st.results[1].rows[0].ok || st.results[1].total >= (R ? R.total : 0)) dedBad.push(`${d}#${seed} 兩人各自計分不對`);
   if (!good.ok || !R || !R.rows.every(r => r.ok)) dedBad.push(`${d}#${seed} 答對卻沒有全對：${JSON.stringify(R && R.rows.map(r => r.ok))}`);
   badStrings(R, `${d}#${seed} result`, strBad);
   const wrong = C.suspects.find(x => x.id !== C.culprit).id;
-  s2.phase = 'deduce'; for (const [f, v] of [['culprit', wrong], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, s2, 0, { type: 'draft', field: f, v });
+  s2.phase = 'deduce'; s2.players[1].active = false; for (const [f, v] of [['culprit', wrong], ['method', C.method], ['weapon', C.weapon], ['location', C.location]]) FS.act(C, s2, 0, { type: 'draft', field: f, v });
   FS.act(C, s2, 0, { type: 'submit' }); if (!s2.result || s2.result.rows[0].ok || s2.result.total >= R.total) dedBad.push(`${d}#${seed} 答錯兇手沒扣分`);
   const s3 = FS.newGame(C, [{ pid: 0, name: 'A' }]); FS.act(C, s3, 0, { type: 'close' }); const r3 = FS.act(C, s3, 0, { type: 'submit' }); if (r3.ok) dedBad.push(`${d}#${seed} 沒填完也能送出`);
   if (errs.some(e => /不明|undefined|TypeError/.test(e))) dedBad.push(`${d}#${seed} 機器人遇到奇怪錯誤：${errs.filter(e => /不明|undefined/.test(e)).slice(0, 3)}`);

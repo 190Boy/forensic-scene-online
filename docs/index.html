@@ -120,7 +120,8 @@ kbd.k{display:inline-block;min-width:16px;padding:0 4px;border-radius:4px;backgr
 #cards{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;width:min(440px,92vw)}
 .evc{display:flex;gap:10px;background:rgba(14,22,36,.97);border:2px solid var(--blue);border-radius:14px;padding:10px;box-shadow:0 0 30px rgba(79,210,255,.3);animation:fin .3s;cursor:pointer}
 .evc.lab{border-color:var(--amber);box-shadow:0 0 30px rgba(242,165,65,.35)}
-.evc img{width:56px;height:56px;flex:none}
+.evc img{width:56px;height:56px;flex:none;object-fit:contain}
+.evc.rc .rh>div{flex:1 1 auto;min-width:0}
 .evc b{display:block;margin-bottom:2px}
 .evc span{font-size:13px;color:#cdd8e6;line-height:1.5}
 .evc em{font-style:normal;font-size:11px;color:var(--blue)}
@@ -173,6 +174,22 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 .res .rank{font-size:84px;font-weight:900;text-align:center;color:var(--amber);line-height:1;text-shadow:0 4px 0 #000}
 .res table{width:100%;border-collapse:collapse;font-size:14px}
 .res td{border-bottom:1px solid var(--line);padding:6px 4px;vertical-align:top}
+/* v18：各自推理＋一起開獎 */
+.subBar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#101a28;border:1px solid #26344c;border-radius:10px;padding:8px 10px;margin:0 0 8px;font-size:13px}
+.subBar b{margin-right:4px;color:#d8e6f8}
+.subBar .sc{background:#1a2436;border:1px solid #2a3850;border-radius:999px;padding:2px 10px;color:#c6d2e4}
+.subBar .sc.ok{border-color:#2bb3a3;color:#8ff0df;background:#10282a}
+.subDone{background:#10282a;border:1px solid #2bb3a3;color:#bff5ea;border-radius:10px;padding:8px 10px;margin:0 0 8px;font-size:14px}
+.opts button[disabled]{opacity:.55;cursor:not-allowed}
+.res .cmpR{font-size:13px;margin-bottom:6px}
+.res .cmpR th{font-size:12px;color:var(--dim);text-align:left;padding:4px;border-bottom:1px solid var(--line);font-weight:600}
+.res .cmpR td{text-align:center}.res .cmpR td:first-child{text-align:left}
+.res .cmpR td small{display:block;font-size:11px;color:var(--dim)}
+.res .cmpR tr.me td{background:rgba(242,165,65,.08)}
+.res .cmpR .rk{font-size:18px;color:var(--amber)}
+.res .cmpR .tg{display:inline-block;font-size:11px;padding:0 6px;border-radius:999px;background:#2a3850;color:#d8e6f8;margin-left:2px}
+.res .cmpR .tg.top{background:#3d3012;color:#f2d045}
+.res .cmpR .dim{color:var(--dim)}
 .ok{color:#8ff0a8}.ng{color:#ff9d93}
 .truth p{line-height:1.7;margin:6px 0}
 /* 聊天 */
@@ -199,8 +216,8 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 .labs .pend small{color:var(--dim)}
 .evc.rc{flex-direction:column;gap:8px;border-color:#8ff0df;padding:12px 14px}
 .evc.rc .rh{display:flex;gap:12px;align-items:center}
-.evc.rc img{width:84px;height:84px;border-radius:12px;background:#0b1220}
-.evc.rc .big{font-size:18px;font-weight:800;color:#fff}
+.evc.rc img{width:84px;height:84px;border-radius:12px;background:#0b1220;object-fit:contain}
+.evc.rc .big{display:block;font-size:18px;font-weight:800;color:#fff}   /* v18：不要吃到大廳按鈕的 .big 兩欄格線（標題才不會擠成窄欄） */
 .evc.rc .where{font-size:12px;color:#8ff0df;border-top:1px solid #2a3a50;padding-top:6px}
 .evc.rc .where.wait{color:#ffd58a}
 .evc.rc{position:relative}.rcx{position:absolute;top:4px;right:6px;background:none;border:0;color:#8fa3bf;font-size:14px;line-height:1;padding:3px 5px;cursor:pointer;border-radius:6px}.rcx:hover{color:#fff;background:#22304a}
@@ -296,7 +313,7 @@ body.sb .lh{font-size:12px;color:var(--dim);padding:5px 8px;border-bottom:1px so
 #log{flex:1;overflow-y:auto;padding:4px 6px 8px;scrollbar-width:thin;font-size:12.5px;line-height:1.5}
 .lg{display:flex;gap:6px;align-items:flex-start;padding:4px 2px;border-bottom:1px dashed #1a2538;animation:fin .25s;color:#d6e0ee}
 .lg time{flex:none;width:36px;color:#6f819c;font-size:11px;font-variant-numeric:tabular-nums;padding-top:1px}
-.lg img{flex:none;width:28px;height:28px;border-radius:5px;background:#0b1220}
+.lg img{flex:none;width:28px;height:28px;border-radius:5px;background:#0b1220;object-fit:contain}
 .lg .lt{flex:1;min-width:0;word-break:break-word}
 .lg .lt em{display:block;font-style:normal;font-size:11px;color:var(--blue)}
 .lg .lt b{display:block;color:#fff}
@@ -327,6 +344,14 @@ body.sb .evc.rc .rh{gap:8px;align-items:flex-start;padding-right:18px}
 body.sb .evc.rc .rh>div{min-width:0;overflow-wrap:anywhere}
 body.sb .evc.rc .where{font-size:11.5px;line-height:1.5;overflow-wrap:anywhere}
 body.sb .evc.rc .qual,body.sb .evc.rc>div:not(.rh):not(.where){max-width:100%;overflow-wrap:anywhere;font-size:12px}
+/* v18：側欄結果卡——標題不再擠成一條窄欄：縮圖＋標題一列，內文跨整張卡；圖片保持比例 */
+body.sb .evc.rc .rh{display:grid;grid-template-columns:44px minmax(0,1fr);column-gap:8px;row-gap:2px;align-items:start;padding-right:22px}
+body.sb .evc.rc .rh>div{display:contents}
+body.sb .evc.rc .rh img{grid-row:1 / span 2;grid-column:1}
+body.sb .evc.rc .rh em{grid-column:2;display:block;min-width:0;overflow-wrap:anywhere}
+body.sb .evc.rc .rh .big{grid-column:2;min-width:0;overflow-wrap:anywhere}
+body.sb .evc.rc .rh span{grid-column:1 / -1;margin-top:4px;margin-right:-22px;min-width:0;overflow-wrap:anywhere}
+body.sb .evc.rc .rh span:empty{display:none}
 /* v17：側欄只有「現場紀錄」會被壓縮；新手教學框永遠完整顯示，待處理／結果卡自己捲動，快捷列永遠在畫面內 */
 body.sb #tut{flex:0 0 auto;flex-shrink:0;min-height:auto;max-height:none;overflow:visible}
 body.sb #hud>.tl{flex:0 0 auto}
@@ -421,10 +446,10 @@ body.sb #chat{right:12px;bottom:12px}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=17"></script>
-<script src="engine.js?v=17"></script>
-<script src="assets.js?v=17"></script>
-<script src="minigames.js?v=17"></script>
-<script src="app.js?v=17"></script>
+<script src="casegen.js?v=18"></script>
+<script src="engine.js?v=18"></script>
+<script src="assets.js?v=18"></script>
+<script src="minigames.js?v=18"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>
