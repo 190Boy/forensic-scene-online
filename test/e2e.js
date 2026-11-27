@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v15_';
+const OUT = '/workspace/forensic_v16_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -33,6 +33,56 @@ async function act(pg, label, o = {}) {
   else await b.click();
   await sleep(400);
   if (isMg) { await mgWaitOpen(pg).catch(() => errors.push('小遊戲沒有打開：' + label)); mgLog.push(label); if (!o.manual) await mgAuto(pg, o.score == null ? .95 : o.score); }
+}
+/* v16 完整教學：共用的步驟操作 */
+const TUT_N = 25;
+async function tutCop(pg, id = 'cop2') { const c = await pg.evaluate(id => { const c = __fs.G.st.cops.find(c => c.id === id); return { x: c.vx != null ? c.vx : c.x, y: c.vy != null ? c.vy : c.y }; }, id); await tp(pg, c.x + 40, c.y + 30); await pg.waitForFunction(id => __fs.G.nearId === 'cop:' + id, id, { timeout: 4000 }); await sleep(200); }
+async function tutSus(pg) { const n = await pg.evaluate(() => { const G = __fs.G, ns = G.st.npcs.filter(n => n.mode !== 'gone').sort((a, b) => Math.hypot(a.x - G.Me.x, a.y - G.Me.y) - Math.hypot(b.x - G.Me.x, b.y - G.Me.y)); const n = ns[0]; n.path = []; return { id: n.id, x: n.vx != null ? n.vx : n.x, y: n.vy != null ? n.vy : n.y }; });
+  await tp(pg, n.x + 30, n.y + 25); await pg.waitForFunction(id => __fs.G.nearId === 'npc:' + id, n.id, { timeout: 4000 }); await sleep(200); }
+async function tutVan(pg) { await tp(pg, 336, 880); await pg.waitForFunction(() => __fs.G.nearId === 'van' || __fs.G.nearId === 'courier', null, { timeout: 3000 }).catch(() => { }); await sleep(200); await pg.click('#act [data-van]'); await sleep(400); }
+async function tutGear(pg, tools) { await tutVan(pg); for (const t of tools) await pg.click('[data-tool="' + t + '"]'); await pg.click('#gearOk'); await sleep(300); }
+async function tutAnalyze(pg, kind) { const sid = await pg.evaluate(k => { const m = __fs.G.st.players[__fs.G.me].samples.find(s => s.kind === k); return m && m.sid; }, kind); if (sid == null) throw new Error('沒有 ' + kind + ' 樣本'); await pg.click('[data-an="' + sid + '"]'); await sleep(400); }
+async function tutSocial(pg, order = 'door') {
+  await tutCop(pg); await act(pg, '聽取初步報告'); await waitStep(pg, 2);
+  await act(pg, order === 'door' ? '守住大門' : '看住菜鳥'); await waitStep(pg, 3);
+  await tutSus(pg); await act(pg, '觀察嫌疑人'); await sleep(1300); await waitStep(pg, 4);
+  await tutSus(pg); await act(pg, '周旋'); await waitStep(pg, 5);
+}
+async function tutChase(pg, find, until, ms = 30000) { const t0 = Date.now(); while (Date.now() - t0 < ms && (await tutStep(pg)) < until) { const q = await pg.evaluate(find); if (q) await tp(pg, q.x + 6, q.y + 8); await sleep(200); } await waitStep(pg, until, 3000); }
+// 從頭玩到「🎉 教學完成！」：每一步都檢查步驟號碼一格一格往前走（小遊戲自動給高分；opt.manual 讓呼叫的人自己玩）
+async function tutFull(pg, tag) {
+  const seen = []; const mark = async n => { await waitStep(pg, n); seen.push(n); };
+  await pg.evaluate(() => { window.__hlSeen = {}; setInterval(() => { const T = __fs.Tut, g = __fs.G.tut; const s = g && T.steps[g.i]; if (s && s.hl && s.hl.some(q => document.querySelector(q))) __hlSeen[g.i] = 1; }, 80); });
+  await tp(pg, 640, 718); await mark(1);
+  await tutSocial(pg); seen.push(2, 3, 4, 5);
+  await tutGear(pg, ['camera', 'luminol', 'prints']); await mark(6); await closeWin(pg);
+  await toObj(pg, 'body'); await act(pg, '近拍傷口'); await mark(7);
+  await toObj(pg, 'floor_living'); await act(pg, '噴灑魯米諾'); await mark(8);
+  await toObj(pg, 'sw_living'); await act(pg, '燈'); await mark(9);
+  await toObj(pg, 'floor_living'); await act(pg, '記錄螢光位置'); await mark(10);
+  await toObj(pg, 'w_statue'); await act(pg, '噴灑魯米諾'); await act(pg, '記錄螢光位置'); await act(pg, '採集指紋'); await mark(11);
+  await tutVan(pg); await tutAnalyze(pg, 'print'); await mark(12);
+  for (const t of ['thermo', 'swab', 'shoe']) await pg.click('[data-tool="' + t + '"]'); await pg.click('#gearOk'); await sleep(300); await mark(13); await closeWin(pg);
+  await toObj(pg, 'body'); await act(pg, '量測肝溫'); await mark(14);
+  await toObj(pg, 'body'); await act(pg, '採集死者血液'); await mark(15);
+  await toObj(pg, 'phone'); await act(pg, '裝袋帶走'); await mark(16);
+  await toObj(pg, 'mud'); await act(pg, '採集鞋印'); await mark(17);
+  await tutVan(pg); await tutAnalyze(pg, 'blood'); await mark(18);
+  await pg.click('[data-lab="phone"]'); await sleep(300); await mark(19); await closeWin(pg);
+  await pg.waitForFunction(() => __fs.G.st.boss.mode === 'in', null, { timeout: 15000 });
+  await tutChase(pg, () => { const B = __fs.G.st.boss; return B.mode === 'in' ? { x: B.x, y: B.y } : null; }, 20); seen.push(20);
+  await pg.waitForFunction(() => (__fs.G.st.cops || []).some(c => c.mode === 'in'), null, { timeout: 8000 });
+  await tutChase(pg, () => { const c = (__fs.G.st.cops || []).find(c => c.mode === 'in'); return c && { x: c.x, y: c.y }; }, 21); seen.push(21);
+  await pg.click('#bNote'); await sleep(300); for (const t of ['cop', 'cmp', 'man']) { await pg.click('#win [data-tab="' + t + '"]'); await sleep(150); } await mark(22); await closeWin(pg);
+  await pg.click('#bClose'); await mark(23); await sleep(500);
+  await deduceAndSubmit(pg, null); await mark(24); await sleep(400);
+  const fin = await pg.evaluate(() => ({ i: __fs.G.tut.i, n: __fs.Tut.steps.length, txt: document.querySelector('#tut').textContent, home: !!document.querySelector('#tutHome'), res: __fs.G.st.result && __fs.G.st.result.rank }));
+  console.log(`${tag} 完整教學：${fin.i + 1}/${fin.n} 步，結果 ${fin.res}`);
+  if (fin.n !== TUT_N || fin.i !== TUT_N - 1 || !/教學完成/.test(fin.txt) || !fin.home) errors.push(tag + ' 教學沒有走到「🎉 教學完成！」：' + JSON.stringify(fin));
+  const noHl = await pg.evaluate(() => __fs.Tut.steps.map((s, i) => s.hl && s.hl.length && !__hlSeen[i] ? i + 1 : 0).filter(Boolean));
+  if (noHl.length) errors.push(tag + ' 這些步驟的提示框從沒對到畫面上的按鈕：' + noHl.join(','));
+  if (seen.length !== TUT_N - 1) errors.push(tag + ' 步驟沒有一格一格走：' + seen.join(','));
+  return fin;
 }
 /* v9 小遊戲 */
 const mgLog = [];
@@ -114,40 +164,48 @@ async function deduceAndSubmit(pg, name) {
   await tg.click('#bTut'); await sleep(900);
   await shot(tg, 'tut_1_walk');
   await tp(tg, 640, 718); await waitStep(tg, 1);
-  await tp(tg, 336, 880); await sleep(300); await shot(tg, 'tut_2_van');
-  await tg.keyboard.press('e'); await waitStep(tg, 2);
+  await tutCop(tg); await shot(tg, 'tut_2_officer'); await tg.keyboard.press('e'); await waitStep(tg, 2); await closeWin(tg);
+  await tutCop(tg); await act(tg, '守住大門'); await waitStep(tg, 3);
+  await tutSus(tg); await act(tg, '觀察嫌疑人'); await sleep(1300); await waitStep(tg, 4); await shot(tg, 'tut_3_observe'); await closeWin(tg);
+  await tutSus(tg); await act(tg, '周旋'); await waitStep(tg, 5);
+  await tp(tg, 336, 880); await sleep(300); await shot(tg, 'tut_4_van');
+  await tg.keyboard.press('e'); await sleep(400);
   for (const t of ['camera', 'luminol', 'prints']) await tg.click(`[data-tool="${t}"]`);
-  await shot(tg, 'tut_3_gear');
-  await tg.click('#gearOk'); await waitStep(tg, 3); await closeWin(tg);
+  await shot(tg, 'tut_5_gear');
+  await tg.click('#gearOk'); await waitStep(tg, 6); await closeWin(tg);
   await checkBody(tg, '教學・桌機', 'forensic_v3_body_tutorial.png');
-  await toObj(tg, 'body'); await shot(tg, 'tut_4_highlight'); await act(tg, '近拍傷口', { manual: true }); await playPhotoMouse(tg, 'mg_photo'); await mgWaitDone(tg); await waitStep(tg, 4); await sleep(300);
+  await toObj(tg, 'body'); await shot(tg, 'tut_6_highlight'); await act(tg, '近拍傷口', { manual: true }); await playPhotoMouse(tg, 'mg_photo'); await mgWaitDone(tg); await waitStep(tg, 7); await sleep(300);
   console.log('拍照（滑鼠）分數：', await tg.evaluate(() => __fs.MG.score));
-  await shot(tg, 'tut_5_result_card');
-  await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾'); await waitStep(tg, 5);
-  await shot(tg, 'tut_6_lights_on_no_glow');
-  await toObj(tg, 'sw_living'); await act(tg, '燈'); await waitStep(tg, 6); await sleep(500);
+  await shot(tg, 'tut_7_result_card');
+  await toObj(tg, 'floor_living'); await act(tg, '噴灑魯米諾'); await waitStep(tg, 8);
+  await shot(tg, 'tut_8_lights_on_no_glow');
+  await toObj(tg, 'sw_living'); await act(tg, '燈'); await waitStep(tg, 9); await sleep(500);
   await toObj(tg, 'floor_living'); await sleep(300); await shot(tg, 'dark_1_glow');
   await act(tg, '記錄螢光位置', { manual: true }); await playLumMouse(tg, 'mg_lum_desktop'); await mgWaitDone(tg); console.log('魯米諾（滑鼠＋鍵盤）分數：', await tg.evaluate(() => __fs.MG.score));
-  await waitStep(tg, 7); await sleep(500); await shot(tg, 'dark_2_recorded');
-  await toObj(tg, 'w_statue'); await act(tg, '噴灑魯米諾'); await act(tg, '記錄螢光位置'); await act(tg, '採集指紋', { manual: true }); await playPrintsKeys(tg, 'mg_prints_desktop'); await mgWaitDone(tg); console.log('刷指紋分數：', await tg.evaluate(() => __fs.MG.score)); await waitStep(tg, 8);
-  await van(tg); await tg.locator('[data-an]').first().click(); await waitStep(tg, 9); await sleep(300); await closeWin(tg);
-  await toObj(tg, 'phone'); await act(tg, '裝袋帶走'); await waitStep(tg, 10);
-  await van(tg); await tg.locator('[data-lab]').first().click(); await waitStep(tg, 11); await sleep(300); await closeWin(tg);
-  // 分局長走進來 → 泡泡 → 走到他旁邊交差
+  await waitStep(tg, 10); await sleep(500); await shot(tg, 'dark_2_recorded');
+  await toObj(tg, 'w_statue'); await act(tg, '噴灑魯米諾'); await act(tg, '記錄螢光位置'); await act(tg, '採集指紋', { manual: true }); await playPrintsKeys(tg, 'mg_prints_desktop'); await mgWaitDone(tg); console.log('刷指紋分數：', await tg.evaluate(() => __fs.MG.score)); await waitStep(tg, 11);
+  await tutVan(tg); await tutAnalyze(tg, 'print'); await waitStep(tg, 12); await sleep(300); await shot(tg, 'tut_9_gear2');
+  for (const t of ['thermo', 'swab', 'shoe']) await tg.click(`[data-tool="${t}"]`); await tg.click('#gearOk'); await waitStep(tg, 13); await closeWin(tg);
+  await toObj(tg, 'body'); await act(tg, '量測肝溫'); await waitStep(tg, 14);
+  await toObj(tg, 'body'); await act(tg, '採集死者血液'); await waitStep(tg, 15);
+  await toObj(tg, 'phone'); await act(tg, '裝袋帶走'); await waitStep(tg, 16);
+  await toObj(tg, 'mud'); await shot(tg, 'tut_10_shoe'); await act(tg, '採集鞋印'); await waitStep(tg, 17);
+  await tutVan(tg); await tutAnalyze(tg, 'blood'); await waitStep(tg, 18); await sleep(300);
+  await tg.locator('[data-lab="phone"]').click(); await waitStep(tg, 19); await sleep(300); await closeWin(tg);
+  // 分局長走進來 → 泡泡（死亡時間已經量好）→ 走到他旁邊交差
   await tg.waitForFunction(() => __fs.G.st.boss.mode === 'in', null, { timeout: 15000 }); await sleep(3500);
-  { const b = await tg.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(tg, b.x + 150, b.y); await sleep(400); await shot(tg, 'tut_7_supervisor_bubble'); }
-  for (let i = 0; i < 30 && (await tutStep(tg)) < 12; i++) { const b = await tg.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(tg, b.x + 10, b.y + 10); await sleep(200); }
-  await waitStep(tg, 12, 6000);
-  // 菜鳥 ⚠️
+  { const b = await tg.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(tg, b.x + 150, b.y); await sleep(400); await shot(tg, 'tut_11_supervisor_bubble'); }
+  await tutChase(tg, () => { const B = __fs.G.st.boss; return B.mode === 'in' ? { x: B.x, y: B.y } : null; }, 20);
+  // 菜鳥 ⚠️（玩家自己攔）
   await tg.waitForFunction(() => (__fs.G.st.cops || []).some(c => c.mode === 'in'), null, { timeout: 8000 });
-  { const c = await tg.evaluate(() => { const c = __fs.G.st.cops.find(c => c.mode === 'in'); return { x: c.x, y: c.y }; }); await tp(tg, c.x + 130, c.y + 40); await sleep(300); await shot(tg, 'tut_8_rookie_alert'); }
-  for (let i = 0; i < 60 && (await tutStep(tg)) < 13; i++) { const c = await tg.evaluate(() => { const c = (__fs.G.st.cops || []).find(c => c.mode === 'in'); return c && { x: c.x, y: c.y }; }); if (c) await tp(tg, c.x, c.y + 8); await sleep(200); }
-  await waitStep(tg, 13);
-  await tg.evaluate(() => __fs.openNote()); await sleep(300); await tg.click('[data-tab="man"]'); await waitStep(tg, 14); await shot(tg, 'tut_9_manual'); await closeWin(tg);
-  await sleep(500); await shot(tg, 'tut_10_close_hint');
-  await tg.click('#bClose'); await waitStep(tg, 15); await sleep(400);
-  await deduceAndSubmit(tg, 'tut_11_deduce'); await waitStep(tg, 16); await sleep(500);
-  await shot(tg, 'tut_12_done');
+  { const c = await tg.evaluate(() => { const c = __fs.G.st.cops.find(c => c.mode === 'in'); return { x: c.x, y: c.y }; }); await tp(tg, c.x + 130, c.y + 40); await sleep(300); await shot(tg, 'tut_12_rookie_alert'); }
+  await tutChase(tg, () => { const c = (__fs.G.st.cops || []).find(c => c.mode === 'in'); return c && { x: c.x, y: c.y }; }, 21);
+  await tg.click('#bNote'); await sleep(300); await tg.click('#win [data-tab="cop"]'); await sleep(200); await shot(tg, 'tut_13_note_cops'); await tg.click('#win [data-tab="cmp"]'); await sleep(200); await tg.click('#win [data-tab="man"]'); await waitStep(tg, 22); await shot(tg, 'tut_14_manual'); await closeWin(tg);
+  await sleep(500); await shot(tg, 'tut_15_close_hint');
+  await tg.click('#bClose'); await waitStep(tg, 23); await sleep(400);
+  await deduceAndSubmit(tg, 'tut_16_deduce'); await waitStep(tg, 24); await sleep(500);
+  await shot(tg, 'tut_17_done');
+  { const f = await tg.evaluate(() => ({ i: __fs.G.tut.i, n: __fs.Tut.steps.length, t: document.querySelector('#tut').textContent })); console.log('教學步數：', f.i + 1, '/', f.n); if (f.n !== TUT_N || f.i !== TUT_N - 1 || !/教學完成/.test(f.t)) errors.push('桌機教學沒走到 🎉 教學完成：' + JSON.stringify(f)); }
   const tres = await tg.evaluate(() => __fs.G.st.result); console.log('教學結果：', tres.rank, tres.total);
   /* ---------- 2. 正式案件（桌機） ---------- */
   const pg = await page(br, { viewport: { width: 1280, height: 800 } });
@@ -236,13 +294,13 @@ async function deduceAndSubmit(pg, name) {
     await tp2.keyboard.press('d'); await sleep(300);
     const kb = await tp2.evaluate(() => document.body.classList.contains('kb') && localStorage.getItem('fs_input'));
     console.log('觸控筆電按鍵後：', kb); if (kb !== 'kb') errors.push('觸控筆電按鍵後沒有切到鍵盤清單');
-    await tp(tp2, 640, 718); await waitStep(tp2, 1); await tp(tp2, 336, 880); await tp2.keyboard.press('e'); await waitStep(tp2, 2);
+    await tp(tp2, 640, 718); await waitStep(tp2, 1); await tutSocial(tp2); await tp(tp2, 336, 880); await tp2.keyboard.press('e'); await sleep(400);
     for (const t of ['camera', 'luminol', 'prints']) await tp2.evaluate(t => document.querySelector(`[data-tool="${t}"]`).click(), t);
-    await tp2.evaluate(() => document.getElementById('gearOk').click()); await waitStep(tp2, 3); await closeWin(tp2);
+    await tp2.evaluate(() => document.getElementById('gearOk').click()); await waitStep(tp2, 6); await closeWin(tp2);
     await toObj(tp2, 'body'); await sleep(400);
     const r = await tp2.evaluate(() => { const b = document.querySelector('#act').getBoundingClientRect(); return { kb: document.body.classList.contains('kb'), area: Math.round(b.width * b.height / (innerWidth * innerHeight) * 1000) / 10, key1: !!document.querySelector('#act button[data-key="1"] kbd') }; });
     console.log('觸控筆電・教學清單：', JSON.stringify(r)); if (!r.kb || r.area > 9 || !r.key1) errors.push('觸控筆電教學清單不是精簡鍵盤版：' + JSON.stringify(r));
-    await tp2.keyboard.press('1'); await mgWaitOpen(tp2); await mgAuto(tp2, .9); await waitStep(tp2, 4); console.log('觸控筆電按 1 → 近拍傷口完成');
+    await tp2.keyboard.press('1'); await mgWaitOpen(tp2); await mgAuto(tp2, .9); await waitStep(tp2, 7); console.log('觸控筆電按 1 → 近拍傷口完成');
     await tp2.touchscreen.tap(600, 400); await sleep(300);
     const t2 = await tp2.evaluate(() => document.body.classList.contains('kb')); console.log('之後用手指點畫面 → 觸控版：', !t2); if (t2) errors.push('手指觸控後沒有切回觸控版');
     await tp2.context().close(); }
@@ -364,8 +422,8 @@ async function deduceAndSubmit(pg, name) {
   await ip.goto(BASE); await sleep(1200); await ip.fill('#name', '百九');
   await shot(ip, 'iphone_lobby');
   await ip.tap('#bTut'); await sleep(900); await shot(ip, 'iphone_tutorial');
-  await tp(ip, 640, 718); await waitStep(ip, 1); await tp(ip, 336, 880); await sleep(300); await ip.evaluate(() => __fs.openVan()); await waitStep(ip, 2);
-  for (const t of ['camera', 'luminol', 'prints']) await ip.tap(`[data-tool="${t}"]`); await ip.tap('#gearOk'); await waitStep(ip, 3); await closeWin(ip);
+  await tp(ip, 640, 718); await waitStep(ip, 1); await tutSocial(ip); await tp(ip, 336, 880); await sleep(300); await ip.tap('#act [data-van]'); await sleep(400);
+  for (const t of ['camera', 'luminol', 'prints']) await ip.tap(`[data-tool="${t}"]`); await ip.tap('#gearOk'); await waitStep(ip, 6); await closeWin(ip);
   await checkBody(ip, '教學・iPhone', 'forensic_v3_iphone_body.png');
   await toObj(ip, 'body'); await sleep(400);
   { const r = await ip.evaluate(() => { const b = document.querySelector('#act').getBoundingClientRect(); return { h: Math.round(b.height), area: Math.round(b.width * b.height / (innerWidth * innerHeight) * 1000) / 10, kb: document.body.classList.contains('kb') }; });

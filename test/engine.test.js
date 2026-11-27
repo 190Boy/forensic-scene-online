@@ -668,5 +668,32 @@ console.log('最省路線最多花的實驗室額度：', maxCost, '手法分布
   const n = GEN.generate(11, 'normal'), s2 = FS.newGame(n, [{ pid: 0, name: 'A' }]); const wo = n.objects.find(o => o.bag && (o.acts || []).some(x => x.tool)); at(s2, 0, FS.posO(s2, wo));
   ok(FS.act(n, s2, 0, { type: 'bag', obj: wo.id }).ok, '正式案件不受限制（可以先裝袋）');
 }
+/* 21. v16：完整教學（seed 7）——每個系統都有東西可以教 */
+{
+  const C = GEN.generate(7, 'tut'), st = FS.newGame(C, [{ pid: 0, name: 'A' }], { pressure: false, tut: true }), p = st.players[0];
+  const c2 = st.cops.find(c => c.id === 'cop2'), c1 = st.cops.find(c => c.id === 'cop1');
+  ok(c2 && !c2.rk && Math.hypot(c2.x - 640, c2.y - 718) < 160, '教學：入口旁的蔡警員是一般員警（可以聽報告、可以調度）');
+  ok(c1 && c1.rk && st.cops.filter(c => c.rk).length === 1, '教學：菜鳥是李警員，而且只有一位');
+  ok(C.suspects.length >= 3 && st.npcs.filter(n => n.x < 640).length >= 3, '教學：封鎖線外站著關係人（可以觀察／周旋）');
+  const tools = C.tools.map(t => t.id), has = t => C.objects.some(o => (o.acts || []).some(x => x.tool === t));
+  ok(tools.length === 6 && tools.every(has), '教學：6 種工具都有東西可以用：' + tools.filter(t => !has(t)).join(','));
+  p.x = c2.x + 30; p.y = c2.y;
+  ok(FS.act(C, st, 0, { type: 'dispatch', obj: 'cop2', v: 'post' }).ok && !st.dispN, '教學：「回崗位」不算調度');
+  ok(FS.act(C, st, 0, { type: 'dispatch', obj: 'cop2', v: 'door' }).ok && st.dispN === 1, '教學：調度會被記下來（之後改派也不會讓步驟倒退）');
+  // 「看住菜鳥」：員警替玩家把菜鳥攔下（教學第 21 步的另一條路）
+  ok(FS.act(C, st, 0, { type: 'dispatch', obj: 'cop2', v: 'rookie' }).ok && st.dispN === 2, '教學：改派去看菜鳥');
+  p.x = 336; p.y = 880; for (let t = 0; t < 40 && c2.mode !== 'guard'; t += 0.2) FS.tick(C, st, 0.2);
+  let guard = 0, hit = 0; for (let k = 0; k < 4 && !guard; k++) { st.forceRookie = 'w_statue'; for (let t = 0; t < 60 && !guard; t += 0.2) for (const e of FS.tick(C, st, 0.2)) { if (e.k === 'rookie_guard') guard++; if (e.k === 'rookie_hit') hit++; } }
+  ok(guard > 0, `教學：派去看菜鳥的員警會攔下要碰銅雕的菜鳥（攔下 ${guard}，闖禍 ${hit}）`);
+  // 教學裡會蒐集到的證據 → 推理只剩一個答案
+  const s2 = FS.newGame(C, [{ pid: 0, name: 'A' }], { pressure: false, tut: true }), q = s2.players[0]; q.tools = tools; q.uses = Object.fromEntries(tools.map(t => [t, 9]));
+  const go = (id, a) => { const o = FS.objById(C, id); at(s2, 0, FS.posO(s2, o)); MG(C, s2, 0, { type: 'use', obj: id, act: a }); };
+  go('body', 'wound'); go('floor_living', 'lum'); s2.lights.living = false; go('floor_living', 'lum_mk'); go('w_statue', 'lum'); go('w_statue', 'lum_mk'); go('w_statue', 'prints');
+  go('body', 'temp'); go('body', 'swab'); go('mud', 'cast');
+  const d = FS.deduce(C, s2);
+  ok(s2.obj.floor_living.marked && FS.hasEv(s2, 'E_wound') && FS.hasEv(s2, 'E_wb_statue') && s2.obj.body.done.temp && s2.obj.body.done.swab && s2.obj.mud.done.cast, '教學：每一步要做的採證在引擎裡都做得到');
+  ok(q.samples.some(m => m.kind === 'print') && q.samples.some(m => m.kind === 'blood') && q.samples.some(m => m.kind === 'shoe'), '教學：指紋、血液、鞋印樣本都拿得到（車上分析）');
+  ok(d && d.methods.length >= 1, '教學：推理有答案可選');
+}
 function syncL(p) { p.lum = p.uses.luminol || 0; }
 console.log(fail ? `\n${fail} 項失敗（${okN} 項通過）` : `\n全部通過（${okN} 項）`); process.exit(fail ? 1 : 0);

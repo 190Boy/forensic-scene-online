@@ -100,7 +100,8 @@ function newGame(C, players, opts) {
   st.curiousAt = (90 + rnd(st) * 90) * st.pace;
   // 封鎖線內的員警：其中 C.rookies 位是菜鳥（外表一樣，動手時才會現形）
   st.cops = (C.cops || []).map(c => ({ id: c.id, x: c.posts[0].x, y: c.posts[0].y, leg: 0, mode: 'post', wait: 2 + rnd(st) * 8, path: null, rk: false, known: false, nextAt: NEVER, tgt: null, order: null }));
-  const order = st.cops.map((c, i) => [rnd(st), i]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  let order = st.cops.map((c, i) => [rnd(st), i]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  if (C.tutRookie) { const i = st.cops.findIndex(c => c.id === C.tutRookie); if (i >= 0) order = [i, ...order.filter(x => x !== i)]; }   // v16：教學固定菜鳥是誰（入口那位是一般員警，給新手聽報告／調度）
   order.slice(0, C.rookies || 0).forEach((i, k) => { const c = st.cops[i]; c.rk = true; c.nextAt = C.pressure.rookieEvery * (0.7 + rnd(st) * 0.6 + k * 0.5) * st.pace; });
   const home = objById(C, 'chief') || C.start[0];
   st.boss = { mode: 'away', x: home.x, y: home.y, path: null, wait: 0, demand: null, until: 0, t0: 0, nextAt: C.pressure.bossFirst ? C.pressure.bossFirst * st.pace : NEVER };
@@ -210,6 +211,7 @@ function act(C, st, pid, a) {
     else { for (const q of st.cops) if (q !== c && q.order === v) { q.order = null; q.mode = 'back'; const QD = copDef(C, q.id); q.path = findPath(C, q.x, q.y, QD.posts[q.leg].x, QD.posts[q.leg].y) || []; }   // 一個崗位一個人
       c.order = v; c.mode = 'go'; const g = C.guardSpots[v]; c.path = findPath(C, c.x, c.y, g.x, g.y) || []; }
     const text = v === 'door' ? `🚪 ${p.name}請${D.name}守住大門：有人想溜進封鎖線就攔下來` : v === 'rookie' ? `👶 ${p.name}請${D.name}盯住菜鳥：有人要亂碰證物就拉住他` : `📋 ${p.name}請${D.name}回原位待命`;
+    if (v !== 'post') st.dispN = (st.dispN || 0) + 1;   // v16：教學用（派過就算，之後改回原位也不會退步）
     logNews(st, text); out.push({ k: 'dispatch', by: pid, cop: c.id, v, text }); st.seq++; return { ok: true, ev: out };
   }
   /* v14：觀察關係人／周旋安撫 */

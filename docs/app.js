@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '15';
+const VER = '16';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -1295,25 +1295,49 @@ addEventListener('pagehide', () => { if (Voice.on) Voice.leave(true); saveSolo()
 /* ================= 啟動 ================= */
 /* ================= 新手教學（固定案件、一步一步帶著做、不會失敗） ================= */
 const TUT_SEED = 7;
+// v16：完整教學（約 4 分鐘）：每個系統都走一次，也是每次更新後的一次性回歸測試。
+// 每一步的 done() 都只看「狀態」：提早做完的步驟到了會直接跳過，不會卡住。
+const TS = {
+  ev: id => ENG.hasEv(G.st, id), dn: (o, a) => !!(G.st.obj[o] && G.st.obj[o].done[a]),
+  tools: (...t) => { const p = meP(); return !!(p && p.loaded && t.every(x => p.tools.includes(x))); },
+  brief: () => Object.keys(G.st.briefed || {}).length > 0, disp: () => (G.st.dispN || 0) > 0 || (G.st.cops || []).some(c => c.order),
+  obs: () => Object.keys(G.st.obs || {}).length > 0, calm: () => (G.st.npcs || []).some(n => n.calmAt != null),
+  wound: () => TS.ev('E_wound'), rug: () => TS.dn('floor_living', 'lum'), mark: () => !!G.st.obj.floor_living.marked,
+  statue: () => TS.ev('E_wb_statue') && TS.dn('w_statue', 'prints'), print: () => G.st.rep.print > 0,
+  temp: () => TS.dn('body', 'temp'), swab: () => TS.dn('body', 'swab'), shoe: () => TS.dn('mud', 'cast'), phone: () => !!G.st.obj.phone.gone,
+  blood: () => G.st.rep.blood > 0, lab: () => G.st.labs.length > 0,
+  rookie: () => G.tut.ev.some(e => e.k === 'rookie_stop' || e.k === 'rookie_guard') || (G.st.cops || []).some(c => c.rk && c.known && c.mode !== 'in'),
+  cop: () => { const cs = (G.st.cops || []).filter(c => !c.rk || !c.known); const c = cs.find(c => c.id === 'cop2') || cs[0]; return c && { x: c.vx != null ? c.vx : c.x, y: (c.vy != null ? c.vy : c.y) - 100 }; },
+  myCop: () => { const b = G.st.briefed || {}, c = (G.st.cops || []).find(c => b[c.id] != null) || (G.st.cops || [])[2]; return c && { x: c.vx != null ? c.vx : c.x, y: (c.vy != null ? c.vy : c.y) - 100 }; },
+  sus: () => { const ns = (G.st.npcs || []).filter(n => n.mode !== 'gone'); if (!ns.length) return null; const n = ns.slice().sort((a, b) => Math.hypot(a.x - G.Me.x, a.y - G.Me.y) - Math.hypot(b.x - G.Me.x, b.y - G.Me.y))[0]; return { x: n.vx != null ? n.vx : n.x, y: (n.vy != null ? n.vy : n.y) - 100 }; }
+};
 const Tut = {
   steps: [
-    { t: '這裡是命案別墅。慢慢來，這一關<b>不會失敗</b>。<br>用 <b>WASD／方向鍵</b>（手機：在畫面上<b>拖曳</b>）走到箭頭指的<b>封鎖線入口</b>。', at: () => ({ x: 640, y: 718 }), done: () => Math.hypot(G.Me.x - 640, G.Me.y - 718) < 90 },
-    { t: '很好。工具都在<b>鑑識車</b>裡：走回車子旁邊，點車子<span class="kbonly">（或按 <kbd class="k">E</kbd>）</span>打開它。', at: () => ENG.objById(C, 'van'), done: () => G.ovKind === 'van', hl: ['#act [data-van]'] },
-    { t: '選 <b>📷 鑑識相機</b>、<b>🧪 魯米諾</b>、<b>🔍 指紋採集組</b>，再按 <b>✅ 確認裝備</b>（隨時可以免費更換）。', done: () => { const p = meP(); return p.loaded && ['camera', 'luminol', 'prints'].every(t => p.tools.includes(t)); }, hl: ['[data-tool="camera"]', '[data-tool="luminol"]', '[data-tool="prints"]', '#gearOk'] },
-    { t: '關掉車上視窗，走到客廳的<b>屍體</b>旁，用 <b>📷 近拍傷口</b>。<br><span class="kbonly">靠近物件時旁邊會出現小清單：<b>數字鍵 1–5</b> 用工具、<b>E</b> 互動（裝袋、開關燈、記錄螢光、開車門、問話），滑鼠點也可以。這裡按清單上近拍傷口前面的數字。<br></span><span class="touchonly">靠近物件時下方會出現一排小按鈕，點它就好。<br></span>用工具會打開<b>鑑識小遊戲</b>：拍照時<b>移動取景框</b>找傷口，<b>停穩等框變綠</b>再拍<span class="kbonly">（點一下或空白鍵）</span><span class="touchonly">（按「📸 拍照」）</span>。玩得越仔細，<b>樣本品質</b>越好；正式案件裡品質差的結果可能不完整、甚至不可靠。教學不會失敗。<br>做完會跳出<b>結果卡</b>，告訴你發現什麼、記在哪裡。', at: () => ENG.objById(C, 'body'), done: () => ENG.hasEv(G.st, 'E_wound'), hl: ['#act [data-a="wound"]', '#win [data-close]'] },
-    { t: '看到結果卡了嗎？證據已經記進筆記本。<br>接著對<b>客廳地毯</b>按 <b>🧪 噴灑魯米諾</b>——燈亮著是看不到藍光的。<br>魯米諾的次數有限，工具格右下角會顯示剩幾次，用完回車上補充。', at: () => ENG.objById(C, 'floor_living'), done: () => G.st.obj.floor_living.done.lum, hl: ['#act [data-a="lum"]'] },
-    { t: '去客廳門邊的 <b>💡 電燈開關</b>把燈關掉<span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。<br>多人時可以一人關燈、一人噴灑記錄。', at: () => ENG.objById(C, 'sw_living'), done: () => G.st.lights.living === false, hl: ['#act [data-k="light"]'] },
-    { t: '暗下來了，手電筒照向你面對的方向。地毯浮出<b>藍色螢光</b>！<br>回到地毯按 <b>記錄螢光位置</b><span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。<br>小遊戲：<b>慢慢</b>移動紫外燈掃過地面（太快什麼都看不到），藍光浮現就點一下<b>標記</b>，掃完按 <b>✅ 完成記錄</b>。', at: () => ENG.objById(C, 'floor_living'), done: () => G.st.obj.floor_living.marked, hl: ['#act [data-a="lum_mk"]'] },
-    { t: '記下來了（黃色標示牌，開燈後也會留著）。<br>燈還關著，去<b>銅雕獎座</b>：先 <b>🧪 噴灑魯米諾</b>、<b>記錄螢光位置</b>，再按 <b>🔍 採集指紋</b>。<br>刷指紋小遊戲：按住拖曳刷粉，<b>紋路一出現就換地方</b>，刷太多會糊掉。指紋是「樣本」，要拿回車上分析才知道是誰的。', at: () => ENG.objById(C, 'w_statue'), done: () => ENG.hasEv(G.st, 'E_wb_statue') && ((meP().samples.length > 0) || G.st.rep.print > 0), hl: ['#act [data-a="lum"]', '#act [data-a="lum_mk"]', '#act [data-a="prints"]'] },
-    { t: '左上角的 <b>📋 待處理</b> 會列出樣本。回<b>鑑識車</b>，在「指紋比對電腦」按 <b>分析</b>。', at: () => ENG.objById(C, 'van'), done: () => G.st.rep.print > 0, hl: ['#act [data-van]', '[data-an]'] },
-    { t: '指紋比對出來了！再去拿<b>死者的手機</b>：按 <b>🛍️ 裝袋帶走</b><span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。', at: () => ENG.objById(C, 'phone'), done: () => G.st.obj.phone.gone, hl: ['#act [data-k="bag"]', '#win [data-close]'] },
-    { t: '回車上把手機交給快遞員<b>小吳</b>（車旁那位）送實驗室：按 <b>送實驗室</b>。<br>送驗會花<b>全隊共用的實驗室額度</b>（上方 🧪），這是唯一要省著用的東西。', at: () => ENG.objById(C, 'courier'), done: () => G.st.labs.length > 0, hl: ['#act [data-van]', '[data-lab]'] },
-    { t: '實驗室要等一下才回報（左上「待處理」看得到）。<br>咦，<b>分局長</b>走進封鎖線了。他頭上的<b>泡泡</b>就是他的要求——你剛好做完了，<b>走到他旁邊</b>交差。', enter() { G.st.forceBoss = { kind: 'report', rep: 'print' }; }, at: () => { const B = G.st.boss; return B && B.mode === 'in' ? { x: B.x, y: B.y - 110 } : null; }, done: () => G.st.bossOk > 0 },
-    { t: '有位員警頭上冒出 <b>⚠️</b>——他其實是<b>菜鳥</b>，想去亂碰證物！<br>每局誰是菜鳥都不一定。<b>走過去碰他</b>，請他回崗位。', enter() { G.st.forceRookie = 'w_statue'; }, at: () => { const c = (G.st.cops || []).find(c => c.mode === 'in'); return c ? { x: c.x, y: c.y - 110 } : null; }, done: () => G.tut.ev.some(e => e.k === 'rookie_stop'), tick() { if (G.tut.ev.some(e => e.k === 'rookie_hit') && !(G.st.cops || []).some(c => c.mode === 'in')) { G.tut.ev = []; G.st.forceRookie = 'w_statue'; } } },
-    { t: '做得好。打開 <b>📒 筆記本</b>，看看「證據」（新的有<span class="newb">新</span>標記），再切到 <b>📖 鑑識手冊</b>：每種手法有 3 個特徵，✔ 是確認、✖ 是排除。', enter() { for (const l of G.st.labs) if (!l.back) l.due = G.st.clock; }, done: () => G.tut.sawMan, hl: ['#bNote', '[data-tab="man"]'] },
+    { t: '這裡是命案別墅。慢慢來，這一關<b>不會失敗</b>。<br>用 <b>WASD／方向鍵</b>（手機：在畫面上<b>拖曳</b>）走到箭頭指的<b>封鎖線入口</b>。', at: () => ({ x: 640, y: 718 }), done: () => Math.hypot(G.Me.x - 640, G.Me.y - 718) < 90 || TS.brief() || TS.wound() },
+    { t: '入口的<b>蔡警員</b>頭上有 <b>💬</b>：員警比你早到，先聽他的<b>初步報告</b>。<br>走到他旁邊按 <kbd class="k">E</kbd><span class="touchonly">（或點「📋 聽取初步報告」）</span>。報告是線索方向，會記進筆記本「👮 員警」。', at: TS.cop, done: TS.brief, hl: ['#act [data-brief]'] },
+    { t: '員警也可以<b>調度</b>：請他 <b>🚪 守住大門</b>（攔下想溜進封鎖線的人）<span class="kbonly">按 <kbd class="k">1</kbd></span>，或 <b>👶 看住菜鳥警員</b><span class="kbonly">（<kbd class="k">2</kbd>）</span>。選哪個都可以。', at: TS.myCop, done: TS.disp, hl: ['#act [data-disp="door"]', '#act [data-disp="rookie"]'] },
+    { t: '封鎖線外站著幾位<b>關係人</b>。走到任何一位旁邊，按 <b>👀 觀察嫌疑人</b>：看他身上、手上和舉止有沒有異狀（可疑不等於兇手，要和證據對照）。', at: TS.sus, done: TS.obs, hl: ['#act [data-obs]'] },
+    { t: '再試試 <b>🗣️ 周旋／安撫</b>：陪他聊幾句，緊張的人會冷靜下來，想溜走或亂闖的時間也會往後延。', at: TS.sus, done: TS.calm, hl: ['#act [data-calm]'] },
+    { t: '工具都在<b>鑑識車</b>裡：走到車旁打開它<span class="kbonly">（按 <kbd class="k">E</kbd>）</span>，選 <b>📷 鑑識相機</b>、<b>🧪 魯米諾</b>、<b>🔍 指紋採集組</b>，按 <b>✅ 確認裝備</b>。一次只能帶 3 件，隨時可以免費回來換。', at: () => ENG.objById(C, 'van'), done: () => TS.tools('camera', 'luminol', 'prints') || (TS.wound() && TS.mark() && TS.statue()), hl: ['#act [data-van]', '[data-tool="camera"]', '[data-tool="luminol"]', '[data-tool="prints"]', '#gearOk'] },
+    { t: '關掉車上視窗，走到客廳的<b>屍體</b>旁，用 <b>📷 近拍傷口</b><span class="kbonly">（按清單上的數字鍵）</span><span class="touchonly">（點下方按鈕）</span>。<br>拍照小遊戲：移動取景框找傷口，<b>停穩等框變綠</b>再拍。做完會跳出<b>結果卡</b>（電腦版在左側欄），並記進筆記本。', at: () => ENG.objById(C, 'body'), done: TS.wound, hl: ['#act [data-a="wound"]', '#win [data-close]'] },
+    { t: '對<b>客廳地毯</b>按 <b>🧪 噴灑魯米諾</b>——燈亮著是看不到藍光的。<br>工具都有<b>使用次數</b>（工具格右下角），用完回車上補滿。', at: () => ENG.objById(C, 'floor_living'), done: TS.rug, hl: ['#act [data-a="lum"]'] },
+    { t: '去客廳門邊的 <b>💡 電燈開關</b>把燈關掉<span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。多人時可以一人關燈、一人記錄。', at: () => ENG.objById(C, 'sw_living'), done: () => G.st.lights.living === false || TS.mark(), hl: ['#act [data-k="light"]'] },
+    { t: '地毯浮出<b>藍色螢光</b>了！回到地毯按 <b>記錄螢光位置</b>：<b>慢慢</b>移動紫外燈掃過地面，藍光浮現就點一下標記，掃完按 <b>✅ 完成記錄</b>。', at: () => ENG.objById(C, 'floor_living'), done: TS.mark, hl: ['#act [data-a="lum_mk"]'] },
+    { t: '燈還關著，去<b>銅雕獎座</b>：<b>🧪 噴灑魯米諾</b> → <b>記錄螢光位置</b> → <b>🔍 採集指紋</b>。<br>刷指紋：按住拖曳刷粉，<b>紋路一出現就換地方</b>，刷太多會糊掉。指紋是「樣本」，要回車上分析。', at: () => ENG.objById(C, 'w_statue'), done: TS.statue, hl: ['#act [data-a="lum"]', '#act [data-a="lum_mk"]', '#act [data-a="prints"]'] },
+    { t: '回<b>鑑識車</b>：左上「📋 待處理」列著你的樣本。在<b>指紋比對電腦</b>按 <b>分析</b>。', at: () => ENG.objById(C, 'van'), done: TS.print, hl: ['#act [data-van]', '[data-an]'] },
+    { t: '換第二組工具：<b>🌡️ 肝溫計</b>、<b>💉 血液採取器</b>、<b>👣 足跡採集器</b>，按 <b>✅ 確認裝備</b>。<br>換裝和回到車旁都會<b>補滿使用次數</b>（1–2 人走到車旁就自動補滿）。', at: () => ENG.objById(C, 'van'), done: () => TS.tools('thermo', 'swab', 'shoe') || (TS.temp() && TS.swab() && TS.shoe()), hl: ['[data-tool="thermo"]', '[data-tool="swab"]', '[data-tool="shoe"]', '#gearOk'] },
+    { t: '回到<b>屍體</b>旁，用 <b>🌡️ 量測肝溫</b>：讀出體溫，推算<b>死亡時間</b>。', at: () => ENG.objById(C, 'body'), done: TS.temp, hl: ['#act [data-a="temp"]', '#win [data-close]'] },
+    { t: '再用 <b>💉 採集死者血液</b>：棉棒輕輕沾取，不要蹭到旁邊。血液樣本等一下回車上用<b>離心機</b>驗血型。', at: () => ENG.objById(C, 'body'), done: TS.swab, hl: ['#act [data-a="swab"]'] },
+    { t: '屍體旁邊的<b>死者手機</b>要送實驗室：按 <b>🛍️ 裝袋帶走</b><span class="kbonly">（按 <kbd class="k">E</kbd>）</span>。', at: () => ENG.objById(C, 'phone'), done: TS.phone, hl: ['#act [data-k="bag"]'] },
+    { t: '穿過廚房到<b>後院</b>：泥地上有一串<b>鞋印</b>。用 <b>👣 追蹤並採集鞋印</b>：沿著腳印方向灌石膏取模。', at: () => ENG.objById(C, 'mud'), done: TS.shoe, hl: ['#act [data-a="cast"]'] },
+    { t: '回<b>鑑識車</b>：在<b>離心機＋血液快篩</b>按 <b>分析</b>，看血液樣本的血型（鞋印樣本也可以送「鞋印資料庫」分析）。', at: () => ENG.objById(C, 'van'), done: TS.blood, hl: ['#act [data-van]', '[data-an]'] },
+    { t: '把手機交給車旁的快遞員<b>小吳</b>：按 <b>送實驗室</b>。<br>送驗會花<b>全隊共用的實驗室額度</b>（上方 🧪），這是唯一要省著用的東西；結果過一陣子回來。', at: () => ENG.objById(C, 'courier'), done: TS.lab, hl: ['#act [data-van]', '[data-lab]'] },
+    { t: '<b>分局長</b>走進封鎖線了，他頭上的<b>泡泡</b>就是要求——死亡時間你剛好量好了：<b>走到他旁邊</b>就會交差<span class="kbonly">（或按 <kbd class="k">E</kbd>）</span>。', enter() { closeOv(); G.st.forceBoss = { kind: 'report', rep: 'tod' }; }, at: () => { const B = G.st.boss; return B && B.mode === 'in' ? { x: B.x, y: B.y - 110 } : null; }, done: () => G.st.bossOk > 0 },
+    { t: '有位員警頭上冒出 <b>⚠️</b>——他其實是<b>菜鳥</b>，想去亂碰證物！<b>走過去碰他</b>請他回崗位。<br>（如果剛才派了員警<b>👶 看住菜鳥</b>，他也會幫你拉住。）', enter() { G.tut.ev = []; G.st.forceRookie = 'w_statue'; }, at: () => { const c = (G.st.cops || []).find(c => c.mode === 'in'); return c ? { x: c.x, y: c.y - 110 } : null; }, done: TS.rookie, tick() { if (G.tut.ev.some(e => e.k === 'rookie_hit') && !(G.st.cops || []).some(c => c.mode === 'in')) { G.tut.ev = []; G.st.forceRookie = 'w_statue'; } } },
+    { t: '打開 <b>📒 筆記本</b>：「👮 員警」是報告、「🧬 比對」幫你對照樣本，最後切到 <b>📖 鑑識手冊</b>——每種手法 3 個特徵，✔ 確認、✖ 排除。', enter() { for (const l of G.st.labs) if (!l.back) l.due = G.st.clock; }, done: () => G.tut.sawMan, hl: ['#bNote', '[data-tab="cop"]', '[data-tab="cmp"]', '[data-tab="man"]'] },
     { t: '線索齊了（左上「案情進度」）。關掉筆記本，按 <b>⚖️ 結案推理</b>。', done: () => G.st.phase !== 'play', hl: ['#bClose', '#win [data-close]'] },
     { t: '照鑑識手冊選：兇手、行兇方式、兇器、第一現場，再勾 1～3 項關鍵證據，按 <b>📨 送出推理報告</b>。', done: () => G.st.phase === 'result', hl: ['#submit'] },
-    { t: '🎉 <b>教學完成！</b>正式案件裡兇手、手法、房間每局都不同，分局長和菜鳥偶爾才會出現。兇手想溜走前頭上會冒 <b>😰</b>，人少時按 <b>E</b>（或點提示列的按鈕）叫員警攔住他。不理分局長，他的<b>耐心</b>會掉得更快；耐心歸零就得結案。<br>分數＝答對多少＋早點結案＋省下的實驗室額度。<br>多人時可以分工：一人關燈、一人噴灑、一人跑車上。', last: true }
+    { t: '🎉 <b>教學完成！</b>正式案件裡兇手、手法、房間每局都不同。<br>・<b>員警</b>：先聽報告；派人 <b>🚪 守大門</b>攔下溜進來的人，或 <b>👶 盯菜鳥</b>免得他亂碰證物。<br>・<b>關係人</b>：<b>👀 觀察</b>找破綻；頭上冒 <b>😰</b> 就去 <b>🗣️ 周旋</b>，或叫員警攔住他。<br>・<b>分局長</b>：要求做到就去碰他交差；不理他，<b>耐心</b>掉光就得結案。<br>・人越少節奏越慢（單人約 ×2.1），工具次數也比較多。<br>分數＝答對多少＋早點結案＋省下的實驗室額度。', last: true }
   ],
   start() {
     Snd.init(); this.stop(); G.mode = 'solo'; G.me = 0; G.host = true; G.room = null;

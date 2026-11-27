@@ -465,6 +465,7 @@ function generate(seed, diff) {
   const posts = shuffle(r2, COP_POSTS).slice(0, D.cops), names = shuffle(r2, COP_NAMES);
   C.cops = posts.map((pp, i) => ({ id: 'cop' + i, name: names[i], img: 'npc_officer_' + (1 + Math.floor(r2() * 5)), posts: pp.map(scP) }));
   C.rookies = D.rookies; C.reports = REPORTS; C.roles = ROLES;
+  if (D.hidden) C.tutRookie = 'cop1';   // v16：教學的菜鳥固定是屋裡的李警員；封鎖線入口的蔡警員是一般員警
   /* --- v14 警員初步報告：每位員警 1–2 條和這個案件有關的線索（不直接點名兇手，只指向要去驗證的房間／物品／人） --- */
   const r3 = rng((seed ^ 0x27d4eb2f) >>> 0), RN = BASE.roomName;
   const disc = pick(r3, sus), watchS = pick(r3, sus), off = [-10, 0, 10][Math.floor(r3() * 3)];
