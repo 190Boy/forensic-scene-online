@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '14';
+const VER = '15';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -167,7 +167,7 @@ const MG = window.FS_MG;
 G.mgFast = /[?&]mgfast/.test(location.search) ? .3 : null;
 function openMg(e) {
   const o = ENG.objById(C, e.obj), a = (o.acts || []).find(x => x.id === e.act) || {};
-  for (const k in KEYS) KEYS[k] = false; G.path = null; G.autoOpen = null; closeOv();
+  for (const k in KEYS) KEYS[k] = false; ptReset(); G.path = null; G.autoOpen = null; closeOv();
   MG.open({ kind: e.kind, obj: e.obj, act: e.act, specks: e.specks, room: C.room, ground: o.ground, redo: e.redo, title: `${MG.NAMES[e.kind]}・${o.name}`, sub: a.label || '',
     img: n => IMG[n], touch: !isKB(), fast: G.mgFast, minSec: (C.mgMin || 0) + (G.mode === 'online' ? .5 : .1),
     snd: k => k === 'shutter' ? Snd.sw() : Snd.glint(),
@@ -180,7 +180,7 @@ function doAct(a, opt) {
   Snd.init(); const quiet = opt && opt.quiet;
   if (G.mode === 'solo') {
     const r = ENG.act(C, G.st, G.me, a);
-    if (!r.ok) { if (!quiet) { toast(r.err, true); Snd.bad(); } return; }
+    if (!r.ok) { if (r.ev && r.ev.length) { onEvents(r.ev); refresh(); } if (!quiet) { toast(r.err, true); Snd.bad(); } return; }
     onEvents(r.ev); saveSolo(); refresh();
   } else { Net.flushPos(true); Net.send({ t: 'act', a: quiet ? Object.assign({ quiet: true }, a) : a }); }
 }
@@ -212,8 +212,10 @@ function onEvents(evs) {
         break;
       }
       case 'pace': toast(`👥 現在 ${Object.values(G.st.players).filter(q => q.active).length} 人調查：插曲節奏調整為 ×${e.pace}`); break;
-      case 'left': toast(`🚪 ${G.st.players[e.by] ? G.st.players[e.by].name : '隊友'} 離隊了`); break;
+      case 'left': toast(`🚪 ${G.st.players[e.by] ? G.st.players[e.by].name : '隊友'} ${e.drop ? '斷線太久，先離隊了（證物袋和樣本交給隊友）' : '離隊了'}`); break;
+      case 'rejoin': if (!mine) toast(`🔌 ${G.st.players[e.by] ? G.st.players[e.by].name : '隊友'} 重新連線回來了`); break;
       case 'phase':
+        if (e.phase !== 'play') { try { if (MG.on) MG.close(); } catch (x) { } clearTimeout(G.obsT); G.obsT = null; }   // v15：結案時還開著的小遊戲一起關掉
         if (e.phase === 'deduce') { toast(e.why === 'patience' ? '🌅 分局長的耐心用完了，現在提出推理' : '⚖️ 開始結案推理'); closeOv(); setTimeout(() => openDeduce(), 300); }
         if (e.phase === 'result') { setTimeout(() => openResult(), 200); }
         break;
@@ -246,20 +248,34 @@ const Net = {
   ws: null, open: false, want: false, retry: 0, lastPos: 0, sentPos: null, queue: [],
   connect() {
     if (this.ws && (this.ws.readyState === 0 || this.ws.readyState === 1)) return;
-    this.want = true; srvLine('連線中…（免費主機第一次連線可能要等 30～60 秒喚醒）');
-    let ws; try { ws = new WebSocket(SERVER_WS); } catch (e) { srvLine('無法連線伺服器'); return; }
-    this.ws = ws;
-    ws.onopen = () => { this.open = true; this.retry = 0; srvLine('已連線'); if (G.code && G.token) this.send({ t: 'join', code: G.code, token: G.token, name: myName(), ci: myCi() }); this.queue.splice(0).forEach(m => this.send(m)); };
+    // v15：Render 免費主機睡著時要 30～60 秒才醒：持續顯示「正在喚醒伺服器…（已等 N 秒）」並自動重試（最多 2 分鐘），不會默默失敗
+    this.want = true; if (!this.t0) this.t0 = Date.now(); this.wake();
+    if (!this.wakeT) this.wakeT = setInterval(() => this.wake(), 1000);
+    let ws; try { ws = new WebSocket(SERVER_WS); } catch (e) { return this.giveUp(); }
+    this.ws = ws; clearTimeout(this.openT); this.openT = setTimeout(() => { if (ws.readyState === 0) try { ws.close(); } catch (e) { } }, 30000);
+    ws.onopen = () => {
+      clearTimeout(this.openT); const again = this.retry > 0 && G.st; this.open = true; this.retry = 0; this.t0 = 0; clearInterval(this.wakeT); this.wakeT = null; srvLine('已連線');
+      if (again) toast('✅ 已重新連線');
+      if (G.code && G.token) { this.queue = this.queue.filter(m => m.t !== 'join'); this.send({ t: 'join', code: G.code, token: G.token, name: myName(), ci: myCi() }); }
+      this.queue.splice(0).forEach(m => this.send(m));
+    };
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (x) { return; } this.onMsg(m); };
     ws.onclose = () => {
-      this.open = false; if (this.ws !== ws) return; this.ws = null;
+      clearTimeout(this.openT); this.open = false; if (this.ws !== ws) return; this.ws = null;
       if (Voice.on) Voice.leave(true);
-      if (this.want && G.code) { const d = Math.min(8000, 800 * Math.pow(1.6, this.retry++)); srvLine('斷線了，重新連線中…'); toast('連線中斷，重新連線中…', true); setTimeout(() => this.connect(), d); }
-      else if (this.want) srvLine('連不上伺服器，請稍後再試');
+      if (!this.want) return;
+      if (!(G.code || this.queue.length)) return this.giveUp();
+      if (!this.t0) this.t0 = Date.now();
+      if (Date.now() - this.t0 > 120000) return this.giveUp();
+      if (G.st && this.retry === 0) toast('連線中斷，重新連線中…', true);
+      const d = Math.min(5000, 800 * Math.pow(1.6, this.retry++)); this.wake(); setTimeout(() => { if (this.want && !this.ws) this.connect(); }, d);
+      if (!this.wakeT) this.wakeT = setInterval(() => this.wake(), 1000);
     };
   },
-  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); else if (m.t === 'create' || m.t === 'join') { this.queue.push(m); this.connect(); } },
-  close() { this.want = false; G.code = null; G.token = null; if (this.ws) try { this.ws.close(); } catch (e) { } this.ws = null; },
+  wake() { if (this.open) return; const sec = this.t0 ? Math.round((Date.now() - this.t0) / 1000) : 0; srvLine(this.retry && G.st ? `斷線了，重新連線中…（${sec} 秒）` : `⏳ 正在喚醒伺服器…（已等 ${sec} 秒；免費主機第一次連線約 30～60 秒）`); },
+  giveUp() { clearInterval(this.wakeT); this.wakeT = null; clearTimeout(this.openT); this.t0 = 0; this.retry = 0; this.queue = []; srvLine('連不上伺服器，請稍後再按一次'); toast('連不上伺服器：免費主機可能還在醒來，等一下再按一次', true); },
+  send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); else if (m.t === 'create' || m.t === 'join') { this.queue = this.queue.filter(q => q.t !== 'create' && q.t !== 'join'); this.queue.push(m); this.connect(); } },   // v15：連線前連按好幾次也只會開一間房
+  close() { this.want = false; clearInterval(this.wakeT); this.wakeT = null; clearTimeout(this.openT); this.t0 = 0; this.retry = 0; this.queue = []; G.code = null; G.token = null; if (this.ws) try { this.ws.close(); } catch (e) { } this.ws = null; },
   flushPos(force) {
     if (G.mode !== 'online' || !G.st) return;
     const now = performance.now(), M = G.Me;
@@ -277,7 +293,7 @@ const Net = {
         if (!m.rejoin) toast('已加入房間 ' + m.code);
         Voice.onJoined();
         break;
-      case 'room': G.room = m.room; G.host = !!(m.room.players[G.me] && m.room.players[G.me].host); if (!G.st || m.room.phase === 'lobby') showRoom(); Voice.sync(); refresh(); break;
+      case 'room': { const wasHost = G.host; G.room = m.room; G.host = !!(m.room.players[G.me] && m.room.players[G.me].host); if (G.host && !wasHost && G.st) { toast('👑 你現在是房主：可以結案、送出推理、開新的一局'); if (G.ovRender) G.ovRender(); } } if (!G.st || m.room.phase === 'lobby') showRoom(); Voice.sync(); refresh(); break;
       case 'state': {
         if (!C || C.seed !== m.s.seed || C.diff !== m.s.diff) { C = GEN.generate(m.s.seed, m.s.diff); G.view = {}; G.st = null; }
         if (!G.st || G.st.seed !== m.s.seed) { G.st = m.s; loadSeen(); G.st = null; }
@@ -303,7 +319,7 @@ const Net = {
       case 'fix': G.Me.x = m.x; G.Me.y = m.y; G.path = null; break;
       case 'chat': Chat.add(m.slot, m.name, m.text); break;
       case 'err': toast(m.msg || '錯誤', true); Snd.bad(); if (m.code === 'noroom' || m.code === 'full' || m.code === 'playing') { LS.del('fs_cur'); if (!G.st) { G.code = null; G.token = null; } } break;
-      case 'lobby': G.st = null; closeOv(); showRoom(); break;
+      case 'lobby': resetUI(); G.st = null; closeOv(); showRoom(); break;
       case 'kicked': toast(m.msg, true); this.want = false; break;
       case 'left': backHome('你已離開房間'); break;
       case 'dissolved': backHome(m.msg || '房間已解散'); break;
@@ -316,7 +332,7 @@ function srvLine(t) { const e = $('#srvLine'); if (e) e.textContent = (t ? t + '
 function backHome(msg) {
   if (Voice.on) Voice.leave(true); Tut.stop(); Snd.stopAmb();
   const code = G.code; if (code) LS.del('fs_tok_' + code); LS.del('fs_cur');
-  Net.close(); G.st = null; G.room = null; G.mode = null; closeOv();
+  Net.close(); resetUI(); G.st = null; G.room = null; G.mode = null; closeOv();
   history.replaceState(null, '', location.pathname + (qs.get('server') ? '?server=' + encodeURIComponent(qs.get('server')) : ''));
   $('#hud').classList.add('hidden'); $('#roomScr').classList.add('hidden'); $('#chat').classList.add('hidden'); $('#home').classList.remove('hidden');
   if (msg) toast(msg);
@@ -644,6 +660,8 @@ cv.addEventListener('pointerdown', e => { Snd.init(); if (PT.id !== null) return
 cv.addEventListener('pointermove', e => { if (e.pointerId !== PT.id) return; PT.x = e.clientX; PT.y = e.clientY; if (!PT.joy && Math.hypot(PT.x - PT.sx, PT.y - PT.sy) > 14) { PT.joy = true; G.path = null; G.autoOpen = null; const j = $('#joy'); j.style.left = PT.sx + 'px'; j.style.top = PT.sy + 'px'; j.classList.remove('hidden'); } if (PT.joy) { const dx = PT.x - PT.sx, dy = PT.y - PT.sy, d = Math.min(45, Math.hypot(dx, dy)), a = Math.atan2(dy, dx); $('#joy i').style.transform = `translate(${Math.cos(a) * d}px,${Math.sin(a) * d}px)`; } });
 const ptEnd = e => { if (e.pointerId !== PT.id) return; PT.id = null; $('#joy').classList.add('hidden'); if (!PT.joy) tapAt(e.clientX - OX, e.clientY - OY); PT.joy = false; };
 cv.addEventListener('pointerup', ptEnd); cv.addEventListener('pointercancel', e => { if (e.pointerId === PT.id) { PT.id = null; PT.joy = false; $('#joy').classList.add('hidden'); } });
+cv.addEventListener('lostpointercapture', e => { if (e.pointerId === PT.id) { PT.id = null; PT.joy = false; $('#joy').classList.add('hidden'); } });   // v15：拖曳中跳出確認框等情況，不會變成一直往前走
+function ptReset() { PT.id = null; PT.joy = false; const j = $('#joy'); if (j) j.classList.add('hidden'); }
 function tapAt(cx, cy) {
   if (!G.st) return;
   const [wx, wy] = S2W(cx, cy);
@@ -730,7 +748,9 @@ function loop(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
   if (G.st && C) {
     step(dt);
-    if (G.mode === 'solo' && G.st.phase === 'play' && document.visibilityState === 'visible') { const ev = ENG.tick(C, G.st, dt); if (ev.length) { onEvents(ev); refresh(); saveSolo(); } }
+    // v15：引擎時間跟著真實時間走（手機掉到 10 fps 以下時也一樣），小遊戲的「最少秒數」才不會被誤判太快
+    if (G.mode === 'solo' && G.st.phase === 'play' && document.visibilityState === 'visible') { let rem = Math.min(1, Math.max(0, (now - (G.simAt || now)) / 1000)); const ev = []; while (rem > 1e-6 && G.st.phase === 'play') { const s = Math.min(.1, rem); rem -= s; ev.push(...ENG.tick(C, G.st, s)); } if (ev.length) { onEvents(ev); refresh(); saveSolo(); } }
+    G.simAt = now;
     const nid = nearest(); if (nid !== G.nearId) { G.nearId = nid; refreshAct(); }
     slowT += dt; if (slowT > .3) { slowT = 0; hudPress(); if (G.mode === 'solo') saveSolo(); Snd.ambTick(); if (G.tut) Tut.tick(); if ((G.st.boss && G.st.boss.mode === 'in' && G.nearId === 'boss') || (G.nearId && /^(cop|npc):/.test(G.nearId))) refreshAct();
       const me = meP(); if (me && me.mg && !MG.on) { G.mgStale = (G.mgStale || 0) + .3; if (G.mgStale > 3.5) { G.mgStale = 0; doAct({ type: 'mgCancel' }); } } else G.mgStale = 0; }
@@ -741,7 +761,17 @@ function loop(now) {
 
 /* ================= HUD ================= */
 const mmss = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, '0')}`;
+// v15：換局／回首頁時把上一局留下的畫面狀態全部清掉（結果卡、提示、浮字、小遊戲、計時器、車上選的工具…）
+function resetUI() {
+  try { if (MG && MG.on) MG.close(); } catch (e) { }
+  clearTimeout(G.obsT); G.obsT = null; G.mgStale = 0; G.simAt = null; G.camAt = null; G.nearId = null; G.path = null; G.autoOpen = null;
+  G.fx = []; G.floats = []; G.bubbles = {}; vanSel = null; bossTry = 0; noteTab = 'ev'; G.noteSaw = null;
+  for (const id of ['#cards', '#toasts']) { const el = $(id); if (el) el.innerHTML = ''; }
+  const al = $('#alertBar'); if (al) al.classList.add('hidden'); const a = $('#act'); if (a) a.classList.add('hidden');
+  for (const k in KEYS) KEYS[k] = false; ptReset();
+}
 function enterGame(needGear) {
+  resetUI();
   $('#home').classList.add('hidden'); $('#roomScr').classList.add('hidden'); $('#hud').classList.remove('hidden');
   const p = meP(); G.Me.x = p.x; G.Me.y = p.y; G.Me.dir = p.dir || 1; G.path = null; G.view = {}; G.nearId = null;
   for (const n of G.st.npcs || []) { n.vx = n.x; n.vy = n.y; }

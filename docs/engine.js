@@ -114,12 +114,12 @@ const QN = { good: '好', fair: '普通', poor: '差' };
 function qOf(C, score, cap) { if (C.mgEasy) return 'good'; let q = score >= MG_GOOD ? 'good' : score >= MG_FAIR ? 'fair' : 'poor'; if (cap === 'fair' && q === 'good') q = 'fair'; return q; }
 // 已經做過、但品質不夠好 → 可以重做一次（代價：時間；魯米諾要再用一次、指紋／鞋印最多只能到「普通」）
 function canRedo(C, s, x) { return !!(x.mg && s.done[x.id] && s.q && s.q[x.id] && s.q[x.id] !== 'good' && (s.tries[x.id] || 1) < MG_TRIES && !C.mgEasy); }
-function useCheck(C, st, p, o, s, x0) {
+function useCheck(C, st, p, o, s, x0, fin) {
   if (s.done[x0.id] && !canRedo(C, s, x0)) return '已經做過了';
   if (x0.need && !s.done[x0.need]) return '要先完成前一步';
   if (o.npc) { const n = (st.npcs || []).find(q => q.id === o.npc); if (!n || n.mode === 'gone') return '這個人已經離開現場了'; }
   if (x0.tool && !p.tools.includes(x0.tool)) return '你沒有帶這件工具';
-  if (x0.dark && isLit(C, st, o)) return '燈太亮了，看不到螢光：先關掉這個房間的燈';
+  if (x0.dark && isLit(C, st, o) && !fin) return '燈太亮了，看不到螢光：先關掉這個房間的燈';   // fin：小遊戲開始時已經是暗的，中途隊友開燈不作廢
   if (x0.dark && s.done[x0.id] && usesLeft(p, 'luminol') <= 0) return '魯米諾用完了：回鑑識車補充';
   if (x0.tool && usesLeft(p, x0.tool) <= 0) return `${(C.tools.find(t => t.id === x0.tool) || {}).name || '工具'}用完了：回鑑識車補充`;
   return null;
@@ -175,14 +175,14 @@ function act(C, st, pid, a) {
   if (a.type === 'close') { if (st.phase !== 'play') return err('已經在推理了'); st.phase = 'deduce'; st.seq++; return { ok: true, ev: [{ k: 'phase', phase: 'deduce', why: 'close', by: pid }] }; }
   if (st.phase !== 'play') return err('調查已經結束');
   if (!p.active) return err('你已經離隊');
-  if (p.benchUntil > st.clock && a.type !== 'light' && a.type !== 'callcops') return err(`你被分局長叫去車上寫報告，約 ${Math.ceil(p.benchUntil - st.clock)} 秒後回來`);
-  if (a.type === 'boss') {   // 站在分局長旁邊按 E／點「交差」
+  if (a.type === 'boss') {   // v15：被叫去寫報告的人也能交差（走過去本來就算，按 E 也要算）
+    // 站在分局長旁邊按 E／點「交差」
     const B = st.boss; if (!B || B.mode !== 'in') return err('分局長現在不在現場');
     if (!bossDone(C, st, B.demand)) return err('還沒做到：' + demandText(C, B.demand));
     if (Math.hypot(p.x - B.x, p.y - B.y) > BOSS_R + 45) return err('走近分局長一點再交差');
-    if (p.mg) p.mg = null;
-    bossAccept(C, st, out); st.seq++; return { ok: true, ev: out };
+    bossAccept(C, st, out); st.seq++; return { ok: true, ev: out };   // v15：交差不會打斷正在做的小遊戲（分局長晃過來時自動交差，以前會把小遊戲作廢）
   }
+  if (p.benchUntil > st.clock && a.type !== 'light' && a.type !== 'callcops') return err(`你被分局長叫去車上寫報告，約 ${Math.ceil(p.benchUntil - st.clock)} 秒後回來`);
   if (a.type === 'callcops') {
     const n = runner(st); if (!n) return err('現在沒有人想溜走');
     if (!canCallCops(st)) return err('人手夠，自己去攔他（走過去碰他）');
@@ -239,6 +239,7 @@ function act(C, st, pid, a) {
     const o = objById(C, a.obj), s = st.obj[a.obj]; if (!o || !s || o.deco || o.van) return err('沒有這個物件');
     if (s.gone) return err('這個證物已經被帶走了'); if (!near(C, p, posO(st, o))) return err('距離太遠，走近一點');
     const x0 = (o.acts || []).find(q => q.id === a.act); if (!x0 || !x0.mg) return err('這個不用小遊戲');
+    if (p.mg && p.mg.obj === o.id && p.mg.act === x0.id && st.clock - p.mg.t0 < 1.5) return { ok: true, ev: [] };   // v15：連點兩下不會重開
     const e = useCheck(C, st, p, o, s, x0); if (e) return err(e);
     p.mg = { obj: o.id, act: x0.id, kind: x0.mg, t0: st.clock, redo: !!s.done[x0.id] };
     out.push({ k: 'mg', by: pid, obj: o.id, act: x0.id, kind: x0.mg, redo: p.mg.redo, specks: x0.specks || 0 }); st.seq++; return { ok: true, ev: out };
@@ -258,6 +259,15 @@ function act(C, st, pid, a) {
     st.lights[o.sw] = st.lights[o.sw] === false; out.push({ k: 'light', by: pid, room: o.sw, on: st.lights[o.sw] });
     st.seq++; return { ok: true, ev: out };
   }
+  if (a.type === 'use' && p.mg && p.mg.obj === a.obj && p.mg.act === a.act) {   // v15：交小遊戲結果失敗（隊友先做完、證物被帶走、工具被菜鳥撞掉…）→ 一定解除「分析中」，不會卡住
+    const r = useAct(C, st, pid, p, a, out);
+    if (!r.ok && p.mg && !/^(太快了|分數不正確)/.test(r.err)) { p.mg = null; r.ev = [{ k: 'mgEnd', by: pid, cancel: true }]; st.seq++; }
+    return r;
+  }
+  return useAct(C, st, pid, p, a, out);
+}
+function useAct(C, st, pid, p, a, out) {
+  const err = m => ({ ok: false, err: m });
   if (a.type === 'use' || a.type === 'bag' || a.type === 'courier') {
     const o = objById(C, a.obj), s = st.obj[a.obj];
     if (!o || !s || o.deco || o.van) return err('沒有這個物件');
@@ -265,7 +275,7 @@ function act(C, st, pid, a) {
     if (!near(C, p, posO(st, o))) return err('距離太遠，走近一點');
     if (a.type === 'use') {
       const x0 = (o.acts || []).find(q => q.id === a.act); if (!x0) return err('不能這樣做');
-      const e0 = useCheck(C, st, p, o, s, x0); if (e0) return err(e0);
+      const e0 = useCheck(C, st, p, o, s, x0, !!(x0.mg && p.mg && p.mg.obj === o.id && p.mg.act === x0.id)); if (e0) return err(e0);
       let q = null, sc = null; const redo = !!s.done[x0.id];
       if (x0.mg) {   // 小遊戲：前端算分數送上來，伺服器檢查範圍與時間，決定品質
         if (!p.mg || p.mg.obj !== o.id || p.mg.act !== x0.id) return err('要先完成小遊戲');
@@ -291,6 +301,8 @@ function act(C, st, pid, a) {
       if (x0.mg) out.push({ k: 'mgEnd', by: pid });
       if (x.ev) addEv(C, st, x.ev, pid, out, q, sc);
       if (x.sample) { const sm = { sid: ++st.sid, kind: x.sample.kind, label: x.sample.label, res: x.sample.res, lab: x.sample.lab || null, src: o.id, act: x0.id, q, sc }; p.samples.push(sm); out.push({ k: 'sample', by: pid, label: sm.label, kind: sm.kind, q, lab: !!sm.lab }); }
+    } else if (st.tut && (o.acts || []).some(x => x.tool && !s.done[x.id])) {   // v15：教學照順序來，先採證再帶走（不然後面的步驟永遠做不完）
+      return err('教學：先在這件證物上把採證做完（噴魯米諾、記錄螢光、採指紋），再裝袋或送驗');
     } else if (a.type === 'bag') {
       if (!o.bag) return err('這個不能裝袋');
       if (p.bag.reduce((t, b) => t + b.size, 0) + o.bag.size > C.bagSlots) return err('證物袋滿了，先回車上送驗');
@@ -340,6 +352,12 @@ function leave(C, st, pid) {
     for (const b of p.bag) { const s = st.obj[b.obj]; if (s) s.gone = false; } p.bag = [];
   }
   checkEnd(st, out); st.seq++; return out;
+}
+// v15：斷線太久被當成離隊的人重新連回來 → 回到隊伍（從入口重新開始）
+function rejoin(C, st, pid) {
+  const p = st.players[pid]; if (!p || p.active || st.phase !== 'play') return [];
+  const s0 = C.start[pid % C.start.length] || C.start[0]; p.active = true; p.mg = null; p.x = s0.x; p.y = s0.y; p.benchUntil = 0;
+  st.seq++; return [{ k: 'rejoin', by: pid }];
 }
 function move(C, st, pid, x, y, dir, dt) {
   const p = st.players[pid]; if (!p) return false; x = +x; y = +y;
@@ -513,8 +531,17 @@ function bossDone(C, st, d) {
   if (d.rep === 'tod') return ['E_tod', 'E_tod_wide', 'E_tod_f', 'E_tod_p'].some(id => hasEv(st, id));
   return (st.rep[d.rep] || 0) > 0;
 }
+// v15：分局長只會要「還做得出來」的報告（例：傷口照片兩次都拍糊、指紋都採完了，就不會再要）
+function canMake(C, st, k) {
+  if (k === 'lab') return st.labs.some(l => !l.back);
+  const want = k === 'wound' ? x => x.id === 'wound' && x.tool === 'camera' : k === 'tod' ? x => x.id === 'temp' && x.tool === 'thermo' : x => x.sample && x.sample.kind === k;
+  if (k === 'print' || k === 'blood') if (actives(st).some(p => p.samples.some(m => m.kind === k))) return true;
+  return C.objects.some(o => { const s = st.obj[o.id]; if (!s || s.gone || o.deco || o.van || !o.acts) return false;
+    if (o.npc) { const n = (st.npcs || []).find(q => q.id === o.npc); if (!n || n.mode === 'gone') return false; }
+    return o.acts.some(x => want(x) && (!s.done[x.id] || canRedo(C, s, x)) && (k === 'wound' || k === 'tod' || resolve(st, s, x).sample)); });
+}
 function pickDemand(C, st) {
-  const cands = ['wound', 'tod', 'print', 'blood', 'lab'].filter(k => !bossDone(C, st, { kind: 'report', rep: k }) && (k !== 'lab' || st.labs.some(l => !l.back)));
+  const cands = ['wound', 'tod', 'print', 'blood', 'lab'].filter(k => !bossDone(C, st, { kind: 'report', rep: k }) && canMake(C, st, k));
   const first = st.bossOk + st.bossFail === 0, prog = progress(C, st);
   let pool = first ? cands.filter(k => k === 'wound' || k === 'tod') : cands;
   if (!pool.length) pool = cands;
@@ -603,7 +630,7 @@ function copsTick(C, st, dt, T, news, out) {
           const hasCond = (o.acts || []).some(a => (a.cond || []).some(q => q.flag === 'contam') && !s.done[a.id]);
           if (hasCond && roll < .5) { s.f.contam = true; news('rookie_hit', `💥 菜鳥${D.name}伸手摸了「${o.name}」——證物被污染了！`, { obj: o.id, cop: c.id }); }
           else {
-            const withTools = actives(st).filter(p => p.tools.length);
+            const withTools = actives(st).filter(p => p.tools.length && !p.mg);
             if (roll < .75 && withTools.length) { const v = withTools.sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0]; const t = v.tools.splice(Math.floor(rnd(st) * v.tools.length), 1)[0]; if (v.uses) delete v.uses[t]; syncLum(v); const tn = (C.tools.find(x => x.id === t) || {}).name; news('rookie_hit', `💥 菜鳥${D.name}踢翻了工具箱：${v.name} 的「${tn}」摔壞了，要回車上重新拿`, { by: v.pid, cop: c.id }); }
             else { const v = actives(st).filter(p => usesLeft(p, 'luminol') > 0)[0]; if (v) { v.uses.luminol--; syncLum(v); } news('rookie_hit', `💥 菜鳥${D.name}撞翻了證物箱${v ? `，${v.name} 的魯米諾灑掉一份` : '，東西散了一地'}`, { by: v && v.pid, cop: c.id }); }
           }
@@ -670,6 +697,6 @@ function flatOrder(C) {
   const rank = o => o.id === 'body' ? 1 : (o.w * o.h >= 15000 ? 0 : 2);
   return C.objects.filter(o => o.flat).map((o, i) => ({ o, i })).sort((a, b) => rank(a.o) - rank(b.o) || (rank(a.o) === 0 ? b.o.w * b.o.h - a.o.w * a.o.h : 0) || a.i - b.i).map(x => x.o);
 }
-const FS = { PACE, paceN, paceOf, maxUses, usesLeft, refillAll, TALK_R, guardStop, syncView, bossXY, posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
+const FS = { rejoin, canMake, pickDemand, PACE, paceN, paceOf, maxUses, usesLeft, refillAll, TALK_R, guardStop, syncView, bossXY, posO, qOf, canRedo, QN, MG_GOOD, MG_FAIR, watchers, BOSS_R, SPEED, flatOrder, canCallCops, runner, warnSec, NEVER, isLit, progress, bossDone, demandText, walkable, moveTo, roomAt, near, nearVan, newGame, act, options, leave, move, tick, grade, deduce, hasEv, objById, findPath, walkRects, culpritHeat };
 if (typeof module !== 'undefined' && module.exports) module.exports = FS; else root.FS = FS;
 })(typeof self !== 'undefined' ? self : this);

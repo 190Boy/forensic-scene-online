@@ -12,6 +12,8 @@ const PORT = +process.env.PORT || 3000;
 const IDLE_CLOSE_MS = +process.env.IDLE_CLOSE_MS || 40 * 60 * 1000;   // 房間 40 分鐘沒人操作就斷線
 const ROOM_IDLE_MS = +process.env.ROOM_IDLE_MS || 10 * 60 * 1000;     // 沒人在線多久後清掉房間
 const POS_MS = 100;
+const HOST_GRACE_MS = +process.env.HOST_GRACE_MS || 20 * 1000;      // v15：房主斷線多久後，把房主交給在線的人（不然沒人能結案／送出推理）
+const DROP_MS = +process.env.DROP_MS || 90 * 1000;                  // v15：調查中斷線多久算離隊（證物袋、樣本交給隊友，不會卡住）
 const TICK_MS = 200;                                                  // 壓力系統（NPC、菜鳥、時限、劣化）更新間隔
 const TIME_SCALE = +process.env.TIME_SCALE || 1;                      // 測試用：時間加速                                                   // 位置廣播間隔
 const PUB = path.join(__dirname, 'docs');
@@ -125,6 +127,7 @@ function each(room, f) { room.slots.forEach((p, i) => { if (p && p.ws) f(p, i); 
 function broadcastRoom(room) { const v = roomView(room); each(room, p => send(p.ws, { t: 'room', room: v })); }
 function broadcastState(room, ev) { if (!room.st) return; each(room, p => send(p.ws, { t: 'state', s: room.st, ev: ev || [] })); }
 function startGame(room) {
+  const now = Date.now(); room.slots.forEach((p, i) => { if (p && !p.ws && p.offAt && now - p.offAt > HOST_GRACE_MS && !p.host) room.slots[i] = null; });   // v15：離線很久的座位不要變成幽靈隊員
   const players = room.slots.map((p, i) => p ? { pid: i, name: p.name, ci: p.ci } : null).filter(Boolean);
   const seed = crypto.randomInt(1, 2 ** 31 - 1);
   room.C = GEN.generate(seed, room.diff);
@@ -136,8 +139,10 @@ function startGame(room) {
 function tickRoom(room) {
   if (room.dead || !room.st) { clearInterval(room.tickTimer); room.tickTimer = null; return; }
   if (room.st.phase !== 'play') return;
+  const now = Date.now(), el = Math.min(1, Math.max(0, (now - (room.tickAt || now - TICK_MS)) / 1000)); room.tickAt = now;
   if (!room.slots.some(p => p && p.ws)) return;     // 沒人在線就暫停時間
-  const ev = FS.tick(room.C, room.st, TICK_MS / 1000 * TIME_SCALE);
+  // v15：用真實經過的時間（免費主機 CPU 被節流、計時器延遲時，遊戲時間也不會變慢 → 小遊戲不會被判「太快了」）
+  const ev = []; let rem = el * TIME_SCALE; while (rem > 1e-6 && room.st.phase === 'play') { const s = Math.min(TICK_MS / 1000 * TIME_SCALE, rem); rem -= s; ev.push(...FS.tick(room.C, room.st, s)); }
   if (room.st.phase === 'deduce') room.phase = 'deduce';
   if (ev.length) broadcastState(room, ev);
   room.posDirty = true;
@@ -177,7 +182,8 @@ function attach(ws, room, s, isNew) {
   p.ws = ws; p.offAt = 0; ws.ctx = { room, slot: s }; room.lastActive = room.lastMsg = Date.now();
   send(ws, { t: 'joined', code: room.code, slot: s, token: p.token, rejoin: !isNew });
   broadcastRoom(room);
-  if (room.st) { const q = room.st.players[s]; if (q && q.mg) q.mg = null;   // 重新連線：之前沒做完的小遊戲作廢（不然會一直卡在「分析中」）
+  if (room.st) { const q = room.st.players[s]; if (q && q.mg) q.mg = null;
+    if (q && !q.active && room.st.phase === 'play') { const ev = FS.rejoin(room.C, room.st, s); if (ev.length) broadcastState(room, ev); }   // 重新連線：之前沒做完的小遊戲作廢（不然會一直卡在「分析中」）
     send(ws, { t: 'state', s: room.st, ev: [{ k: 'sync' }] }); }
 }
 function detach(ws) {
@@ -185,6 +191,7 @@ function detach(ws) {
   const { room, slot } = c; const p = room.slots[slot];
   if (!p || p.ws !== ws) return;
   p.ws = null; p.voice = null; p.offAt = Date.now(); room.lastActive = Date.now();
+  if (room.st) { const q = room.st.players[slot]; if (q && q.mg) { q.mg = null; room.st.seq++; broadcastState(room, [{ k: 'mgEnd', by: slot, cancel: true }]); } }   // v15：斷線時沒做完的小遊戲立刻作廢
   broadcastRoom(room);
 }
 function detachSeat(ws, leaving) {
@@ -275,7 +282,7 @@ function handle(ws, m) {
       const a = cleanAct(m.a); if (!a) break;
       if ((a.type === 'close' || a.type === 'submit') && !p.host) return send(ws, { t: 'err', msg: '只有房主可以' + (a.type === 'close' ? '提早結案' : '送出推理報告') });
       const r = FS.act(room.C, room.st, slot, a);
-      if (!r.ok) { if (a.type === 'boss' && m.a.quiet === true) break; return send(ws, { t: 'err', code: 'act', msg: r.err }); }   // 自動交差試不成就安靜略過
+      if (!r.ok) { if ((r.ev || []).length) broadcastState(room, r.ev); if (a.type === 'boss' && m.a.quiet === true) break; return send(ws, { t: 'err', code: 'act', msg: r.err }); }   // v15：被拒絕但狀態有變（例：解除分析中）也要同步給大家   // 自動交差試不成就安靜略過
       if (room.st.phase === 'result') room.phase = 'result'; else if (room.st.phase === 'deduce') room.phase = 'deduce';
       broadcastState(room, r.ev);
       break;
@@ -304,6 +311,7 @@ function handle(ws, m) {
     }
     case 'leave': detachSeat(ws, true); send(ws, { t: 'left' }); break;
     case 'dissolve': if (p.host) dissolveRoom(room, '房主解散了房間'); break;
+    case 'dbg': if (process.env.TEST_HOOKS === '1' && room.st && m.forceBoss && typeof m.forceBoss === 'object') { room.st.forceBoss = { kind: String(m.forceBoss.kind), rep: m.forceBoss.rep ? String(m.forceBoss.rep) : undefined, pct: +m.forceBoss.pct || undefined, wait: +m.forceBoss.wait || undefined }; room.st.boss.mode = 'away'; } break;   // 只有測試環境（TEST_HOOKS=1）才有用
   }
 }
 /* 心跳 + 清理空房（不會對外 ping 任何服務，Render 沒人用就讓它睡） */
@@ -313,6 +321,9 @@ setInterval(() => {
   for (const [ip, l] of ipLogs) if (now - l.t > 15 * 60 * 1000) ipLogs.delete(ip);
   for (const [code, room] of rooms) {
     if (room.slots.some(p => p && p.ws)) {
+      const host = room.slots.find(p => p && p.host);
+      if (!host || (!host.ws && host.offAt && now - host.offAt > HOST_GRACE_MS)) { if (host) host.host = false; const n = room.slots.find(p => p && p.ws); n.host = true; broadcastRoom(room); }
+      if (room.st && room.st.phase === 'play') room.slots.forEach((p, i) => { const q = room.st.players[i]; if (p && !p.ws && p.offAt && now - p.offAt > DROP_MS && q && q.active) { const ev = FS.leave(room.C, room.st, i); ev.forEach(e => { if (e.k === 'left') e.drop = true; }); broadcastState(room, ev); } });
       const talking = room.slots.filter(p => p && p.ws && p.voice).length >= 2;
       if (!talking && now - room.lastMsg > IDLE_CLOSE_MS) { for (const p of room.slots) if (p && p.ws) { send(p.ws, { t: 'idle' }); try { p.ws.close(); } catch (e) { } } }
       else { room.lastActive = now; continue; }

@@ -6,10 +6,10 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node test/engine.test.js && node test/server.test.js",
+    "test": "node test/engine.test.js && node test/fuzz.test.js && node test/server.test.js && node test/server15.test.js",
     "assets": "node tools/gen_assets.js",
     "prompts": "node tools/gen_assets.js --prompts",
-    "test:ui": "node test/clear_check.js && node test/v14_check.js"
+    "test:ui": "node test/clear_check.js && node test/v14_check.js && node test/playthrough.js && node test/coldstart.js"
   },
   "engines": {
     "node": ">=18"

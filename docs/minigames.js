@@ -277,6 +277,7 @@ function loop(ts) {
   if (game.done || MG.t >= game.limit * MG.lim) MG.finish();
 }
 MG.open = function (o) {
+  clearTimeout(MG.finT); MG.finT = null; if (MG.on) MG.close();   // v15：不會有上一次的「處理中」計時器把新開的小遊戲關掉
   setup(); opt = o; F = o.fast || 1; MG.lim = o.fast ? Math.max(.35, o.fast) : 1; ended = false; MG.t = 0; MG.t0 = performance.now(); MG.kind = o.kind; MG.act = o.act; MG.obj = o.obj; MG.score = null;
   game = KINDS[o.kind](o); MG.on = true; inp.down = false; inp.on = false; inp.x = W / 2; inp.y = H / 2; inp.px = inp.x; inp.py = inp.y; inp.speed = 0; Object.keys(keys).forEach(k => delete keys[k]);
   titleEl.textContent = (o.title || NAMES[o.kind]) + (o.redo ? '（重做）' : ''); say(o.sub || '');
@@ -287,10 +288,11 @@ MG.finish = function (forced) {
   if (!MG.on || ended) return; ended = true; const sc = Math.round(clamp(forced != null ? forced : game.score()) * 1000) / 1000; MG.score = sc;
   inp.down = false; foot.innerHTML = '<div class="mgwait">樣本處理中…</div>';
   const wait = Math.max(0, (opt.minSec || 0) * 1000 + 250 - (performance.now() - MG.t0));
-  setTimeout(() => { const o = opt; MG.close(); if (o.onDone) o.onDone(sc); }, wait);
+  const g = game; MG.finT = setTimeout(() => { MG.finT = null; if (game !== g || !MG.on) return; const o = opt; MG.close(); if (o.onDone) o.onDone(sc); }, wait);
 };
-MG.cancel = function () { if (!MG.on) return; const o = opt; MG.close(); if (o && o.onCancel) o.onCancel(); };
-MG.close = function () { MG.on = false; ended = true; cancelAnimationFrame(raf); if (box) box.classList.add('hidden'); game = null; };
+MG.cancel = function () { if (!MG.on || MG.finT) return;   // v15：結果已經在送出（樣本處理中）就不能取消，避免白做
+  const o = opt; MG.close(); if (o && o.onCancel) o.onCancel(); };
+MG.close = function () { clearTimeout(MG.finT); MG.finT = null; MG.on = false; ended = true; cancelAnimationFrame(raf); if (box) box.classList.add('hidden'); game = null; };
 MG.key = function (e, down) {
   if (!MG.on || !game) return false; const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (down && k === 'Escape') { MG.cancel(); return true; }
