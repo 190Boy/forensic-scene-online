@@ -18,7 +18,7 @@ const DIFF = {
 // 封鎖線內的員警崗哨（每位在兩點間來回巡邏）
 const COP_POSTS = [   // v12：座標寫的是地圖原圖（map_mansion.jpg）的像素，載入時乘上 MS 換成世界座標
   [{ x: 850, y: 905 }, { x: 1070, y: 900 }], [{ x: 2380, y: 1160 }, { x: 2170, y: 1300 }], [{ x: 1260, y: 1390 }, { x: 1500, y: 1400 }],
-  [{ x: 1250, y: 960 }, { x: 1800, y: 990 }], [{ x: 1980, y: 860 }, { x: 2340, y: 880 }]
+  [{ x: 1250, y: 960 }, { x: 1800, y: 990 }], [{ x: 2012, y: 706 }, { x: 2340, y: 880 }]
 ];
 const COP_NAMES = ['王警員', '李警員', '張警員', '劉警員', '蔡警員', '許警員', '鄧警員'];
 // 分局長會要求的報告（像恐鬼症的鬼：進封鎖線後頭上冒泡泡）
@@ -142,7 +142,7 @@ const BASE = {
 };
 // 兇器候選（固定位置）
 const WEAPONS = {
-  statue: { name: '銅雕獎座', room: 'living', x: 1190, y: 525, baked: true, bw: 60, bh: 125, img: 'prop_statue', w: 70, h: 110, kind: 'blunt', size: 2, desc: '矮櫃上的銅雕獎座，沉甸甸的，底座是方形的。' },
+  statue: { name: '銅雕獎座', room: 'living', x: 1240, y: 525, baked: true, bw: 60, bh: 125, img: 'prop_statue', w: 70, h: 110, kind: 'blunt', size: 2, desc: '矮櫃上的銅雕獎座，沉甸甸的，底座是方形的。' },
   glasses: { name: '兩只紅酒杯', room: 'living', x: 1425, y: 628, img: 'prop_wine_glasses', w: 56, h: 52, kind: 'poison', size: 1, desc: '茶几上的兩只紅酒杯，一只還剩一點酒。' },
   necktie: { name: '絲質領帶', room: 'living', x: 1360, y: 585, baked: true, bw: 80, bh: 50, img: 'prop_necktie', w: 70, h: 34, kind: 'strangle', size: 1, flat: true, desc: '沙發旁地上一條深色絲質領帶。' },
   poker: { name: '壁爐火鉗', room: 'study', x: 1948, y: 472, img: 'prop_poker', w: 40, h: 100, kind: 'blunt', size: 2, desc: '鐵製火鉗，掛在壁爐旁的架子上。' },
@@ -150,26 +150,26 @@ const WEAPONS = {
   cord: { name: '窗簾繩', room: 'study', x: 2522, y: 470, img: 'prop_curtain_cord', w: 40, h: 120, kind: 'strangle', size: 1, desc: '窗邊垂下的粗編窗簾繩，有一截被扯鬆了。' },
   knife: { name: '刀架上的菜刀', room: 'kitchen', x: 1585, y: 1236, img: 'prop_knife_block', w: 60, h: 80, kind: 'stab', size: 1, desc: '木製刀架，少了一個刀位又被插回去了。' },
   teacup: { name: '流理台上的茶杯', room: 'kitchen', x: 1760, y: 1452, img: 'prop_teacup', w: 40, h: 36, kind: 'poison', size: 1, desc: '流理台上一只喝了一半的茶杯。' },
-  hearth: { name: '壁爐石角', room: 'study', x: 2085, y: 390, baked: true, bw: 240, bh: 190, img: 'prop_fireplace', w: 150, h: 140, kind: 'staged', size: 0, desc: '大理石壁爐，石角上有一抹血跡。' }
+  hearth: { name: '壁爐石角', room: 'study', x: 2089, y: 494, baked: true, bw: 236, bh: 236, img: 'prop_fireplace', w: 150, h: 140, kind: 'staged', size: 0, desc: '大理石壁爐，石角上有一抹血跡。' }
 };
 const FLOOR = {   // 原圖像素；baked＝已經畫在地圖上（不另外畫圖，只留互動範圍與光暈）
-  living: { id: 'floor_living', name: '客廳地毯', x: 1503, y: 705, img: 'prop_carpet', baked: true, bw: 435, bh: 260, r: 170 },
-  study: { id: 'floor_study', name: '書房地毯', x: 2095, y: 758, img: 'prop_rug_study', baked: true, bw: 290, bh: 115, r: 120 },
+  living: { id: 'floor_living', name: '客廳地毯', x: 1515, y: 715, img: 'prop_carpet', baked: true, bw: 460, bh: 258, r: 170 },
+  study: { id: 'floor_study', name: '書房地毯', x: 2101, y: 811, img: 'prop_rug_study', baked: true, bw: 295, bh: 123, r: 120 },
   kitchen: { id: 'floor_kitchen', name: '廚房地板', x: 1450, y: 1365, img: 'prop_floor_mark', w: 180, h: 70, r: 120 }
 };
 // 屍體（原圖像素）：客廳在茶几地毯下方的人字拼木地板上，不會壓到茶几
 const BODY_AT = { living: { x: 1500, y: 935 }, study: { x: 2085, y: 565 }, kitchen: { x: 1380, y: 1330 } };
 const DECO = [
   { id: 'tape', room: 'street', x: 612, y: 1000, img: 'prop_police_tape', w: 60, h: 150, name: '封鎖線', deco: true },
-  { id: 'tree', room: 'street', x: 285, y: 600, img: 'prop_tree', baked: true, bw: 250, bh: 330, name: '路樹', deco: true },
-  { id: 'shoerack', room: 'foyer', x: 1030, y: 785, img: 'prop_shoe_rack', baked: true, bw: 160, bh: 215, name: '鞋櫃', deco: true, desc: '鞋櫃擺得很整齊。' },
-  { id: 'sofa', room: 'living', x: 1432, y: 495, img: 'prop_sofa', baked: true, bw: 250, bh: 115, name: '沙發', deco: true, desc: '真皮沙發，坐墊有兩個人坐過的凹痕。' },
+  { id: 'tree', room: 'street', x: 285, y: 644, img: 'prop_tree', baked: true, bw: 252, bh: 348, name: '路樹', deco: true },
+  { id: 'shoerack', room: 'foyer', x: 1034, y: 784, img: 'prop_shoe_rack', baked: true, bw: 162, bh: 175, name: '鞋櫃', deco: true, desc: '鞋櫃擺得很整齊。' },
+  { id: 'sofa', room: 'living', x: 1495, y: 495, img: 'prop_sofa', baked: true, bw: 260, bh: 115, name: '沙發', deco: true, desc: '真皮沙發，坐墊有兩個人坐過的凹痕。' },
   { id: 'bookshelf', room: 'living', x: 1780, y: 520, img: 'prop_bookshelf', baked: true, bw: 95, bh: 230, name: '書櫃', deco: true, desc: '擺滿藝術畫冊。' },
-  { id: 'table', room: 'living', x: 1482, y: 670, img: 'prop_coffee_table', baked: true, bw: 220, bh: 95, name: '茶几', deco: true },
-  { id: 'counter', room: 'kitchen', x: 1665, y: 1300, img: 'prop_counter', baked: true, bw: 250, bh: 200, name: '流理台', deco: true, desc: '流理台上放著一瓶漂白水，冰箱上貼著值日表。' },
-  { id: 'backdoor', room: 'kitchen', x: 1890, y: 1350, img: 'prop_back_door', baked: true, bw: 45, bh: 200, name: '後門', deco: true, desc: '後門沒有上鎖。' },
+  { id: 'table', room: 'living', x: 1527, y: 719, img: 'prop_coffee_table', baked: true, bw: 200, bh: 112, name: '茶几', deco: true },
+  { id: 'counter', room: 'kitchen', x: 1694, y: 1250, img: 'prop_counter', baked: true, bw: 225, bh: 175, name: '流理台', deco: true, desc: '流理台上放著一瓶漂白水，冰箱上貼著值日表。' },
+  { id: 'backdoor', room: 'kitchen', x: 1895, y: 1344, img: 'prop_back_door', baked: true, bw: 45, bh: 210, name: '後門', deco: true, desc: '後門沒有上鎖。' },
   { id: 'gate', room: 'yard', x: 2335, y: 1085, img: 'prop_garden_gate', baked: true, bw: 175, bh: 165, name: '側門', deco: true, desc: '通往小巷的側門，門閂是打開的。' },
-  { id: 'bush', room: 'yard', x: 2118, y: 1440, img: 'prop_bush', baked: true, bw: 265, bh: 150, name: '樹叢', deco: true }
+  { id: 'bush', room: 'yard', x: 2021, y: 1438, img: 'prop_bush', baked: true, bw: 169, bh: 185, name: '樹叢', deco: true }
 ];
 
 function generate(seed, diff) {
@@ -378,7 +378,7 @@ function generate(seed, diff) {
     acts: [], bag: { ap: 1, size: 1, label: '裝袋帶走', lab: 'E_phone', labCond: [{ flag: 'tampered', res: 'E_phone_wiped' }] } });
   // 書桌文件（動機）
   ev('E_motive', `帳冊筆記：${culprit.name}`, 'ev_document', `死者的筆記：「${culprit.name}——${culprit.motive}。下週處理。」`, { motive: culprit.id });
-  O.push({ id: 'desk', room: 'study', x: 2330, y: 470, img: 'prop_desk', baked: true, bw: 220, bh: 145, name: '書桌', r: 110, desc: '紅木書桌，抽屜沒鎖。', acts: [{ id: 'ledger', tool: 'camera', ap: 1, label: '翻拍抽屜裡的筆記', ev: ['E_motive'] }] });
+  O.push({ id: 'desk', room: 'study', x: 2351, y: 540, img: 'prop_desk', baked: true, bw: 237, bh: 181, name: '書桌', r: 110, desc: '紅木書桌，抽屜沒鎖。', acts: [{ id: 'ledger', tool: 'camera', ap: 1, label: '翻拍抽屜裡的筆記', ev: ['E_motive'] }] });
   // 清理痕跡（有血的手法）
   if (method.blood) {
     ev('E_towel', '實驗室：毛巾血跡＋皮屑', 'ev_lab', `毛巾上是死者的血，還夾著${who(culprit)}的皮屑——兇手用它擦過手。`, { who: culprit.id });
@@ -387,7 +387,7 @@ function generate(seed, diff) {
     ev('E_towel', '實驗室：毛巾只是油污', 'ev_lab', '毛巾上只有廚房油污。', {});
     ev('E_mop', '拖把沒有血跡', 'ev_luminol', '拖把是乾的，沒有血跡反應。', {});
   }
-  O.push({ id: 'trash', room: 'kitchen', x: 1203, y: 1320, img: 'prop_trash_can', baked: true, bw: 80, bh: 115, name: '垃圾桶', r: 90, desc: '垃圾桶最上面有一條揉成一團的毛巾。', acts: [], bag: { ap: 1, size: 1, label: '把毛巾裝袋帶走', lab: 'E_towel' } });
+  O.push({ id: 'trash', room: 'kitchen', x: 1250, y: 1263, img: 'prop_trash_can', baked: true, bw: 72, bh: 100, name: '垃圾桶', r: 90, desc: '垃圾桶最上面有一條揉成一團的毛巾。', acts: [], bag: { ap: 1, size: 1, label: '把毛巾裝袋帶走', lab: 'E_towel' } });
   ev('E_mopT', method.blood ? '水桶的水還是溫的' : '水桶的水是冷的', 'ev_thermo', method.blood ? `水桶裡的水約 31°C，比室溫高很多 → 大約 1 小時內有人用熱水拖過地（${hhmm(tod)} 前後屋裡有人在清理）。` : '水桶裡的水和室溫一樣，拖把也是乾的——好幾天沒用了。', {});
   O.push({ id: 'mop', room: 'kitchen', x: 1528, y: 1306, img: 'prop_mop_bucket', w: 70, h: 100, name: '拖把和水桶', r: 90, desc: '拖把和水桶放在廚房角落。', acts: [{ id: 'lum', tool: 'luminol', ap: 2, label: '噴灑魯米諾', ev: ['E_mop'], reveal: method.blood ? 'fx_luminol_spot' : null }, { id: 'temp', tool: 'thermo', ap: 1, label: '量水桶的水溫', ev: ['E_mopT'] }] });
   /* --- 誘餌線索 --- */

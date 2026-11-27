@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v18_';
+const OUT = '/workspace/forensic_v19_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -365,6 +365,7 @@ async function deduceAndSubmit(pg, name) {
       console.log('點擊畫布物件：', ok + '/' + tot, miss.join(' ')); if (tot < 8 || ok < tot) errors.push('點擊畫布物件不準：' + ok + '/' + tot + ' ' + miss.join(' '));
       await vp.evaluate(() => { const s = [...document.querySelectorAll('style')].pop(); if (/visibility:hidden/.test(s.textContent)) s.remove(); }); }
     // 點地板：走到點的位置（世界座標要對）
+    await tp(vp, 1480, 760); await vp.evaluate(() => { const G = __fs.G; G.autoOpen = null; G.path = null; }); await sleep(200);   // v19：先離開地毯（站在地毯上時物件小清單會蓋住要點的地板）
     { const [cx, cy] = await vp.evaluate(() => __fs.w2c(1440, 608)); await vp.mouse.click(cx, cy); await sleep(60); const end = await vp.evaluate(() => { const p = __fs.G.path; return p && p.length ? p[p.length - 1] : null; }); console.log('點地板走到：', JSON.stringify(end)); if (!end || Math.hypot(end.x - 1440, end.y - 608) > 30) errors.push('點地板走錯位置：' + JSON.stringify(end)); }
     await tp(vp, 336, 880); await vp.evaluate(() => __fs.doAct({ type: 'gear', tools: ['camera', 'thermo', 'swab'] })); await sleep(300);
     await toObj(vp, 'body'); await act(vp, '量測肝溫', { score: .9 }); await sleep(600);

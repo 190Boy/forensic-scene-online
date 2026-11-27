@@ -67,8 +67,8 @@ const stageClean = pg => pg.evaluate(() => { const sbw = __fs.stage().OX, bad = 
   { const t = await pg.textContent('#win .body'); if (!/👀 觀察/.test(t)) errors.push('筆記本關係人沒有觀察紀錄'); }
   await shot(pg, 'note_observe'); await closeWin(pg);
   // 周旋
-  await nearSus(pg); await pg.click('#act button[data-calm]'); await sleep(500);
-  { const r = await pg.evaluate(id => { const n = __fs.G.st.npcs.find(n => n.id === id); return { cu: n.calmUntil, T: __fs.G.st.clock, news: (__fs.G.st.news || []).slice(-1)[0] }; }, sus);
+  await nearSus(pg); const calmId = await pg.getAttribute('#act button[data-calm]', 'data-calm'); await pg.click('#act button[data-calm]'); await sleep(500);   // v19：檢查實際被周旋的那個人（最近的關係人不一定是剛才觀察的那位）
+  { const r = await pg.evaluate(id => { const n = __fs.G.st.npcs.find(n => n.id === id); return { id, cu: n.calmUntil, T: __fs.G.st.clock, news: (__fs.G.st.news || []).slice(-1)[0] }; }, calmId);
     console.log('周旋：', JSON.stringify(r)); if (!(r.cu > r.T + 40)) errors.push('周旋沒有延後他的行動'); }
   // 工具次數顯示
   await van(pg); for (const t of ['camera', 'luminol', 'thermo']) await pg.click('[data-tool="' + t + '"]').catch(() => { }); { const t = await pg.textContent('#win'); if (!/每次出門 \\d 次/.test(t)) errors.push('鑑識車沒顯示工具次數'); } await pg.click('#gearOk').catch(() => { }); await sleep(300); await closeWin(pg);
