@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v21_';
+const OUT = '/workspace/forensic_v22_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -52,8 +52,8 @@ async function tutChase(pg, find, until, ms = 30000) { const t0 = Date.now(); wh
 // 從頭玩到「🎉 教學完成！」：每一步都檢查步驟號碼一格一格往前走（小遊戲自動給高分；opt.manual 讓呼叫的人自己玩）
 
 async function checkTutCallout(pg, tag, step) {
-  await pg.evaluate(() => { if (__fs.placeTut) __fs.placeTut(); });
   const r = await pg.evaluate(() => {
+    if (__fs.placeTut) __fs.placeTut();
     const t = document.querySelector('#tut'), st = __fs.stage();
     if (!t || t.classList.contains('hidden')) return { missing: true };
     const hit = (a, b, pad) => a && b && a.l < b.r - pad && a.r > b.l + pad && a.t < b.b - pad && a.b > b.t + pad;
@@ -72,12 +72,27 @@ async function checkTutCallout(pg, tag, step) {
         const b = box(el); if (b.r - b.l > 2 && hit(tr, b, 2)) btnHit = sel;
       }
     }
+    const names = (__fs.tutNameRects ? __fs.tutNameRects() : []).map(n => ({ l: +n.l.toFixed(1), t: +n.t.toFixed(1), r: +n.r.toFixed(1), b: +n.b.toFixed(1), kind: n.kind, text: n.text, id: n.id }));
+    const hitName = names.filter(n => hit(tr, n, -8));
+    const floats = [...document.querySelectorAll('#cards .evc, #toasts .toast')].map(e => {
+      if (e.classList.contains('hidden') || !e.getClientRects().length) return null;
+      const b = box(e);
+      if (b.r <= canvas.l || b.l >= canvas.r || b.b <= canvas.t || b.t >= canvas.b) return null;
+      return b;
+    }).filter(Boolean);
+    const hitFloat = floats.filter(f => hit(tr, f, 2));
+    const floatHitTg = (tgOn && !modal && tg) ? floats.filter(f => hit(f, tg, 2)) : [];
+    const press = document.querySelector('#press');
+    const pressTut = !!(press && !press.classList.contains('hidden') && press.getClientRects().length && /新手教學/.test(press.textContent || ''));
+    const miniEl = document.querySelector('#tutMini');
+    const miniOn = !!(miniEl && !miniEl.classList.contains('hidden') && miniEl.getClientRects().length && /新手教學/.test(miniEl.textContent || ''));
     return {
       step: __fs.G.tut ? __fs.G.tut.i + 1 : 0, missing: false, tut: tr, canvas, tg: tg && { l: +tg.l.toFixed(1), t: +tg.t.toFixed(1), r: +tg.r.toFixed(1), b: +tg.b.toFixed(1), id: tg.id }, tgOn, act,
       inside: tr.l >= canvas.l - 2 && tr.r <= canvas.r + 2 && tr.t >= canvas.t - 2 && tr.b <= canvas.b + 2,
       hitTarget: !!(tgOn && !modal && hit(tr, tg, 2)), hitAct: !!(act && hit(tr, act, 2)), modal, btnHit, dock: t.classList.contains('dock'),
       h: (t.querySelector('.tx') || t).clientHeight, sh: (t.querySelector('.tx') || t).scrollHeight,
-      mini: ((document.querySelector('#tutMini') || {}).textContent || '').trim(), sb: document.body.classList.contains('sb')
+      mini: ((document.querySelector('#tutMini') || {}).textContent || '').trim(), sb: document.body.classList.contains('sb'),
+      names, hitName, floats, hitFloat, floatHitTg, pressTut, miniOn
     };
   });
   const label = `${tag} 第 ${step} 步教學提示`;
@@ -87,7 +102,11 @@ async function checkTutCallout(pg, tag, step) {
   if (r.tgOn && r.hitTarget) errors.push(label + '：蓋到目標 ' + JSON.stringify({ tut: r.tut, tg: r.tg }));
   if (r.hitAct) errors.push(label + '：蓋到互動清單 ' + JSON.stringify({ tut: r.tut, act: r.act }));
   if (r.btnHit) errors.push(label + '：蓋到視窗按鈕 ' + r.btnHit);
+  if (r.hitName && r.hitName.length) errors.push(label + '：蓋到名牌 ' + JSON.stringify(r.hitName));
+  if (r.hitFloat && r.hitFloat.length) errors.push(label + '：蓋到結果卡／提示 ' + JSON.stringify({ tut: r.tut, floats: r.hitFloat }));
+  if (r.floatHitTg && r.floatHitTg.length) errors.push(label + '：結果卡蓋到目標 ' + JSON.stringify({ tg: r.tg, floats: r.floatHitTg }));
   if (r.sb && !/新手教學/.test(r.mini)) errors.push(label + '：側欄沒有精簡教學列：' + r.mini);
+  if (r.sb && (r.pressTut || !r.miniOn)) errors.push(label + '：側欄教學列重複或不完整：' + JSON.stringify({ pressTut: r.pressTut, mini: r.mini, miniOn: r.miniOn }));
   return r;
 }
 async function tutFull(pg, tag) {

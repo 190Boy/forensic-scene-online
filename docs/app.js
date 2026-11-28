@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '21';
+const VER = '22';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -64,8 +64,9 @@ function logPush(html, cls, icon) {
 function toast(msg, bad) {
   if (SBon()) return logPush(esc(msg), bad ? 'bad' : '');
   const box = $('#toasts'); const d = document.createElement('div'); d.className = 'toast' + (bad ? ' bad' : ''); d.textContent = msg; box.appendChild(d);
-  while (box.children.length > 5) box.firstChild.remove();
-  setTimeout(() => d.remove(), bad ? 4000 : 5500);
+  const tutMob = !!(G.tut && !SBon());
+  while (box.children.length > (tutMob ? 1 : 5)) box.firstChild.remove();
+  setTimeout(() => d.remove(), tutMob ? 2500 : (bad ? 4000 : 5500));
 }
 function card(id, lab) {
   const e = C.evidence[id]; if (!e) return;
@@ -74,8 +75,11 @@ function card(id, lab) {
   const box = $('#cards'); const d = document.createElement('div'); d.className = 'evc soft';
   d.innerHTML = `<img src="${url(e.icon)}" alt=""><div><em>${lab ? '📨 實驗室報告回來了' : '🔎 新證據'}・已記錄到筆記本</em><b>${esc(e.name)}</b><span>${esc(e.text)}</span></div>`;
   d.onclick = () => d.remove(); box.appendChild(d);
-  while (box.children.length > 2) box.firstChild.remove();
-  setTimeout(() => d.remove(), lab ? 11000 : 8000);
+  const tutMob = !!(G.tut && !SBon());
+  if (tutMob) d.classList.add('compact');
+  while (box.children.length > (tutMob ? 1 : 2)) box.firstChild.remove();
+  setTimeout(() => d.remove(), tutMob ? 5000 : (lab ? 11000 : 8000));
+  layoutCards();
   Snd.ding(lab);
 }
 /* 大結果卡：自己用完工具，立刻看到「發現了什麼」和「之後去哪裡找」 */
@@ -84,11 +88,14 @@ function resultCard(o) {
   if (SBon()) logPush(`<em>${esc(o.kicker || '🔎 結果')}</em><b>${esc(o.big)}</b>`, o.lab ? 'ev lab' : 'ev', o.img);
   const box = $('#cards'); const d = document.createElement('div'); d.className = 'evc rc' + (o.lab ? ' lab' : '');
   d.innerHTML = `<button class="rcx" type="button" aria-label="關閉" title="關閉">✕</button><div class="rh"><img src="${url(o.img)}" alt=""><div><em>${esc(o.kicker || '🔎 結果')}</em><div class="big">${esc(o.big)}</div><span>${esc(o.text || '')}</span></div></div>${o.qual || ''}${o.where ? `<div class="where ${o.wait ? 'wait' : ''}">${sbTxt(o.where)}</div>` : ''}`;
-  const sb = SBon(); d.onclick = e => { if (!sb || e.target.closest('.rcx')) d.remove(); }; box.appendChild(d);
-  while (box.children.length > (sb ? 1 : 2)) box.firstChild.remove();
+  const sb = SBon(), tutMob = !!(G.tut && !sb);
+  if (tutMob) d.classList.add('compact');
+  d.onclick = e => { if (!sb || e.target.closest('.rcx')) d.remove(); }; box.appendChild(d);
+  while (box.children.length > (sb || tutMob ? 1 : 2)) box.firstChild.remove();
   if (sb) box.scrollTop = 0;
   pulseEl(d); if (sb) pulseEl('#bNote');
-  setTimeout(() => d.remove(), sb ? (o.lab ? 30000 : 22000) : (o.lab ? 12000 : 9000));
+  setTimeout(() => d.remove(), sb ? (o.lab ? 30000 : 22000) : tutMob ? 5500 : (o.lab ? 12000 : 9000));
+  layoutCards();
   Snd.ding(o.lab);
 }
 const MACHINE_OF = { print: '指紋比對電腦', blood: '離心機', shoe: '鞋印資料庫' };
@@ -940,10 +947,22 @@ function enterGame(needGear) {
 // 手機：結果卡／提示卡放在左上 HUD（和教學框）的下方，不要蓋住它們
 function layoutCards() {
   const cards = $('#cards'); if (!cards) return;
-  if (innerWidth > 640 || isSB()) { cards.style.top = ''; return; }
+  if (isSB()) { cards.style.top = ''; return; }
+  if (innerWidth > 640 && !G.tut) { cards.style.top = ''; return; }
   const tl = document.querySelector('.tl');
-  const bottom = tl && tl.offsetParent ? tl.getBoundingClientRect().bottom : 0;
-  if (bottom) cards.style.top = Math.round(bottom + 8) + 'px';
+  let y = 8;
+  if (tl && tl.getClientRects().length) y = Math.max(y, tl.getBoundingClientRect().bottom + 8);
+  cards.style.top = Math.round(y) + 'px';
+  if (G.tut && typeof tutTargetRect === 'function' && cards.children.length) {
+    const tg = tutTargetRect(), cr = cards.getBoundingClientRect();
+    const box = tutRect(cr.left, cr.top, cr.right, cr.bottom);
+    if (tg && tutHit(box, tg, 4)) {
+      const canvas = tutCanvasRect();
+      const alt = canvas.b - cr.height - 80;
+      if (alt > y && !tutHit(tutRect(cr.left, alt, cr.right, alt + cr.height), tg, 4)) cards.style.top = Math.round(alt) + 'px';
+    }
+  }
+  if (G.tut && typeof placeTut === 'function') placeTut();
 }
 setInterval(() => { try { layoutCards(); } catch (e) { } }, 250);
 // v11：側欄頂端顯示自己現在在哪個房間
@@ -1025,9 +1044,10 @@ function hudPress() {
     const f = 1 - G.st.patience / 100;
     rows.push(`🕰️ ${gameTime()}　<span style="color:var(--dim)">${f < .5 ? '夜還很長' : f < .8 ? '過了午夜' : '天快亮了，差不多該結案'}</span>`);
     if ((G.st.pace || 1) > 1) rows.push(`<span style="color:var(--dim)">👥 ${Object.values(G.st.players).filter(q => q.active).length} 人調查：插曲節奏放慢 ×${G.st.pace}</span>`);
-  } else if (G.tut) rows.push('🎓 新手教學');
+  }
   const el = $('#labs'); let pr = $('#press'); if (!pr) { pr = document.createElement('div'); pr.id = 'press'; pr.className = 'chip labs'; el.parentNode.insertBefore(pr, el); }
-  const h = rows.join('<br>'); if (pr.innerHTML !== h) pr.innerHTML = h;
+  if (!rows.length) { pr.classList.add('hidden'); pr.innerHTML = ''; }
+  else { pr.classList.remove('hidden'); const h = rows.join('<br>'); if (pr.innerHTML !== h) pr.innerHTML = h; }
 }
 // 插曲提示：安靜的卡片＋輕柔音效（不閃爍、不用警報聲）
 function banner(text, k) {
@@ -1035,7 +1055,7 @@ function banner(text, k) {
   if (SBon()) { logPush(esc(text), 'inter ' + (bad ? 'bad' : inter ? 'warn' : 'calm')); if (inter) Snd.soft(); else if (bad) Snd.low(); else if (k !== 'decay') Snd.ding(false); else Snd.low(); return; }
   const box = $('#cards'); const d = document.createElement('div');
   d.className = 'evc soft'; d.style.borderColor = bad ? '#8a5a5a' : inter ? '#8a7a4a' : '#3a6a6a'; d.innerHTML = `<div><span style="font-size:14px;color:#e8eef6;line-height:1.6">${esc(text)}</span></div>`;
-  d.onclick = () => d.remove(); box.appendChild(d); while (box.children.length > 3) box.firstChild.remove(); setTimeout(() => d.remove(), inter ? 9000 : 7000);
+  d.onclick = () => d.remove(); box.appendChild(d); const tutMob = !!(G.tut && !SBon()); if (tutMob) d.classList.add('compact'); while (box.children.length > (tutMob ? 1 : 3)) box.firstChild.remove(); setTimeout(() => d.remove(), tutMob ? 4000 : (inter ? 9000 : 7000)); layoutCards();
   if (inter) Snd.soft(); else if (bad) Snd.low(); else if (k !== 'decay') Snd.ding(false); else Snd.low();
 }
 // 互動清單：電腦版在物件旁邊顯示小小的半透明清單（數字鍵 1–5＝用工具、E＝互動），手機版是一排可滑動的小按鈕
@@ -1185,6 +1205,83 @@ function tutHudRects() {
   }
   return out;
 }
+function tutLabelRect(text, wx, wy) {
+  if (!text || !ctx) return null;
+  const prev = ctx.font;
+  ctx.font = 'bold 14px "PingFang TC","Noto Sans TC","Noto Sans CJK TC",sans-serif';
+  const w = ctx.measureText(String(text)).width + 12;
+  ctx.font = prev;
+  const [x0, y0] = W2S(wx - w / 2, wy - 11), [x1, y1] = W2S(wx + w / 2, wy + 11);
+  return tutRect(Math.min(x0, x1) + OX, Math.min(y0, y1) + OY, Math.max(x0, x1) + OX, Math.max(y0, y1) + OY);
+}
+function tutObjLabelSpec(o, near) {
+  if (!o) return null;
+  if (o.id === 'body') return { text: near ? o.name : (o.label || '屍體'), x: o.x, y: o.y + o.h / 2 + (near ? 16 : 18) };
+  if (!near) return null;
+  const y = o.npc ? o.y - o.h - 12 : o.flat ? (/^floor_/.test(o.id) && o.h > 60 ? o.y + o.h / 2 - 24 : o.y + o.h / 2 + 16) : o.y + 18;
+  return { text: o.name, x: o.x, y };
+}
+function tutNameRects() {
+  const out = [];
+  if (G.Me) {
+    const p = meP();
+    const text = (p && p.mg ? '🔬 分析中・' : '') + ((p && p.name) || '你') + '（你）';
+    const r = tutLabelRect(text, G.Me.x, G.Me.y - CH - 12);
+    if (r) out.push(Object.assign(r, { kind: 'player', text }));
+  }
+  const s = Tut.cur(); const w = (s && s.want) || {};
+  if (w.obj) {
+    const id = Array.isArray(w.obj) ? w.obj[0] : w.obj;
+    const o = ENG.objById(C, id), spec = tutObjLabelSpec(o, G.nearId === id);
+    if (spec) { const r = tutLabelRect(spec.text, spec.x, spec.y); if (r) out.push(Object.assign(r, { kind: 'target', text: spec.text, id })); }
+  } else if (w.cop) {
+    const b = G.st && G.st.briefed || {};
+    const cs = (G.st.cops || []).filter(c => !c.rk || !c.known);
+    const c = w.cop === 'briefed' ? ((G.st.cops || []).find(q => b[q.id] != null) || cs[0]) : (cs.find(q => q.id === 'cop2') || cs[0]);
+    if (c) {
+      const d = copDef(c.id), x = c.vx != null ? c.vx : c.x, y = c.vy != null ? c.vy : c.y;
+      const unb = G.st.briefed && G.st.briefed[c.id] == null && c.mode !== 'in' && !(c.rk && c.known);
+      const text = (c.mode === 'in' ? '⚠️ 菜鳥 ' : c.known ? '😅 ' : '') + (unb ? '💬 ' : '') + d.name;
+      const r = tutLabelRect(text, x, y - CH - 12);
+      if (r) out.push(Object.assign(r, { kind: 'target', text, id: 'cop:' + c.id }));
+    }
+  } else if (w.sus) {
+    const ns = (G.st.npcs || []).filter(n => n.mode !== 'gone');
+    const n = ns.slice().sort((a, b) => Math.hypot((a.vx != null ? a.vx : a.x) - G.Me.x, (a.vy != null ? a.vy : a.y) - G.Me.y) - Math.hypot((b.vx != null ? b.vx : b.x) - G.Me.x, (b.vy != null ? b.vy : b.y) - G.Me.y))[0];
+    if (n) {
+      const sp = C.suspects.find(x => x.id === n.id), tag = n.mode === 'flee' ? '🏃 ' : n.mode === 'nervous' ? '😰 ' : n.mode === 'held' ? '🔒 ' : '';
+      const x = n.vx != null ? n.vx : n.x, y = n.vy != null ? n.vy : n.y, nh = n.id === 'daughter' ? CH * .94 : CH;
+      const r = tutLabelRect(tag + (sp ? sp.name : ''), x, y - nh - 12);
+      if (r) out.push(Object.assign(r, { kind: 'target', text: tag + (sp ? sp.name : ''), id: 'npc:' + n.id }));
+    }
+  } else if (w.who === 'boss' && G.st && G.st.boss) {
+    const B = G.st.boss, r = tutLabelRect('分局長・鄭督察', B.x, B.y - CH - 12);
+    if (r) out.push(Object.assign(r, { kind: 'target', text: '分局長・鄭督察', id: 'boss' }));
+  } else if (w.who === 'rookie') {
+    const c = (G.st.cops || []).find(q => q.mode === 'in') || (G.st.cops || []).find(q => q.rk && q.known);
+    if (c) {
+      const d = copDef(c.id), x = c.vx != null ? c.vx : c.x, y = c.vy != null ? c.vy : c.y;
+      const text = (c.mode === 'in' ? '⚠️ 菜鳥 ' : c.known ? '😅 ' : '') + d.name;
+      const r = tutLabelRect(text, x, y - CH - 12);
+      if (r) out.push(Object.assign(r, { kind: 'target', text, id: 'cop:' + c.id }));
+    }
+  }
+  return out;
+}
+function tutFloatRects() {
+  const out = [], canvas = tutCanvasRect();
+  for (const sel of ['#cards .evc', '#toasts .toast']) {
+    document.querySelectorAll(sel).forEach(e => {
+      if (e.classList.contains('hidden')) return;
+      const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return;
+      const b = e.getBoundingClientRect();
+      if (b.width < 4 || b.height < 4) return;
+      const r = tutRect(b.left, b.top, b.right, b.bottom);
+      if (r.r > canvas.l && r.l < canvas.r && r.b > canvas.t && r.t < canvas.b) out.push(r);
+    });
+  }
+  return out;
+}
 function tutModalRects() {
   const out = [];
   if (!$('#ov') || $('#ov').classList.contains('hidden')) {
@@ -1215,11 +1312,11 @@ function placeTut() {
   const on = !!(vis && vis.r - vis.l > 20 && vis.b - vis.t > 20);
   const cw = Math.max(180, b.offsetWidth || 280), ch = Math.max(56, b.offsetHeight || 90);
   const gap = 16;
-  const act = tutActRect(), pl = tutPlayerRect(), sp = tutSpeechRect(), huds = tutHudRects(), keys = modal ? tutModalRects() : [];
+  const act = tutActRect(), pl = tutPlayerRect(), sp = tutSpeechRect(), huds = tutHudRects(), keys = modal ? tutModalRects() : [], names = tutNameRects(), floats = tutFloatRects();
   const safe = tutRect(canvas.l + 8, canvas.t + 8, canvas.r - 8, canvas.b - 8);
   if (act && act.t > (canvas.t + canvas.b) / 2) safe.b = Math.min(safe.b, act.t - 8);
-  for (const h of huds) {
-    if (h.b < canvas.t + (canvas.b - canvas.t) * .4 && h.t < canvas.t + 120) safe.t = Math.max(safe.t, h.b + 8);
+  for (const h of huds.concat(floats)) {
+    if (h.b < canvas.t + (canvas.b - canvas.t) * .45 && h.t < canvas.t + 220) safe.t = Math.max(safe.t, h.b + 8);
     if (h.t > canvas.t + (canvas.b - canvas.t) * .5) safe.b = Math.min(safe.b, h.t - 8);
   }
   if (safe.b - safe.t < ch + 4) safe.b = Math.max(safe.b, safe.t + ch + 4);
@@ -1235,6 +1332,8 @@ function placeTut() {
     if (overflow > 24 || shift > 28) sc = -1e4;
     if (tg && tutHit(placed, tg, 4)) sc -= 1000;
     if (act && tutHit(placed, act, 2)) sc = -1e4;
+    for (const f of floats) if (tutHit(placed, f, 2)) sc = -1e4;
+    for (const n of names) if (tutHit(placed, n, -8)) sc -= 800;
     for (const k of keys) if (tutHit(placed, k, 4)) sc -= 900;
     if (sp && tutHit(placed, sp, 2)) sc -= 400;
     if (pl && tutHit(placed, pl, 2)) sc -= 180;
@@ -1252,17 +1351,20 @@ function placeTut() {
   };
   const cands = [];
   if (on && tg) {
-    const midY = (tg.t + tg.b) / 2, midX = (tg.l + tg.r) / 2;
-    const visY = (Math.max(tg.t, canvas.t + 8) + Math.min(tg.b, canvas.b - 8)) / 2;
-    const visX = (Math.max(tg.l, canvas.l + 8) + Math.min(tg.r, canvas.r - 8)) / 2;
-    cands.push(fit(tg.r + gap, midY - ch / 2, 'right', 'left'));
-    cands.push(fit(tg.l - gap - cw, midY - ch / 2, 'left', 'right'));
-    cands.push(fit(midX - cw / 2, tg.t - gap - ch, 'above', 'bottom'));
-    cands.push(fit(midX - cw / 2, tg.b + gap, 'below', 'top'));
-    cands.push(fit(tg.r + gap, visY - ch / 2, 'right', 'left'));
-    cands.push(fit(tg.l - gap - cw, visY - ch / 2, 'left', 'right'));
-    cands.push(fit(visX - cw / 2, tg.t - gap - ch, 'above', 'bottom'));
-    cands.push(fit(visX - cw / 2, tg.b + gap, 'below', 'top'));
+    const padN = 8;
+    let box = tg;
+    for (const n of names) if (n.kind === 'target') box = tutRect(Math.min(box.l, n.l - padN), Math.min(box.t, n.t - padN), Math.max(box.r, n.r + padN), Math.max(box.b, n.b + padN));
+    const midY = (box.t + box.b) / 2, midX = (box.l + box.r) / 2;
+    const visY = (Math.max(box.t, canvas.t + 8) + Math.min(box.b, canvas.b - 8)) / 2;
+    const visX = (Math.max(box.l, canvas.l + 8) + Math.min(box.r, canvas.r - 8)) / 2;
+    cands.push(fit(box.r + gap, midY - ch / 2, 'right', 'left'));
+    cands.push(fit(box.l - gap - cw, midY - ch / 2, 'left', 'right'));
+    cands.push(fit(midX - cw / 2, box.t - gap - ch, 'above', 'bottom'));
+    cands.push(fit(midX - cw / 2, box.b + gap, 'below', 'top'));
+    cands.push(fit(box.r + gap, visY - ch / 2, 'right', 'left'));
+    cands.push(fit(box.l - gap - cw, visY - ch / 2, 'left', 'right'));
+    cands.push(fit(visX - cw / 2, box.t - gap - ch, 'above', 'bottom'));
+    cands.push(fit(visX - cw / 2, box.b + gap, 'below', 'top'));
   }
   let dockY = Math.max(safe.t, canvas.t + 10);
   for (const h of huds) if (h.b < canvas.t + 160) dockY = Math.max(dockY, h.b + 8);
@@ -1276,7 +1378,7 @@ function placeTut() {
     else if (cx < canvas.l) dockX.unshift(safe.l + 4);
     else dockX.unshift(Math.max(safe.l, Math.min(safe.r - cw, cx - cw / 2)));
   }
-  const dockYs = [dockY, Math.max(safe.t, safe.b - ch - 4)];
+  const dockYs = [dockY, Math.max(safe.t, safe.b - ch - 4), Math.max(safe.t, (safe.t + safe.b) / 2 - ch / 2)];
   if (modal) {
     const tabs = document.querySelector('#win .tabs, #win header');
     const foot = document.querySelector('#win footer');
@@ -1294,19 +1396,44 @@ function placeTut() {
   }
   // 有目標在畫面上時，優先選不會蓋住目標／清單的側邊
   if (on && tg) {
-    const okSide = sides.find(c => c.sc > -500 && !tutHit(c.placed, tg, 2) && !(act && tutHit(c.placed, act, 2)));
+    const okSide = sides.find(c => c.sc > -500 && !tutHit(c.placed, tg, 2) && !(act && tutHit(c.placed, act, 2)) && !floats.some(f => tutHit(c.placed, f, 2)) && !names.some(n => tutHit(c.placed, n, -8)));
     if (okSide && (pick.id === 'dock' || pick.sc < okSide.sc || tutHit(pick.placed, tg, 2) || (act && tutHit(pick.placed, act, 2)))) pick = okSide;
   }
   if (!pick) pick = { x: safe.l, y: safe.t, tail: '', id: 'dock', sc: 0, placed: tutRect(safe.l, safe.t, safe.l + cw, safe.t + ch) };
-  const blocked = c => (act && tutHit(c.placed, act, 2)) || (tg && on && tutHit(c.placed, tg, 2) && c.sc <= -500) || keys.some(k => tutHit(c.placed, k, 4));
+  const overlapsTg = c => !!(tg && on && tutHit(c.placed, tg, 2));
+  const blocked = c => (act && tutHit(c.placed, act, 2)) || overlapsTg(c) || keys.some(k => tutHit(c.placed, k, 4)) || floats.some(f => tutHit(c.placed, f, 2)) || names.some(n => tutHit(c.placed, n, -8));
   if (pick && blocked(pick)) {
-    const better = cands.find(c => !blocked(c));
+    const better = cands.find(c => !blocked(c)) || cands.filter(c => !overlapsTg(c)).sort((a, b) => b.sc - a.sc)[0];
     if (better) pick = better;
   }
   let x = pick.x, y = pick.y, side = pick.tail || '', dock = !side || pick.id === 'dock' || modal || !on;
   if (side && (pick.id === 'right' || pick.id === 'left' || pick.id === 'above' || pick.id === 'below')) G.tutSide = pick.id;
   x = Math.max(safe.l, Math.min(safe.r - cw, x));
   y = Math.max(safe.t, Math.min(safe.b - ch, y));
+  const clearOf = (px, py) => {
+    const p = tutRect(px, py, px + cw, py + ch);
+    if (p.r > safe.r + 1 || p.b > safe.b + 1 || p.l < safe.l - 1 || p.t < safe.t - 1) return false;
+    if (tg && on && tutHit(p, tg, 2)) return false;
+    if (act && tutHit(p, act, 2)) return false;
+    if (floats.some(f => tutHit(p, f, 2))) return false;
+    if (names.some(n => tutHit(p, n, -8))) return false;
+    return true;
+  };
+  if (!clearOf(x, y)) {
+    const tries = [];
+    for (const n of names) {
+      tries.push([n.l - 8 - cw, y], [n.r + 8, y], [x, n.t - 8 - ch], [x, n.b + 8]);
+    }
+    if (tg) tries.push([tg.l - gap - cw, y], [tg.r + gap, y], [x, tg.t - gap - ch], [x, tg.b + gap]);
+    for (const yy of [safe.t, (safe.t + safe.b) / 2 - ch / 2, safe.b - ch]) {
+      for (const xx of [safe.l, (safe.l + safe.r) / 2 - cw / 2, safe.r - cw]) tries.push([xx, yy]);
+    }
+    for (const [tx, ty] of tries) {
+      const nx = Math.max(safe.l, Math.min(safe.r - cw, tx));
+      const ny = Math.max(safe.t, Math.min(safe.b - ch, ty));
+      if (clearOf(nx, ny)) { x = nx; y = ny; side = ''; dock = true; break; }
+    }
+  }
   b.style.left = Math.round(x) + 'px';
   b.style.top = Math.round(y) + 'px';
   b.dataset.side = side;
@@ -1787,4 +1914,4 @@ function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; G.n
 // 測試用：世界座標 → 瀏覽器視窗座標（含側欄位移）
 const w2c = (x, y) => { const [sx, sy] = W2S(x, y); return [sx + OX, sy + OY]; };
 const stage = () => ({ OX, OY, VW, VH, Z, sb: isSB() });
-window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard, Net, tutAllows, tutIds, tutWant, packOpts, speakNPC, pulseEl, placeTut, tutTargetRect };
+window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard, Net, tutAllows, tutIds, tutWant, packOpts, speakNPC, pulseEl, placeTut, tutTargetRect, tutNameRects, tutFloatRects };

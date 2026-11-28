@@ -224,7 +224,7 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 .evc.soft{border-color:#5a6a8a;box-shadow:0 0 20px rgba(0,0,0,.4);opacity:.96}
 .newb{display:inline-block;font-size:11px;background:#2bb3a3;color:#04221e;border-radius:6px;padding:0 5px;margin-right:4px;font-weight:800}
 .ev.isnew{border-color:#2bb3a3;box-shadow:0 0 0 1px #2bb3a3 inset}
-#tut{position:fixed;left:0;top:0;transform:none;z-index:9;width:min(300px,calc(100vw - var(--sbw,0px) - 24px));max-width:340px;background:rgba(14,24,36,.96);border:1px solid #2bb3a3;border-radius:14px;padding:8px 10px 8px 8px;display:flex;gap:8px;align-items:flex-start;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;box-sizing:border-box;overflow:visible}
+#tut{position:fixed;left:0;top:0;transform:none;z-index:11;width:min(300px,calc(100vw - var(--sbw,0px) - 24px));max-width:340px;background:rgba(14,24,36,.96);border:1px solid #2bb3a3;border-radius:14px;padding:8px 10px 8px 8px;display:flex;gap:8px;align-items:flex-start;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;box-sizing:border-box;overflow:visible}
 #tut button{pointer-events:auto;margin-top:4px}
 #tut.dock{z-index:21;max-width:min(340px,calc(100vw - var(--sbw,0px) - 24px))}
 #tut img{width:36px;height:36px;border-radius:50%;flex:none;border:2px solid #2bb3a3}
@@ -238,7 +238,6 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 #tut[data-side=bottom] .ptr{bottom:-6px;left:var(--ptr,50%);margin-left:-5px;border-left:0;border-top:0}
 #tut.dock .ptr,#tut[data-side=""] .ptr{display:none}
 #tutMini{display:none}
-body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
 .hl{animation:hl 1.4s infinite;position:relative;z-index:2}
 @keyframes hl{0%,100%{box-shadow:0 0 0 2px rgba(43,211,191,.9),0 0 14px rgba(43,211,191,.6)}50%{box-shadow:0 0 0 4px rgba(43,211,191,.4),0 0 24px rgba(43,211,191,.2)}}
 .bossp{display:flex;gap:10px;align-items:center}
@@ -310,6 +309,14 @@ body.sb .chip{background:#141d2c;border-color:#26344c;border-radius:8px}
 body.sb .pips{max-width:none}body.sb .pips .patb{flex:1;width:auto}
 body.sb .pbar{width:100%}
 body.sb .obj{border-color:#2b6f7a;background:#11242a}
+/* v22：教學中手機只留一張精簡結果卡，不要蓋住提示／目標 */
+body.tutOn:not(.sb) #cards{width:min(360px,94vw);gap:4px;z-index:8;pointer-events:auto}
+body.tutOn:not(.sb) #cards .evc{padding:6px 8px 6px 6px;gap:6px;border-width:1px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+body.tutOn:not(.sb) #cards .evc img{width:32px;height:32px}
+body.tutOn:not(.sb) #cards .evc span,body.tutOn:not(.sb) #cards .evc .qline{display:none}
+body.tutOn:not(.sb) #cards .evc .big{font-size:13.5px;line-height:1.35}
+body.tutOn:not(.sb) #cards .evc .where{font-size:11px;padding:2px 0 0;line-height:1.35}
+body.tutOn:not(.sb) #cards .evc.rc .rh{align-items:center;padding-right:18px}
 body.sb #tutMini{order:4;display:block;flex:0 0 auto;font-size:12px;color:#8ff0df;background:#11242a;border:1px solid #2b6f7a;border-radius:8px;padding:5px 8px;letter-spacing:.3px}
 body.sb .tr{order:5;display:flex;flex-wrap:wrap;gap:6px;justify-content:stretch}
 body.sb .tr button{flex:1 1 auto;background:#1a2436;padding:7px 8px;font-size:14px;border-radius:8px}
@@ -461,10 +468,10 @@ body.kb #act .dn.more{display:block;opacity:.85}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=21"></script>
-<script src="engine.js?v=21"></script>
-<script src="assets.js?v=21"></script>
-<script src="minigames.js?v=21"></script>
-<script src="app.js?v=21"></script>
+<script src="casegen.js?v=22"></script>
+<script src="engine.js?v=22"></script>
+<script src="assets.js?v=22"></script>
+<script src="minigames.js?v=22"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>

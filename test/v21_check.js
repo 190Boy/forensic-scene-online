@@ -1,6 +1,6 @@
-// v21：電腦版側欄在右邊、畫布點擊仍準、25 步教學提示錨在目標旁且不蓋住目標／清單（桌機 1280×800、1280×720、手機 390×844）
+// v22：電腦版側欄在右邊、畫布點擊仍準、25 步教學提示錨在目標旁且不蓋住目標／清單（桌機 1280×800、1280×720、手機 390×844）
 const fs = require('fs');
-const src = fs.readFileSync(__dirname + '/e2e.js', 'utf8'); const head = src.slice(0, src.indexOf('(async () => {')).replace(/forensic_v1\d_/, 'forensic_v21_');
+const src = fs.readFileSync(__dirname + '/e2e.js', 'utf8'); const head = src.slice(0, src.indexOf('(async () => {')).replace(/forensic_v1\d_/, 'forensic_v22_');
 eval(head + `
 (async () => {
   const br = await chromium.launch();
@@ -36,16 +36,18 @@ eval(head + `
     await tutSocial(d);
     await tutGear(d, ['camera', 'luminol', 'prints']); await waitStep(d, 6); await closeWin(d);
     await toObj(d, 'body'); await sleep(400); await checkTutCallout(d, '1280×800', 7);
-    await d.screenshot({ path: '/workspace/forensic_v21_right_sidebar.png' });
+    await d.screenshot({ path: '/workspace/forensic_v22_right_sidebar.png' });
     await d.close(); }
   { const m = await page(br, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     m.on('pageerror', e => pageErr.push('mshot ' + e));
     await m.goto(BASE); await sleep(900); await m.fill('#name', '百九'); await m.tap('#bTut'); await sleep(900);
     await tp(m, 640, 718); await waitStep(m, 1);
-    await tutSocial(m);
-    await tutGear(m, ['camera', 'luminol', 'prints']); await waitStep(m, 6); await closeWin(m);
-    await toObj(m, 'body'); await sleep(400); await checkTutCallout(m, '390×844', 7);
-    await m.screenshot({ path: '/workspace/forensic_v21_tut_callout_mobile.png' });
+    await tutSocial(m); await sleep(400);
+    await checkTutCallout(m, '390×844 觀察後', 5);
+    { const n = await m.evaluate(() => ({ cards: [...document.querySelectorAll('#cards .evc')].map(e => e.textContent.slice(0, 40)), n: document.querySelectorAll('#cards .evc').length }));
+      console.log('手機觀察後結果卡：', JSON.stringify(n));
+      if (!n.n) errors.push('手機截圖時沒有觀察／報告結果卡'); }
+    await m.screenshot({ path: '/workspace/forensic_v22_tut_callout_mobile.png' });
     await m.close(); }
 
   for (const size of [{ width: 1280, height: 800 }, { width: 1280, height: 720 }, { width: 390, height: 844 }]) {
