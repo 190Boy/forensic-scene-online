@@ -11,8 +11,8 @@ async function nearSus(pg) {
   const n = await pg.evaluate(() => { const st = __fs.G.st; st.quietUntil = 1e9; const n = st.npcs.find(n => n.mode === 'idle') || st.npcs[0]; n.path = []; return { id: n.id, x: n.vx != null ? n.vx : n.x, y: n.vy != null ? n.vy : n.y }; });
   await tp(pg, n.x + 30, n.y + 25); await pg.waitForFunction(id => __fs.G.nearId === 'npc:' + id, n.id, { timeout: 4000 }).catch(() => errors.push('站到關係人旁邊，提示卻不是他')); await sleep(250); return n.id;
 }
-const stageClean = pg => pg.evaluate(() => { const sbw = __fs.stage().OX, bad = new Set();
-  for (let x = sbw + 4; x < innerWidth; x += 16) for (let y = 2; y < innerHeight; y += 16) { const e = document.elementFromPoint(x, y); if (e && e.id !== 'cv' && !e.closest('#act')) bad.add((e.id || e.className || e.tagName) + ''); }
+const stageClean = pg => pg.evaluate(() => { const st = __fs.stage(), bad = new Set();
+  for (let x = st.OX + 4; x < st.OX + st.VW; x += 16) for (let y = 2; y < innerHeight; y += 16) { const e = document.elementFromPoint(x, y); if (e && e.id !== 'cv' && !e.closest('#act') && !e.closest('#tut')) bad.add((e.id || e.className || e.tagName) + ''); }
   return { bad: [...bad], toasts: document.querySelectorAll('#toasts .toast').length, floats: __fs.G.floats.length }; });
 (async () => {
   const br = await chromium.launch();

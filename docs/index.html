@@ -224,12 +224,20 @@ h4{margin:12px 0 8px;color:var(--amber);font-size:15px}
 .evc.soft{border-color:#5a6a8a;box-shadow:0 0 20px rgba(0,0,0,.4);opacity:.96}
 .newb{display:inline-block;font-size:11px;background:#2bb3a3;color:#04221e;border-radius:6px;padding:0 5px;margin-right:4px;font-weight:800}
 .ev.isnew{border-color:#2bb3a3;box-shadow:0 0 0 1px #2bb3a3 inset}
-#tut{position:absolute;left:50%;transform:translateX(-50%);top:calc(60px + env(safe-area-inset-top));width:min(480px,94vw);background:rgba(14,24,36,.96);border:1px solid #2bb3a3;border-radius:16px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-#tut img{width:52px;height:52px;border-radius:50%;flex:none;border:2px solid #2bb3a3}
-#tut .tx{font-size:14px;line-height:1.6;flex:1}
+#tut{position:fixed;left:0;top:0;transform:none;z-index:9;width:min(300px,calc(100vw - var(--sbw,0px) - 24px));max-width:340px;background:rgba(14,24,36,.96);border:1px solid #2bb3a3;border-radius:14px;padding:8px 10px 8px 8px;display:flex;gap:8px;align-items:flex-start;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;box-sizing:border-box;overflow:visible}
+#tut button{pointer-events:auto;margin-top:4px}
+#tut.dock{z-index:21;max-width:min(340px,calc(100vw - var(--sbw,0px) - 24px))}
+#tut img{width:36px;height:36px;border-radius:50%;flex:none;border:2px solid #2bb3a3}
+#tut .tx{font-size:13px;line-height:1.5;flex:1;min-width:0;overflow:visible}
 #tut .tx b{color:#8ff0df}
-#tut .st{font-size:11px;color:var(--dim)}
-#tut button{margin-top:6px}
+#tut .st{font-size:11px;color:var(--dim);margin-bottom:2px}
+#tut .ptr{position:absolute;width:10px;height:10px;background:rgba(14,24,36,.96);border:1px solid #2bb3a3;transform:rotate(45deg);pointer-events:none}
+#tut[data-side=left] .ptr{left:-6px;top:var(--ptr,50%);margin-top:-5px;border-right:0;border-top:0}
+#tut[data-side=right] .ptr{right:-6px;top:var(--ptr,50%);margin-top:-5px;border-left:0;border-bottom:0}
+#tut[data-side=top] .ptr{top:-6px;left:var(--ptr,50%);margin-left:-5px;border-right:0;border-bottom:0}
+#tut[data-side=bottom] .ptr{bottom:-6px;left:var(--ptr,50%);margin-left:-5px;border-left:0;border-top:0}
+#tut.dock .ptr,#tut[data-side=""] .ptr{display:none}
+#tutMini{display:none}
 body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
 .hl{animation:hl 1.4s infinite;position:relative;z-index:2}
 @keyframes hl{0%,100%{box-shadow:0 0 0 2px rgba(43,211,191,.9),0 0 14px rgba(43,211,191,.6)}50%{box-shadow:0 0 0 4px rgba(43,211,191,.4),0 0 24px rgba(43,211,191,.2)}}
@@ -259,12 +267,12 @@ body.tutOn #cards{top:calc(170px + env(safe-area-inset-top))}
   #act:not(.hidden) ~ #toasts{display:none}
   .pbar{width:120px}
   .obj{font-size:12px}
-  #tut{top:calc(112px + env(safe-area-inset-top));padding:8px}
   body.tutOn #obj{display:none}
-  #tut img{width:40px;height:40px}
-  #tut .tx{font-size:13px}
-  body.tutOn #cards{top:calc(250px + env(safe-area-inset-top))}
+  #tut{padding:7px 8px;width:min(260px,calc(100vw - 16px))}
+  #tut img{width:32px;height:32px}
+  #tut .tx{font-size:12.5px;line-height:1.45}
 }
+
 
 /* v9 鑑識小遊戲 */
 #mg{position:fixed;inset:0;z-index:12;background:rgba(3,5,9,.58);display:flex;align-items:center;justify-content:center;padding:max(6px,env(safe-area-inset-top)) 6px max(6px,env(safe-area-inset-bottom))}
@@ -288,11 +296,11 @@ table.cmp{width:100%;border-collapse:collapse;font-size:13px}table.cmp td,table.
 table.cmp td.ok{background:rgba(60,160,90,.2)}table.cmp td.ng{background:rgba(160,60,60,.2);color:#ffb0a0}table.cmp td.mix{background:rgba(200,160,40,.16)}table.cmp tr.sc td{background:rgba(79,210,255,.08)}.cmp small{color:var(--dim);margin-left:3px}.dim{color:var(--dim)}
 label.rel{display:block;margin:4px 0 8px;font-size:14px}
 
-/* ---- v11：電腦版（寬 > 860）左側固定深色側欄＋右邊完全乾淨的舞台 ---- */
+/* ---- v21：電腦版（寬 > 860）右側固定深色側欄＋左邊完全乾淨的舞台 ---- */
 #logW{display:none}
 body.sb{--sbw:clamp(270px,24vw,340px)}
-body.sb #cv{left:var(--sbw);width:calc(100% - var(--sbw))}
-body.sb #hud{right:auto;width:var(--sbw);display:flex;flex-direction:column;gap:8px;padding:10px 12px 10px;background:linear-gradient(180deg,#111a29 0%,#0c121c 60%,#0a0f17 100%);border-right:1px solid #2a3850;box-shadow:6px 0 22px rgba(0,0,0,.5);pointer-events:auto;overflow:hidden}
+body.sb #cv{left:0;right:var(--sbw);width:calc(100% - var(--sbw))}
+body.sb #hud{left:auto;right:0;width:var(--sbw);display:flex;flex-direction:column;gap:8px;padding:10px 12px 10px;background:linear-gradient(180deg,#111a29 0%,#0c121c 60%,#0a0f17 100%);border-left:1px solid #2a3850;border-right:0;box-shadow:-6px 0 22px rgba(0,0,0,.5);pointer-events:auto;overflow:hidden}
 body.sb #hud>*{position:static;transform:none;left:auto;right:auto;top:auto;bottom:auto;max-width:none;flex:none}
 body.sb .room{order:1;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#d8e6f8;text-shadow:none;padding:0 2px 6px;border-bottom:1px solid #22304a;letter-spacing:.5px}
 body.sb .room::before{content:"🗂️ 案件檔案";color:var(--amber);margin-right:auto;font-size:12px}
@@ -302,8 +310,7 @@ body.sb .chip{background:#141d2c;border-color:#26344c;border-radius:8px}
 body.sb .pips{max-width:none}body.sb .pips .patb{flex:1;width:auto}
 body.sb .pbar{width:100%}
 body.sb .obj{border-color:#2b6f7a;background:#11242a}
-body.sb #tut{order:4;width:auto;border-radius:10px;padding:8px 10px;box-shadow:none;max-height:40vh;overflow-y:auto;scrollbar-width:thin}
-body.sb #tut img{width:40px;height:40px}body.sb #tut .tx{font-size:13px;line-height:1.55}
+body.sb #tutMini{order:4;display:block;flex:0 0 auto;font-size:12px;color:#8ff0df;background:#11242a;border:1px solid #2b6f7a;border-radius:8px;padding:5px 8px;letter-spacing:.3px}
 body.sb .tr{order:5;display:flex;flex-wrap:wrap;gap:6px;justify-content:stretch}
 body.sb .tr button{flex:1 1 auto;background:#1a2436;padding:7px 8px;font-size:14px;border-radius:8px}
 body.sb .tr button.amber{background:var(--amber)}
@@ -330,7 +337,7 @@ body.sb .sep{width:4px}
 body.sb .keyhelp{order:9;display:none;text-align:center;font-size:11px;color:#8193ad;background:none;padding:0;white-space:normal}
 body.sb.kb .keyhelp{display:block}
 body.sb #toasts{display:none}
-body.sb #act{position:fixed;left:calc(var(--sbw) + (100vw - var(--sbw)) / 2);bottom:16px;transform:translateX(-50%);width:min(560px,calc(100vw - var(--sbw) - 24px))}
+body.sb #act{position:fixed;left:calc((100vw - var(--sbw)) / 2);bottom:16px;transform:translateX(-50%);width:min(560px,calc(100vw - var(--sbw) - 24px))}
 body.sb.kb #act{transform:none;width:max-content;bottom:auto}
 body.kb #act .ah b{min-width:0;overflow-wrap:anywhere}
 body.sb #cards{order:6;position:static;transform:none;left:auto;top:auto;width:auto;min-width:0;max-height:min(36vh,290px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;flex:0 0 auto;gap:6px}
@@ -353,17 +360,15 @@ body.sb .evc.rc .rh .big{grid-column:2;min-width:0;overflow-wrap:anywhere}
 body.sb .evc.rc .rh span{grid-column:1 / -1;margin-top:4px;margin-right:-22px;min-width:0;overflow-wrap:anywhere}
 body.sb .evc.rc .rh span:empty{display:none}
 /* v17：側欄只有「現場紀錄」會被壓縮；新手教學框永遠完整顯示，待處理／結果卡自己捲動，快捷列永遠在畫面內 */
-body.sb #tut{flex:0 0 auto;flex-shrink:0;min-height:auto;max-height:none;overflow:visible}
 body.sb #hud>.tl{flex:0 0 auto}
 body.sb.tutOn #obj{display:none}
 body.sb #hud>#cards{flex:0 1 auto;min-height:min(56px,6vh)}
 body.sb #hud>#logW{flex:1 1 0;min-height:72px}
 body.sb #log{flex:1 1 0;min-height:0;overflow-y:auto}
-body.sb #hud>#tut{flex:0 0 auto}
 body.sb.tutLast #hud>#cards,body.sb.tutLast #labs{display:none}
 @media (max-height:780px){body.sb #hud>#logW{min-height:30px}body.sb #hud{gap:6px}}
-body.sb .ov,body.sb #mg{left:var(--sbw)}
-body.sb #chat{right:12px;bottom:12px}
+body.sb .ov,body.sb #mg{left:0;right:var(--sbw);width:auto}
+body.sb #chat{right:calc(var(--sbw) + 12px);bottom:12px}
 
 /* v20：側欄新紀錄閃一下、清單精簡註腳、世界回饋不用另開樣式 */
 @keyframes pulseGlow{0%{box-shadow:0 0 0 0 rgba(79,210,255,.55);border-color:#8ff0df}60%{box-shadow:0 0 14px 3px rgba(79,210,255,.28)}100%{box-shadow:none}}
@@ -438,12 +443,14 @@ body.kb #act .dn.more{display:block;opacity:.85}
   <div id="act" class="hidden"></div>
   <div id="toasts"></div>
   <div id="alertBar" class="hidden"></div>
-  <div id="tut" class="hidden"></div>
+  <div id="tutMini" class="hidden">🎓 新手教學</div>
   <div id="cards"></div>
   <div id="logW"><div class="lh">📜 現場紀錄</div><div id="log" aria-live="polite"></div><button id="logNew" class="hidden" type="button">↓ 新訊息</button></div>
   <div class="bar" id="bar"></div>
   <div class="keyhelp">WASD 移動・1–5 用工具・E 互動・N 筆記本</div>
 </div>
+
+<div id="tut" class="hidden"></div>
 
 <div id="chat" class="hidden">
   <div id="chatLog"></div>
@@ -454,10 +461,10 @@ body.kb #act .dn.more{display:block;opacity:.85}
 <div id="ov" class="ov hidden"><div class="win" id="win"></div></div>
 <div id="mg" class="hidden"><div class="mgw"><div class="mgh"><b id="mgT"></b><span id="mgTime"></span><button id="mgX" type="button">放下工具<span class="kbonly"> [Esc]</span></button></div><div id="mgHelp"></div><canvas id="mgC" width="640" height="440"></canvas><div id="mgMsg"></div><div id="mgF"></div></div></div>
 
-<script src="casegen.js?v=20"></script>
-<script src="engine.js?v=20"></script>
-<script src="assets.js?v=20"></script>
-<script src="minigames.js?v=20"></script>
-<script src="app.js?v=20"></script>
+<script src="casegen.js?v=21"></script>
+<script src="engine.js?v=21"></script>
+<script src="assets.js?v=21"></script>
+<script src="minigames.js?v=21"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>

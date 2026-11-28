@@ -3,24 +3,29 @@ const fs = require('fs');
 const src = fs.readFileSync(__dirname + '/e2e.js', 'utf8'); const head = src.slice(0, src.indexOf('(async () => {')).replace(/forensic_v1\d_/, 'forensic_v17_');
 eval(head + `
 async function measure(pg) {
-  return pg.evaluate(() => { const r = s => { const e = document.querySelector(s); if (!e || !e.offsetParent) return null; const b = e.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), h: e.clientHeight, sh: e.scrollHeight }; };
-    const slots = [...document.querySelectorAll('#bar .slot')].map(s => Math.round(s.getBoundingClientRect().top)); 
-    return { vh: innerHeight, sb: document.body.classList.contains('sb'), tut: r('#tut'), labs: r('#labs'), tl: r('#hud .tl'), cards: r('#cards'), nCards: document.querySelectorAll('#cards > *').length, log: r('#logW'), nLog: document.querySelectorAll('#log .lg').length, bar: r('#bar'), rows: new Set(slots).size, step: __fs.G.tut && __fs.G.tut.i + 1, pend: ((document.querySelector('#labs') || {}).textContent || '').slice(0, 60), nPend: document.querySelectorAll('#labs .pend').length }; });
+  return pg.evaluate(() => { const r = s => { const e = document.querySelector(s); if (!e || e.classList.contains('hidden') || !e.getClientRects().length) return null; const b = e.getBoundingClientRect(); const tx = e.querySelector && e.querySelector('.tx'); return { top: Math.round(b.top), bottom: Math.round(b.bottom), left: Math.round(b.left), right: Math.round(b.right), h: Math.round(e.clientHeight), sh: e.scrollHeight, txh: tx ? tx.clientHeight : Math.round(e.clientHeight), txsh: tx ? tx.scrollHeight : e.scrollHeight }; };
+    const slots = [...document.querySelectorAll('#bar .slot')].map(s => Math.round(s.getBoundingClientRect().top));
+    const st = __fs.stage(), hud = r('#hud');
+    return { vh: innerHeight, vw: innerWidth, sb: document.body.classList.contains('sb'), ox: Math.round(st.OX), cvw: Math.round(st.VW), hud, mini: r('#tutMini'), tut: r('#tut'), labs: r('#labs'), tl: r('#hud .tl'), cards: r('#cards'), nCards: document.querySelectorAll('#cards > *').length, log: r('#logW'), nLog: document.querySelectorAll('#log .lg').length, bar: r('#bar'), rows: new Set(slots).size, step: __fs.G.tut && __fs.G.tut.i + 1, pend: ((document.querySelector('#labs') || {}).textContent || '').slice(0, 60), nPend: document.querySelectorAll('#labs .pend').length, miniTxt: ((document.querySelector('#tutMini') || {}).textContent || '') }; });
 }
 async function checkAt(pg, tag0, H, want, nPend) {
   const tag = tag0 + ' 第 ' + want + ' 步';
   if (!(await pg.evaluate(() => document.querySelectorAll('#cards > *').length))) errors.push(tag + ' 沒有停靠的結果卡');
+  await pg.evaluate(() => __fs.placeTut && __fs.placeTut());
   const m = await measure(pg); console.log(tag, JSON.stringify(m));
   if (m.step !== want) errors.push(tag + ' 不在預期的步驟：' + m.step);
   if (m.nPend < nPend || m.nLog < 3 || m.rows < 2 || !m.nCards) errors.push(tag + ' 測試情境不完整（待處理／紀錄／兩排快捷列／結果卡）：' + JSON.stringify({ nPend: m.nPend, nLog: m.nLog, rows: m.rows, cards: m.nCards }));
   if (!m.sb) errors.push(tag + ' 不是側欄版面');
+  if (!m.hud || m.hud.left < m.vw / 2) errors.push(tag + ' 側欄不在右邊：' + JSON.stringify(m.hud));
   if (!m.labs || !m.tl || m.labs.top < m.tl.top - 1 || m.labs.bottom > m.tl.bottom + 1) errors.push(tag + ' 「📋 待處理」被擠出側欄可視範圍：' + JSON.stringify({ labs: m.labs, tl: m.tl }));
-  if (!m.tut || m.tut.sh > m.tut.h + 2 || m.tut.h < 90) errors.push(tag + ' 新手教學框被擠扁：' + JSON.stringify(m.tut));
+  if (!m.mini || !/新手教學/.test(m.miniTxt) || m.mini.sh > m.mini.h + 2) errors.push(tag + ' 側欄沒有精簡的教學列：' + JSON.stringify({ mini: m.mini, t: m.miniTxt }));
+  if (!m.tut || (m.tut.txsh || m.tut.sh) > (m.tut.txh || m.tut.h) + 4 || m.tut.h < 48) errors.push(tag + ' 教學提示被擠扁：' + JSON.stringify(m.tut));
+  if (m.tut && (m.tut.left < m.ox - 2 || m.tut.right > m.ox + m.cvw + 2)) errors.push(tag + ' 教學提示超出畫布：' + JSON.stringify(m.tut));
   if (!m.bar || m.bar.bottom > m.vh || m.bar.top < 0) errors.push(tag + ' 快捷列跑出畫面：' + JSON.stringify(m.bar));
   if (!m.log || m.log.h < (H > 780 ? 70 : 24)) errors.push(tag + ' 現場紀錄被擠到看不見：' + JSON.stringify(m.log));
   if (!m.cards || m.cards.h < 40) errors.push(tag + ' 結果卡被擠到看不見：' + JSON.stringify(m.cards));
-  if (m.tut && m.bar && m.tut.bottom > m.bar.top) errors.push(tag + ' 教學框和快捷列重疊');
 }
+
 (async () => {
   const br = await chromium.launch();
   for (const H of [800, 720]) {
@@ -53,15 +58,15 @@ async function checkAt(pg, tag0, H, want, nPend) {
     await pg.screenshot({ path: '/workspace/forensic_v17_tut_sidebar_worst' + (H === 720 ? '_720' : '') + '.png' });
     // 25 步的文字逐一放進教學框：每一步都完整顯示、沒有捲軸，快捷列也不會被推出畫面
     const all = await pg.evaluate(() => { const T = __fs.Tut, g = __fs.G.tut, i0 = g.i, out = [];
-      for (let k = 0; k < T.steps.length; k++) { g.i = k; T.render(); const e = document.querySelector('#tut'), b = document.querySelector('#bar').getBoundingClientRect();
-        out.push({ k: k + 1, h: e.clientHeight, sh: e.scrollHeight, bar: Math.round(b.bottom), skip: !!document.querySelector('#tutSkip, #tutHome') }); }
-      g.i = i0; T.render(); return out; });
-    const bad = all.filter(x => x.sh > x.h + 2 || x.h < 90 || !x.skip);   // 快捷列在「每一步實際的狀態」下另外檢查（tutFull）
-    console.log(tag, '25 步教學框高度：', all.map(x => x.h).join(' '));
-    if (all.length !== TUT_N || bad.length) errors.push(tag + ' 這些步驟的教學框顯示不完整：' + JSON.stringify(bad));
+      for (let k = 0; k < T.steps.length; k++) { g.i = k; T.render(); if (__fs.placeTut) __fs.placeTut(); const e = document.querySelector('#tut'), b = document.querySelector('#bar').getBoundingClientRect(), st = __fs.stage(), tr = e.getBoundingClientRect();
+        const tx = e.querySelector('.tx'); out.push({ k: k + 1, h: e.clientHeight, sh: tx ? tx.scrollHeight : e.scrollHeight, th: tx ? tx.clientHeight : e.clientHeight, bar: Math.round(b.bottom), skip: !!document.querySelector('#tutSkip, #tutHome'), l: Math.round(tr.left), r: Math.round(tr.right), ox: st.OX, vw: st.VW }); }
+      g.i = i0; T.render(); if (__fs.placeTut) __fs.placeTut(); return out; });
+    const bad = all.filter(x => x.sh > (x.th || x.h) + 4 || x.h < 48 || !x.skip || x.l < x.ox - 2 || x.r > x.ox + x.vw + 2);
+    console.log(tag, '25 步教學提示高度：', all.map(x => x.h).join(' '));
+    if (all.length !== TUT_N || bad.length) errors.push(tag + ' 這些步驟的教學提示顯示不完整：' + JSON.stringify(bad));
     await pg.close();
   }
-  // 1280×720 從頭玩到「🎉 教學完成！」：每一步（實際狀態）教學框完整、快捷列在畫面內
+  // 1280×720 從頭玩到「🎉 教學完成！」：每一步教學提示完整、快捷列在畫面內
   { const pg = await page(br, { viewport: { width: 1280, height: 720 } }); await pg.goto(BASE); await sleep(900); await pg.fill('#name', '百九'); await pg.click('#bTut'); await sleep(900);
     try { await tutFull(pg, '1280×720'); } catch (e) { errors.push('1280×720 教學：' + e.message); } await pg.close(); }
   // 推理視窗關掉（× / Esc / 看筆記本）→ 按「⚖️ 回到結案推理」回得去，草稿還在，送得出去

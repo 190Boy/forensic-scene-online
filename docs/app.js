@@ -1,7 +1,7 @@
 'use strict';
 /* 鑑識現場 — 前端（單機模式直接跑 engine.js；連線模式由伺服器權威） */
 let C = null; const GEN = window.FS_GEN, A = window.FS_ASSETS, ENG = window.FS;
-const VER = '20';
+const VER = '21';
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CH = 112;   // 比例尺：成年角色身高 H（與 casegen H_REF 一致）
@@ -46,7 +46,7 @@ const meP = () => G.st && G.st.players[G.me];
 
 /* v11：側欄的現場紀錄（電腦版）：系統提示、插曲、證據都依時間排在這裡，不再浮在畫面上 */
 const isSB = () => document.body.classList.contains('sb');
-const sbTxt = h => isSB() ? String(h).replace(/左上角?/g, '左側欄') : h; // 電腦版的 HUD 在左側欄
+const sbTxt = h => isSB() ? String(h).replace(/左上角?/g, '右側欄') : h; // 電腦版的 HUD 在右側欄
 const SBon = () => isSB() && !$('#hud').classList.contains('hidden');
 function logTime() { const st = G.st; if (!st || !C) return ''; if (st.phase === 'play' && !G.tut) return gameTime(); const s = Math.max(0, Math.floor(st.clock || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 // 跟著最新訊息，除非玩家自己往上捲（版面變高變矮不算）
@@ -523,7 +523,7 @@ $('#rmChat').onclick = () => Chat.toggle();
 /* ================= 畫面 ================= */
 const cv = $('#cv'), ctx = cv.getContext('2d');
 let VW = 0, VH = 0, OX = 0, OY = 0, DPR = 1, Z = 1, CAM = { x: 0, y: 0 };
-// v11：電腦版（寬 > 860）左邊是固定的深色側欄，畫布只佔右邊的舞台；W2S／S2W 用畫布自己的座標，滑鼠／觸控進來時減掉 OX／OY
+// v21：電腦版（寬 > 860）右邊是固定的深色側欄，畫布佔左邊的舞台；W2S／S2W 用畫布自己的座標，滑鼠／觸控進來時減掉 OX／OY
 const SB_MIN = 861;
 function resize() { DPR = Math.min(2, window.devicePixelRatio || 1); document.body.classList.toggle('sb', innerWidth >= SB_MIN && !G.noSB); const r = cv.getBoundingClientRect(); OX = r.left; OY = r.top; VW = Math.round(r.width) || innerWidth; VH = Math.round(r.height) || innerHeight; cv.width = VW * DPR; cv.height = VH * DPR; Z = Math.max(.5, Math.min(1.2, Math.min(VW / 900, VH / 620))); }
 addEventListener('resize', resize); resize();
@@ -910,7 +910,7 @@ function loop(now) {
     slowT += dt; if (slowT > .3) { slowT = 0; hudPress(); if (G.mode === 'solo') saveSolo(); Snd.ambTick(); if (G.tut) Tut.tick(); if ((G.st.boss && G.st.boss.mode === 'in' && G.nearId === 'boss') || (G.nearId && /^(cop|npc):/.test(G.nearId))) refreshAct();
       const me = meP(); if (me && me.mg && !MG.on) { G.mgStale = (G.mgStale || 0) + .3; if (G.mgStale > 3.5) { G.mgStale = 0; doAct({ type: 'mgCancel' }); } } else G.mgStale = 0; }
   }
-  render(now); try { placeAct(); } catch (e) { }
+  render(now); try { placeAct(); placeTut(); } catch (e) { }
   requestAnimationFrame(loop);
 }
 
@@ -933,17 +933,16 @@ function enterGame(needGear) {
   $('#bChat').classList.toggle('hidden', G.mode !== 'online');
   for (const c of G.st.cops || []) { c.vx = c.x; c.vy = c.y; } if (G.st.boss) { G.st.boss.vx = G.st.boss.x; G.st.boss.vy = G.st.boss.y; }
   G.Me.ang = -Math.PI / 6; Snd.startAmb();
-  $('#log').innerHTML = ''; logBottom(); logPush(G.tut ? '🎓 新手教學開始：跟著上面沈組長的提示走' : `🚓 抵達命案現場：${esc(C.victim.name)} 的案子。系統提示、插曲和證據都會依時間記在這裡`, 'inter calm');
+  $('#log').innerHTML = ''; logBottom(); logPush(G.tut ? '🎓 新手教學開始：跟著畫面上沈組長的提示走' : `🚓 抵達命案現場：${esc(C.victim.name)} 的案子。系統提示、插曲和證據都會依時間記在這裡`, 'inter calm');
   closeOv(); refresh();
   if (G.st.phase === 'deduce') openDeduce(); else if (G.st.phase === 'result') openResult(); else if (needGear) openBriefing();
 }
 // 手機：結果卡／提示卡放在左上 HUD（和教學框）的下方，不要蓋住它們
 function layoutCards() {
   const cards = $('#cards'); if (!cards) return;
-  const tut = $('#tut');
-  if (innerWidth > 640) { cards.style.top = ''; if (tut) tut.style.top = ''; return; }
-  const tl = document.querySelector('.tl'); if (tut && tl) tut.style.top = Math.round(tl.getBoundingClientRect().bottom + 6) + 'px';
-  let bottom = 0; for (const sel of ['.tl', '#tut']) { const e = document.querySelector(sel); if (e && e.offsetParent && !e.classList.contains('hidden')) bottom = Math.max(bottom, e.getBoundingClientRect().bottom); }
+  if (innerWidth > 640 || isSB()) { cards.style.top = ''; return; }
+  const tl = document.querySelector('.tl');
+  const bottom = tl && tl.offsetParent ? tl.getBoundingClientRect().bottom : 0;
   if (bottom) cards.style.top = Math.round(bottom + 8) + 'px';
 }
 setInterval(() => { try { layoutCards(); } catch (e) { } }, 250);
@@ -1121,6 +1120,206 @@ function placeAct() {
   const m = isSB() ? 12 : 70, y = Math.max(m, Math.min(VH - bh - m, py - bh / 2));
   box.style.left = Math.round(x + OX) + 'px'; box.style.top = Math.round(y + OY) + 'px';
 }
+
+/* ---------- v21：教學提示錨在目標旁邊（不蓋住目標／清單／對話泡泡） ---------- */
+const tutRect = (l, t, r, b) => ({ l, t, r, b, w: r - l, h: b - t });
+const tutHit = (a, b, pad) => !!(a && b && a.l < b.r - (pad || 0) && a.r > b.l + (pad || 0) && a.t < b.b - (pad || 0) && a.b > b.t + (pad || 0));
+const tutArea = r => r ? Math.max(0, r.w) * Math.max(0, r.h) : 0;
+function tutWorldBox(x, y, w, h, feet) {
+  const top = feet ? y - h : y;
+  const [x0, y0] = W2S(x - w / 2, top), [x1, y1] = W2S(x + w / 2, top + h);
+  return tutRect(Math.min(x0, x1) + OX, Math.min(y0, y1) + OY, Math.max(x0, x1) + OX, Math.max(y0, y1) + OY);
+}
+function tutTargetRect() {
+  const s = Tut.cur(); if (!s || !G.st) return null;
+  const w = s.want || {};
+  const boxO = o => o && tutWorldBox(o.x, o.y, o.w || 80, o.h || 80, !o.flat);
+  if (w.obj) {
+    const id = Array.isArray(w.obj) ? w.obj[0] : w.obj;
+    const o = ENG.objById(C, id); if (o) return Object.assign(boxO(o), { id, kind: 'obj' });
+  }
+  if (w.cop) {
+    const b = G.st.briefed || {};
+    const cs = (G.st.cops || []).filter(c => !c.rk || !c.known);
+    const c = w.cop === 'briefed' ? ((G.st.cops || []).find(q => b[q.id] != null) || cs[0]) : (cs.find(q => q.id === 'cop2') || cs[0]);
+    if (c) return Object.assign(tutWorldBox(c.vx != null ? c.vx : c.x, c.vy != null ? c.vy : c.y, 48, CH, true), { id: 'cop:' + c.id, kind: 'cop' });
+  }
+  if (w.sus) {
+    const ns = (G.st.npcs || []).filter(n => n.mode !== 'gone');
+    const n = ns.slice().sort((a, b) => Math.hypot((a.vx != null ? a.vx : a.x) - G.Me.x, (a.vy != null ? a.vy : a.y) - G.Me.y) - Math.hypot((b.vx != null ? b.vx : b.x) - G.Me.x, (b.vy != null ? b.vy : b.y) - G.Me.y))[0];
+    if (n) return Object.assign(tutWorldBox(n.vx != null ? n.vx : n.x, n.vy != null ? n.vy : n.y, 44, n.id === 'daughter' ? CH * .94 : CH, true), { id: 'npc:' + n.id, kind: 'npc' });
+  }
+  if (w.who === 'boss' && G.st.boss) return Object.assign(tutWorldBox(G.st.boss.x, G.st.boss.y, 52, CH, true), { id: 'boss', kind: 'boss' });
+  if (w.who === 'rookie') {
+    const c = (G.st.cops || []).find(q => q.mode === 'in') || (G.st.cops || []).find(q => q.rk && q.known);
+    if (c) return Object.assign(tutWorldBox(c.vx != null ? c.vx : c.x, c.vy != null ? c.vy : c.y, 48, CH, true), { id: 'cop:' + c.id, kind: 'rookie' });
+  }
+  const p = s.at && s.at(); if (!p) return null;
+  if (p.w && p.h) return Object.assign(boxO(p), { id: p.id || 'at', kind: 'obj' });
+  return Object.assign(tutWorldBox(p.x, p.y, 56, 80, true), { id: 'at', kind: 'pt' });
+}
+function tutPlayerRect() {
+  if (!G.Me) return null; return tutWorldBox(G.Me.x, G.Me.y, 40, CH, true);
+}
+function tutSpeechRect() {
+  const s = G.speech, who = s && speechWho(); if (!who) return null;
+  const [sx, sy] = W2S(who.x, who.y - who.h - 18);
+  const bw = 254, bh = 52;
+  const bx = Math.max(8, Math.min(VW - bw - 8, sx - bw / 2)), by = Math.max(8, Math.min(VH - bh - 24, sy - bh - 14));
+  return tutRect(bx + OX, by + OY, bx + bw + OX, by + bh + 12 + OY);
+}
+function tutActRect() {
+  const box = $('#act'); if (!box || box.classList.contains('hidden')) return null;
+  const b = box.getBoundingClientRect(), cs = getComputedStyle(box);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || b.width < 8 || b.height < 8) return null;
+  return tutRect(b.left, b.top, b.right, b.bottom);
+}
+function tutHudRects() {
+  if (isSB()) return [];
+  const out = [];
+  for (const sel of ['.tl', '.tr', '#cards', '#alertBar', '#bar']) {
+    const e = document.querySelector(sel);
+    if (!e || e.classList.contains('hidden') || (sel === '#cards' && !e.children.length)) continue;
+    const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const b = e.getBoundingClientRect(); if (b.width > 2 && b.height > 2) out.push(tutRect(b.left, b.top, b.right, b.bottom));
+  }
+  return out;
+}
+function tutModalRects() {
+  const out = [];
+  if (!$('#ov') || $('#ov').classList.contains('hidden')) {
+    const mg = $('#mg'); if (!mg || mg.classList.contains('hidden')) return out;
+  }
+  for (const sel of ['#win header', '#win .tabs', '#win footer', '#gearOk', '#submit', '#mgX', '#win [data-close]', '#win [data-tab]', '#win [data-tool]', '#win [data-an]', '#win [data-lab]']) {
+    document.querySelectorAll(sel).forEach(e => {
+      if (e.disabled) return;
+      const b = e.getBoundingClientRect(); if (b.width > 2 && b.height > 2) out.push(tutRect(b.left, b.top, b.right, b.bottom));
+    });
+  }
+  return out;
+}
+function tutCanvasRect() { return tutRect(OX, OY, OX + VW, OY + VH); }
+function tutClip(r, c, pad) {
+  const m = pad == null ? 8 : pad;
+  return tutRect(Math.max(c.l + m, r.l), Math.max(c.t + m, r.t), Math.min(c.r - m, r.r), Math.min(c.b - m, r.b));
+}
+function placeTut() {
+  const b = $('#tut'); if (!b || !G.tut || b.classList.contains('hidden')) return;
+  if (G.tutPlaceI !== G.tut.i) { G.tutSide = null; G.tutPlaceI = G.tut.i; }
+  const canvas = tutCanvasRect();
+  const ov = $('#ov'), mg = $('#mg');
+  const modal = (ov && !ov.classList.contains('hidden')) || (mg && !mg.classList.contains('hidden')) || (MG && MG.on);
+  const ui = !!(tutWant() && tutWant().ui);
+  const tg = !modal && !ui ? tutTargetRect() : null;
+  const vis = tg && tutClip(tg, canvas, 0);
+  const on = !!(vis && vis.r - vis.l > 20 && vis.b - vis.t > 20);
+  const cw = Math.max(180, b.offsetWidth || 280), ch = Math.max(56, b.offsetHeight || 90);
+  const gap = 16;
+  const act = tutActRect(), pl = tutPlayerRect(), sp = tutSpeechRect(), huds = tutHudRects(), keys = modal ? tutModalRects() : [];
+  const safe = tutRect(canvas.l + 8, canvas.t + 8, canvas.r - 8, canvas.b - 8);
+  if (act && act.t > (canvas.t + canvas.b) / 2) safe.b = Math.min(safe.b, act.t - 8);
+  for (const h of huds) {
+    if (h.b < canvas.t + (canvas.b - canvas.t) * .4 && h.t < canvas.t + 120) safe.t = Math.max(safe.t, h.b + 8);
+    if (h.t > canvas.t + (canvas.b - canvas.t) * .5) safe.b = Math.min(safe.b, h.t - 8);
+  }
+  if (safe.b - safe.t < ch + 4) safe.b = Math.max(safe.b, safe.t + ch + 4);
+  safe.w = safe.r - safe.l; safe.h = safe.b - safe.t;
+  const fit = (x0, y0, id, tail) => {
+    const raw = tutRect(x0, y0, x0 + cw, y0 + ch);
+    const overflow = (raw.l < safe.l ? safe.l - raw.l : 0) + (raw.r > safe.r ? raw.r - safe.r : 0) + (raw.t < safe.t ? safe.t - raw.t : 0) + (raw.b > safe.b ? raw.b - safe.b : 0);
+    const x = Math.max(safe.l, Math.min(safe.r - cw, x0));
+    const y = Math.max(safe.t, Math.min(safe.b - ch, y0));
+    const placed = tutRect(x, y, x + cw, y + ch);
+    const shift = Math.abs(x - x0) + Math.abs(y - y0);
+    let sc = 200 - overflow * 3 - shift * 2;
+    if (overflow > 24 || shift > 28) sc = -1e4;
+    if (tg && tutHit(placed, tg, 4)) sc -= 1000;
+    if (act && tutHit(placed, act, 2)) sc = -1e4;
+    for (const k of keys) if (tutHit(placed, k, 4)) sc -= 900;
+    if (sp && tutHit(placed, sp, 2)) sc -= 400;
+    if (pl && tutHit(placed, pl, 2)) sc -= 180;
+    for (const h of huds) if (tutHit(placed, h, 2)) sc -= 350;
+    if (id === 'right') sc += 12;
+    if (act && tg) {
+      const mid = (tg.l + tg.r) / 2, my = (tg.t + tg.b) / 2;
+      if (id === 'right' && act.l >= mid) sc -= 220;
+      if (id === 'left' && act.r <= mid) sc -= 220;
+      if (id === 'below' && act.t >= my) sc -= 120;
+      if (id === 'above' && act.b <= my) sc -= 120;
+    }
+    if (G.tutSide && id === G.tutSide) sc += 90;
+    return { id, x, y, tail: tail || '', sc, placed };
+  };
+  const cands = [];
+  if (on && tg) {
+    const midY = (tg.t + tg.b) / 2, midX = (tg.l + tg.r) / 2;
+    const visY = (Math.max(tg.t, canvas.t + 8) + Math.min(tg.b, canvas.b - 8)) / 2;
+    const visX = (Math.max(tg.l, canvas.l + 8) + Math.min(tg.r, canvas.r - 8)) / 2;
+    cands.push(fit(tg.r + gap, midY - ch / 2, 'right', 'left'));
+    cands.push(fit(tg.l - gap - cw, midY - ch / 2, 'left', 'right'));
+    cands.push(fit(midX - cw / 2, tg.t - gap - ch, 'above', 'bottom'));
+    cands.push(fit(midX - cw / 2, tg.b + gap, 'below', 'top'));
+    cands.push(fit(tg.r + gap, visY - ch / 2, 'right', 'left'));
+    cands.push(fit(tg.l - gap - cw, visY - ch / 2, 'left', 'right'));
+    cands.push(fit(visX - cw / 2, tg.t - gap - ch, 'above', 'bottom'));
+    cands.push(fit(visX - cw / 2, tg.b + gap, 'below', 'top'));
+  }
+  let dockY = Math.max(safe.t, canvas.t + 10);
+  for (const h of huds) if (h.b < canvas.t + 160) dockY = Math.max(dockY, h.b + 8);
+  const dockX = [];
+  dockX.push(safe.l + 4);
+  dockX.push(Math.max(safe.l, Math.min(safe.r - cw, (safe.l + safe.r) / 2 - cw / 2)));
+  dockX.push(safe.r - cw);
+  if (tg) {
+    const cx = (tg.l + tg.r) / 2;
+    if (cx > canvas.r) dockX.unshift(safe.r - cw);
+    else if (cx < canvas.l) dockX.unshift(safe.l + 4);
+    else dockX.unshift(Math.max(safe.l, Math.min(safe.r - cw, cx - cw / 2)));
+  }
+  const dockYs = [dockY, Math.max(safe.t, safe.b - ch - 4)];
+  if (modal) {
+    const tabs = document.querySelector('#win .tabs, #win header');
+    const foot = document.querySelector('#win footer');
+    if (tabs) { const r = tabs.getBoundingClientRect(); dockYs.push(Math.max(safe.t, Math.min(safe.b - ch, r.bottom + 10))); }
+    if (foot) { const r = foot.getBoundingClientRect(); dockYs.push(Math.max(safe.t, Math.min(safe.b - ch, r.top - ch - 10))); }
+  }
+  for (const y of dockYs) for (const x of dockX) cands.push(fit(x, y, 'dock', ''));
+  cands.sort((a, b) => b.sc - a.sc);
+  let pick = cands[0];
+  const sides = cands.filter(c => c.id === 'right' || c.id === 'left' || c.id === 'above' || c.id === 'below');
+  const cur = sides.find(c => c.id === G.tutSide);
+  if (cur && cur.sc > 0 && pick && (pick.id === cur.id || pick.sc - cur.sc < 70) && cur.sc >= (sides[0] ? sides[0].sc - 70 : 0)) {
+    if (pick.id === 'dock' && cur.sc > 0) pick = cur;
+    else if (pick.sc - cur.sc < 70 && cur.sc > 0) pick = cur;
+  }
+  // 有目標在畫面上時，優先選不會蓋住目標／清單的側邊
+  if (on && tg) {
+    const okSide = sides.find(c => c.sc > -500 && !tutHit(c.placed, tg, 2) && !(act && tutHit(c.placed, act, 2)));
+    if (okSide && (pick.id === 'dock' || pick.sc < okSide.sc || tutHit(pick.placed, tg, 2) || (act && tutHit(pick.placed, act, 2)))) pick = okSide;
+  }
+  if (!pick) pick = { x: safe.l, y: safe.t, tail: '', id: 'dock', sc: 0, placed: tutRect(safe.l, safe.t, safe.l + cw, safe.t + ch) };
+  const blocked = c => (act && tutHit(c.placed, act, 2)) || (tg && on && tutHit(c.placed, tg, 2) && c.sc <= -500) || keys.some(k => tutHit(c.placed, k, 4));
+  if (pick && blocked(pick)) {
+    const better = cands.find(c => !blocked(c));
+    if (better) pick = better;
+  }
+  let x = pick.x, y = pick.y, side = pick.tail || '', dock = !side || pick.id === 'dock' || modal || !on;
+  if (side && (pick.id === 'right' || pick.id === 'left' || pick.id === 'above' || pick.id === 'below')) G.tutSide = pick.id;
+  x = Math.max(safe.l, Math.min(safe.r - cw, x));
+  y = Math.max(safe.t, Math.min(safe.b - ch, y));
+  b.style.left = Math.round(x) + 'px';
+  b.style.top = Math.round(y) + 'px';
+  b.dataset.side = side;
+  b.classList.toggle('dock', dock);
+  if (side === 'left' || side === 'right') {
+    const mid = tg ? ((tg.t + tg.b) / 2 - y) : ch / 2;
+    b.style.setProperty('--ptr', Math.max(14, Math.min(ch - 14, mid)) + 'px');
+  } else if (side === 'top' || side === 'bottom') {
+    const mid = tg ? ((tg.l + tg.r) / 2 - x) : cw / 2;
+    b.style.setProperty('--ptr', Math.max(16, Math.min(cw - 16, mid)) + 'px');
+  }
+}
+
 document.addEventListener('click', e => { if (e.target.closest('#callCops')) doAct({ type: 'callcops' }); });
 $('#act').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -1549,20 +1748,23 @@ const Tut = {
     G.tut = { i: 0, ev: [], sawMan: false }; G.seen = new Set(); G.glinted = new Set(); document.body.classList.add('tutOn');
     enterGame(false); this.render(); Snd.startAmb();
   },
-  stop() { G.tut = null; document.body.classList.remove('tutOn', 'tutLast'); const b = $('#tut'); if (b) b.classList.add('hidden'); document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl')); },
+  stop() { G.tut = null; G.tutSide = null; document.body.classList.remove('tutOn', 'tutLast'); const b = $('#tut'); if (b) b.classList.add('hidden'); const m = $('#tutMini'); if (m) m.classList.add('hidden'); document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl')); },
   cur() { return G.tut && this.steps[G.tut.i]; },
   target() { const s = this.cur(); if (!s || !s.at || !G.st) return null; const p = s.at(); if (!p) return null; const o = p.h ? { x: p.x, y: p.y - (p.flat ? 0 : p.h) } : p; return o; },
   tick() {
     const s = this.cur(); if (!s) return;
     if (s.tick) s.tick();
-    if (s.done && s.done()) { G.tut.i++; const n = this.cur(); if (n && n.enter) n.enter(); Snd.ding(false); this.render(); if (n && n.last) LS.set('fs_tutDone', '1'); if (G.ovKind === 'van' && G.ovRender) { vanSel = null; G.ovRender(); } refreshAct(); }
+    if (s.done && s.done()) { G.tut.i++; G.tutSide = null; const n = this.cur(); if (n && n.enter) n.enter(); Snd.ding(false); this.render(); if (n && n.last) LS.set('fs_tutDone', '1'); if (G.ovKind === 'van' && G.ovRender) { vanSel = null; G.ovRender(); } refreshAct(); placeTut(); }
     document.querySelectorAll('.hl').forEach(e => e.classList.remove('hl'));
     const c = this.cur(); if (c && c.hl) for (const sel of c.hl) document.querySelectorAll(sel).forEach(e => e.classList.add('hl'));
   },
   render() {
     const s = this.cur(), b = $('#tut'); if (!s) return;
-    b.innerHTML = `<img src="${url('mentor_portrait')}" alt=""><div class="tx"><div class="st">🎓 新手教學　${G.tut.i + 1} / ${this.steps.length}　・沈組長</div>${sbTxt(s.t)}<div>${s.last ? '<button class="pri" id="tutHome">🏠 回首頁開始正式案件</button>' : '<button id="tutSkip" style="font-size:12px;padding:4px 8px">跳過教學</button>'}</div></div>`;
-    b.classList.remove('hidden'); document.body.classList.toggle('tutLast', !!s.last);   // 結案後：側欄不再顯示待處理／結果卡，教學總整理完整顯示
+    b.innerHTML = `<i class="ptr" aria-hidden="true"></i><img src="${url('mentor_portrait')}" alt=""><div class="tx"><div class="st">🎓 新手教學　${G.tut.i + 1} / ${this.steps.length}　・沈組長</div>${sbTxt(s.t)}<div>${s.last ? '<button class="pri" id="tutHome">🏠 回首頁開始正式案件</button>' : '<button id="tutSkip" style="font-size:12px;padding:4px 8px">跳過教學</button>'}</div></div>`;
+    b.classList.remove('hidden'); document.body.classList.toggle('tutLast', !!s.last);
+    const mini = $('#tutMini');
+    if (mini) { mini.textContent = `🎓 新手教學 ${G.tut.i + 1}/${this.steps.length}`; mini.classList.toggle('hidden', !isSB()); }
+    placeTut();
   }
 };
 $('#tut').addEventListener('click', e => { if (e.target.closest('#tutSkip') && confirm('跳過新手教學？')) { Tut.stop(); backHome(); } if (e.target.closest('#tutHome')) { Tut.stop(); closeOv(); backHome(); } });
@@ -1585,4 +1787,4 @@ function mapPNG(mode) { const keep = G.mapOnly; G.mapOnly = mode || 'clean'; G.n
 // 測試用：世界座標 → 瀏覽器視窗座標（含側欄位移）
 const w2c = (x, y) => { const [sx, sy] = W2S(x, y); return [sx + OX, sy + OY]; };
 const stage = () => ({ OX, OY, VW, VH, Z, sb: isSB() });
-window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard, Net, tutAllows, tutIds, tutWant, packOpts, speakNPC, pulseEl };
+window.__fs = { w2c, stage, log: logPush, mapPNG, G, get C() { return C; }, ENG, MG, mgFinish: s => MG.finish(s), mgDbg: () => MG.dbg(), doAct, openPerson, openVan, openNote, openDeduce, refresh, Tut, bodyCheck, toast, banner, resultCard, Net, tutAllows, tutIds, tutWant, packOpts, speakNPC, pulseEl, placeTut, tutTargetRect };

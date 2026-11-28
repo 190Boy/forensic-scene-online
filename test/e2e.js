@@ -1,7 +1,7 @@
 // NODE_PATH=<playwright> node test/e2e.js [baseUrl] — v2：用真的瀏覽器跑新手教學＋一局正式案件＋連線＋iPhone，截圖存到 /workspace/forensic_v2_*.png
 const { chromium, webkit, devices } = require('playwright');
 const BASE = process.argv[2] || 'http://localhost:3811/';
-const OUT = '/workspace/forensic_v20_';
+const OUT = '/workspace/forensic_v21_';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const shots = [];
 async function shot(pg, name) { await pg.screenshot({ path: OUT + name + '.png' }); shots.push(OUT + name + '.png'); }
@@ -50,14 +50,57 @@ async function tutSocial(pg, order = 'door') {
 }
 async function tutChase(pg, find, until, ms = 30000) { const t0 = Date.now(); while (Date.now() - t0 < ms && (await tutStep(pg)) < until) { const q = await pg.evaluate(find); if (q) await tp(pg, q.x + 6, q.y + 8); await sleep(200); } await waitStep(pg, until, 3000); }
 // 從頭玩到「🎉 教學完成！」：每一步都檢查步驟號碼一格一格往前走（小遊戲自動給高分；opt.manual 讓呼叫的人自己玩）
+
+async function checkTutCallout(pg, tag, step) {
+  await pg.evaluate(() => { if (__fs.placeTut) __fs.placeTut(); });
+  const r = await pg.evaluate(() => {
+    const t = document.querySelector('#tut'), st = __fs.stage();
+    if (!t || t.classList.contains('hidden')) return { missing: true };
+    const hit = (a, b, pad) => a && b && a.l < b.r - pad && a.r > b.l + pad && a.t < b.b - pad && a.b > b.t + pad;
+    const box = e => { const b = e.getBoundingClientRect(); return { l: +b.left.toFixed(1), t: +b.top.toFixed(1), r: +b.right.toFixed(1), b: +b.bottom.toFixed(1) }; };
+    const tr = box(t), canvas = { l: st.OX, t: st.OY, r: st.OX + st.VW, b: st.OY + st.VH };
+    const tg = __fs.tutTargetRect ? __fs.tutTargetRect() : null;
+    const actEl = document.querySelector('#act');
+    const act = actEl && !actEl.classList.contains('hidden') && actEl.getBoundingClientRect().width > 8 ? box(actEl) : null;
+    const tgOn = tg && tg.r > canvas.l + 20 && tg.l < canvas.r - 20 && tg.b > canvas.t + 20 && tg.t < canvas.b - 20;
+    const ov = document.querySelector('#ov'), mg = document.querySelector('#mg');
+    const modal = (ov && !ov.classList.contains('hidden')) || (mg && !mg.classList.contains('hidden'));
+    let btnHit = null;
+    if (modal) {
+      for (const sel of ['#gearOk', '#submit', '#win header [data-close]', '#win footer [data-close]', '#mgX', '#win [data-tab]', '#win [data-tool]', '#win [data-an]', '#win [data-lab]']) {
+        const el = document.querySelector(sel); if (!el || el.disabled) continue;
+        const b = box(el); if (b.r - b.l > 2 && hit(tr, b, 2)) btnHit = sel;
+      }
+    }
+    return {
+      step: __fs.G.tut ? __fs.G.tut.i + 1 : 0, missing: false, tut: tr, canvas, tg: tg && { l: +tg.l.toFixed(1), t: +tg.t.toFixed(1), r: +tg.r.toFixed(1), b: +tg.b.toFixed(1), id: tg.id }, tgOn, act,
+      inside: tr.l >= canvas.l - 2 && tr.r <= canvas.r + 2 && tr.t >= canvas.t - 2 && tr.b <= canvas.b + 2,
+      hitTarget: !!(tgOn && !modal && hit(tr, tg, 2)), hitAct: !!(act && hit(tr, act, 2)), modal, btnHit, dock: t.classList.contains('dock'),
+      h: (t.querySelector('.tx') || t).clientHeight, sh: (t.querySelector('.tx') || t).scrollHeight,
+      mini: ((document.querySelector('#tutMini') || {}).textContent || '').trim(), sb: document.body.classList.contains('sb')
+    };
+  });
+  const label = `${tag} 第 ${step} 步教學提示`;
+  if (r.missing) { errors.push(label + '：沒有出現'); return r; }
+  if (!r.inside) errors.push(label + '：超出畫布 ' + JSON.stringify({ tut: r.tut, canvas: r.canvas }));
+  if (r.sh > r.h + 4) errors.push(label + '：文字被裁切 ' + JSON.stringify({ h: r.h, sh: r.sh }));
+  if (r.tgOn && r.hitTarget) errors.push(label + '：蓋到目標 ' + JSON.stringify({ tut: r.tut, tg: r.tg }));
+  if (r.hitAct) errors.push(label + '：蓋到互動清單 ' + JSON.stringify({ tut: r.tut, act: r.act }));
+  if (r.btnHit) errors.push(label + '：蓋到視窗按鈕 ' + r.btnHit);
+  if (r.sb && !/新手教學/.test(r.mini)) errors.push(label + '：側欄沒有精簡教學列：' + r.mini);
+  return r;
+}
 async function tutFull(pg, tag) {
   const seen = []; const mark = async n => { await waitStep(pg, n); seen.push(n); await sleep(120);
-    const sb = await pg.evaluate(() => { if (!document.body.classList.contains('sb')) return null; const t = document.querySelector('#tut'), b = document.querySelector('#bar').getBoundingClientRect(); if (!t.offsetParent) return null;
-      return { h: t.clientHeight, sh: t.scrollHeight, bar: Math.round(b.bottom), vh: innerHeight }; });
-    if (sb && (sb.sh > sb.h + 2 || sb.h < 90 || sb.bar > sb.vh)) errors.push(`${tag} 第 ${n + 1} 步側欄：教學框被擠扁或快捷列跑出畫面 ` + JSON.stringify(sb)); };
+    const bar = await pg.evaluate(() => { const b = document.querySelector('#bar'); return b && Math.round(b.getBoundingClientRect().bottom); });
+    if (bar > await pg.evaluate(() => innerHeight)) errors.push(`${tag} 第 ${n + 1} 步快捷列跑出畫面：` + bar);
+    await checkTutCallout(pg, tag, n + 1); };
   await pg.evaluate(() => { window.__hlSeen = {}; setInterval(() => { const T = __fs.Tut, g = __fs.G.tut; const s = g && T.steps[g.i]; if (s && s.hl && s.hl.some(q => document.querySelector(q))) __hlSeen[g.i] = 1; }, 80); });
   await tp(pg, 640, 718); await mark(1);
-  await tutSocial(pg); seen.push(2, 3, 4, 5);
+  await tutCop(pg); await act(pg, '聽取初步報告'); await mark(2);
+  await act(pg, '守住大門'); await mark(3);
+  await tutSus(pg); await act(pg, '觀察嫌疑人'); await sleep(1300); await mark(4);
+  await tutSus(pg); await act(pg, '周旋'); await mark(5);
   await tutGear(pg, ['camera', 'luminol', 'prints']); await mark(6); await closeWin(pg);
   await toObj(pg, 'body'); await act(pg, '近拍傷口'); await mark(7);
   await toObj(pg, 'floor_living'); await act(pg, '噴灑魯米諾'); await mark(8);
@@ -73,12 +116,12 @@ async function tutFull(pg, tag) {
   await tutVan(pg); await tutAnalyze(pg, 'blood'); await mark(18);
   await pg.click('[data-lab="phone"]'); await sleep(300); await mark(19); await closeWin(pg);
   await pg.waitForFunction(() => __fs.G.st.boss.mode === 'in', null, { timeout: 15000 });
-  await tutChase(pg, () => { const B = __fs.G.st.boss; return B.mode === 'in' ? { x: B.x, y: B.y } : null; }, 20); seen.push(20);
+  await tutChase(pg, () => { const B = __fs.G.st.boss; return B.mode === 'in' ? { x: B.x, y: B.y } : null; }, 20); await mark(20);
   await pg.waitForFunction(() => (__fs.G.st.cops || []).some(c => c.mode === 'in'), null, { timeout: 8000 });
-  await tutChase(pg, () => { const c = (__fs.G.st.cops || []).find(c => c.mode === 'in'); return c && { x: c.x, y: c.y }; }, 21); seen.push(21);
+  await tutChase(pg, () => { const c = (__fs.G.st.cops || []).find(c => c.mode === 'in'); return c && { x: c.x, y: c.y }; }, 21); await mark(21);
   await pg.click('#bNote'); await sleep(300); for (const t of ['cop', 'cmp', 'man']) { await pg.click('#win [data-tab="' + t + '"]'); await sleep(150); } await mark(22); await closeWin(pg);
   await pg.click('#bClose'); await mark(23); await sleep(500);
-  await deduceAndSubmit(pg, null); await mark(24); await sleep(400);
+  await deduceAndSubmit(pg, null); await mark(24); await sleep(400); await checkTutCallout(pg, tag, 25);
   const fin = await pg.evaluate(() => ({ i: __fs.G.tut.i, n: __fs.Tut.steps.length, txt: document.querySelector('#tut').textContent, home: !!document.querySelector('#tutHome'), res: __fs.G.st.result && __fs.G.st.result.rank }));
   console.log(`${tag} 完整教學：${fin.i + 1}/${fin.n} 步，結果 ${fin.res}`);
   if (fin.n !== TUT_N || fin.i !== TUT_N - 1 || !/教學完成/.test(fin.txt) || !fin.home) errors.push(tag + ' 教學沒有走到「🎉 教學完成！」：' + JSON.stringify(fin));
@@ -340,7 +383,7 @@ async function deduceAndSubmit(pg, name) {
     { const r = await vp.evaluate(() => { const w = document.querySelector('#win'), b = w.querySelector('.body'), im = w.querySelector('.su img'); return { img: im && [Math.round(im.getBoundingClientRect().width), Math.round(im.getBoundingClientRect().height)], scroll: b ? b.scrollHeight > b.clientHeight + 2 : false, h: Math.round(w.getBoundingClientRect().height) }; });
       console.log('關係人視窗：', JSON.stringify(r)); if (!r.img || r.img[0] > 200 || r.scroll) errors.push('關係人視窗版面不對：' + JSON.stringify(r)); }
     await closeWin(vp); await vp.context().close(); }
-  /* ---------- 2d. v11：電腦版左側固定側欄＋右邊乾淨的舞台（座標、點擊、分局長泡泡、現場紀錄） ---------- */
+  /* ---------- 2d. v11：電腦版右側固定側欄＋左邊乾淨的舞台（座標、點擊、分局長泡泡、現場紀錄） ---------- */
   { const vp = await page(br, { viewport: { width: 1366, height: 800 } });
     await vp.goto(BASE + '?seed=158'); await sleep(900); await vp.fill('#name', '百九'); await vp.click('#bSolo'); await sleep(700); await vp.click('#win footer [data-close]').catch(() => { }); await sleep(300);
     await vp.evaluate(() => { __fs.G.st.quietUntil = 1e9; });
@@ -348,13 +391,13 @@ async function deduceAndSubmit(pg, name) {
       const o = { sb: document.body.classList.contains('sb'), hud: r('#hud'), cv: r('#cv'), stage: __fs.stage(), parts: {} }; for (const s of ['.room', '.tl', '.tr', '#bNote', '#bClose', '#bMenu', '#logW', '.bar', '.keyhelp']) o.parts[s] = r(s); return o; });
     console.log('v11 側欄：', JSON.stringify({ sb: L.sb, hud: L.hud, cv: L.cv }));
     if (!L.sb || !L.hud || L.hud.w < 268 || L.hud.w > 342) errors.push('側欄寬度不對：' + JSON.stringify(L.hud));
-    if (!L.cv || Math.abs(L.cv.l - L.hud.w) > 2 || Math.abs(L.cv.w - (1366 - L.hud.w)) > 2) errors.push('畫布沒有貼齊右邊舞台：' + JSON.stringify(L.cv));
-    for (const [k, b] of Object.entries(L.parts)) { if (!b) errors.push('側欄少了 ' + k); else if (b.r > L.hud.w + 1 || b.b > 801) errors.push('側欄元件跑出側欄：' + k + JSON.stringify(b)); }
+    if (!L.cv || Math.abs(L.cv.l) > 2 || Math.abs(L.hud.l - L.cv.r) > 2 || Math.abs(L.cv.w - (1366 - L.hud.w)) > 2 || L.hud.l < 1366 / 2) errors.push('畫布沒有貼齊左側舞台／側欄不在右邊：' + JSON.stringify({ cv: L.cv, hud: L.hud }));
+    for (const [k, b] of Object.entries(L.parts)) { if (!b) errors.push('側欄少了 ' + k); else if (b.l < L.hud.l - 1 || b.r > L.hud.r + 1 || b.b > 801) errors.push('側欄元件跑出側欄：' + k + JSON.stringify(b)); }
     if (L.parts['#logW'] && L.parts['#logW'].h < 120) errors.push('現場紀錄太矮：' + L.parts['#logW'].h);
     // 現場紀錄：自動捲到最新；往上捲時不跳，出現「↓ 新訊息」
     { const r = await vp.evaluate(async () => { for (let i = 0; i < 40; i++) __fs.log('測試訊息 ' + i); const b = document.querySelector('#log'); const atEnd = b.scrollTop + b.clientHeight >= b.scrollHeight - 2; b.scrollTop = 0; await new Promise(r => setTimeout(r, 60)); __fs.log('往上捲時的新訊息'); const stay = b.scrollTop === 0, pill = !document.querySelector('#logNew').classList.contains('hidden'); document.querySelector('#logNew').click(); const back = b.scrollTop + b.clientHeight >= b.scrollHeight - 2; const time = (b.querySelector('.lg time') || {}).textContent; b.innerHTML = ''; return { atEnd, stay, pill, back, time }; });
       console.log('現場紀錄捲動：', JSON.stringify(r)); if (!r.atEnd || !r.stay || !r.pill || !r.back || !/\d+:\d\d/.test(r.time || '')) errors.push('現場紀錄捲動不對：' + JSON.stringify(r)); }
-    // 點擊畫布上的物件（畫布往右移了，座標要準）
+    // 點擊畫布上的物件（畫布在左側，座標要準）
     await tp(vp, 1300, 640); await sleep(800);
     { const st = await vp.evaluate(() => __fs.stage()); await vp.addStyleTag({ content: '#act{visibility:hidden!important}' });
       const objs = await vp.evaluate(() => { const C = __fs.C, G = __fs.G; return C.objects.filter(o => !o.deco && !o.van && !G.st.obj[o.id].gone && o.id !== 'floor_living').map(o => { const [cx, cy] = __fs.w2c(o.x, o.flat ? o.y : o.y - Math.min(30, (o.h || 40) / 3)); return { id: o.id, cx, cy }; }); });
@@ -376,7 +419,7 @@ async function deduceAndSubmit(pg, name) {
     { const b = await vp.evaluate(() => ({ x: __fs.G.st.boss.x, y: __fs.G.st.boss.y })); await tp(vp, b.x + 150, b.y + 70); await sleep(900);
       await vp.evaluate(() => { document.querySelector('#cards').innerHTML = ''; });
       const r = await vp.evaluate(() => { const B = __fs.G.st.boss, st = __fs.stage(); const pts = []; for (const dx of [-110, -60, 0, 60, 110]) for (const dy of [-215, -185, -150, -110, -60, 0]) pts.push(__fs.w2c(B.x + dx, B.y + dy));
-        const bad = pts.filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight).map(([x, y]) => { const e = document.elementFromPoint(x, y); return e && e.id !== 'cv' && !e.closest('#act') ? (e.id || e.className || e.tagName) + '@' + Math.round(x) + ',' + Math.round(y) : null; }).filter(Boolean);
+        const bad = pts.filter(([x, y]) => x >= st.OX && y >= 0 && x < st.OX + st.VW && y < innerHeight).map(([x, y]) => { const e = document.elementFromPoint(x, y); return e && e.id !== 'cv' && !e.closest('#act') && !e.closest('#tut') ? (e.id || e.className || e.tagName) + '@' + Math.round(x) + ',' + Math.round(y) : null; }).filter(Boolean);
         const [bx] = __fs.w2c(B.x, B.y); return { bad, inStage: bx > st.OX + 60 && bx < st.OX + st.VW - 60 }; });
       console.log('分局長泡泡：', JSON.stringify(r)); if (r.bad.length || !r.inStage) errors.push('分局長泡泡被蓋住或不在舞台內：' + JSON.stringify(r));
       await shot(vp, 'supervisor_clean'); }
@@ -384,7 +427,7 @@ async function deduceAndSubmit(pg, name) {
     await tp(vp, 1000, 720); await sleep(1200); await vp.evaluate(() => { document.querySelector('#cards').innerHTML = ''; }); await shot(vp, 'desktop_sidebar'); await shot(vp, 'desktop_newmap');
     // 側欄模式的小遊戲：在舞台中間，座標照樣準
     await toObj(vp, 'body'); await act(vp, '採集死者血液', { manual: true }); await sleep(400);
-    { const r = await vp.evaluate(() => { const m = document.querySelector('.mgw').getBoundingClientRect(), st = __fs.stage(); return { l: Math.round(m.left), r: Math.round(m.right), OX: Math.round(st.OX) }; }); console.log('側欄模式小遊戲位置：', JSON.stringify(r)); if (r.l < r.OX) errors.push('小遊戲蓋到側欄：' + JSON.stringify(r)); }
+    { const r = await vp.evaluate(() => { const m = document.querySelector('.mgw').getBoundingClientRect(), st = __fs.stage(); return { l: Math.round(m.left), r: Math.round(m.right), OX: Math.round(st.OX), VW: Math.round(st.VW) }; }); console.log('側欄模式小遊戲位置：', JSON.stringify(r)); if (r.l < r.OX - 2 || r.r > r.OX + r.VW + 2) errors.push('小遊戲蓋到側欄：' + JSON.stringify(r)); }
     await mgAuto(vp, .9);
     await vp.close(); }
 
